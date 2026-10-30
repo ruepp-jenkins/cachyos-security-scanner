@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cachy-security-scanner"
+version = "0.1.0"
+description = "Tray front end for AUR malware checkers on CachyOS"
+requires-python = ">=3.12"
+license = { text = "GPL-3.0-or-later" }
+dependencies = ["PySide6"]
+
+[project.scripts]
+cachy-security-scanner = "cachy_sec.bootstrap:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]

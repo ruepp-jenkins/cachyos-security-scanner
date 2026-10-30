@@ -1,0 +1,10 @@
+[Trigger]
+Operation = Install
+Operation = Upgrade
+Type = Package
+Target = *
+
+[Action]
+Description = Notifying CachyOS Security Scanner of package changes...
+When = PostTransaction
+Exec = /usr/bin/touch /var/lib/cachy-security-scanner/trigger

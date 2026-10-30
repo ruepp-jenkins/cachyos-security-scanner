@@ -1,0 +1,39 @@
+name: Release
+# Create a GitHub release (tag vX.Y.Z); this workflow builds, signs and attaches the update bundle.
+on:
+  release:
+    types: [published]
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Check tag matches package version
+        run: |
+          ver="${GITHUB_REF_NAME#v}"
+          grep -q "__version__ = \"$ver\"" src/cachy_sec/__init__.py || { echo "tag $GITHUB_REF_NAME != __version__"; exit 1; }
+          grep -q "^version = \"$ver\"" pyproject.toml || { echo "tag != pyproject version"; exit 1; }
+          echo "VERSION=$ver" >> "$GITHUB_ENV"
+      - run: python -m unittest discover -s tests
+      - name: Build update bundle
+        run: |
+          mkdir dist
+          tar --sort=name --owner=0 --group=0 --numeric-owner --mtime='UTC 2020-01-01' \
+            -C src -czf "dist/cachy-security-scanner-${VERSION}.tar.gz" --exclude='__pycache__' cachy_sec
+          cd dist && sha256sum "cachy-security-scanner-${VERSION}.tar.gz" > SHA256SUMS
+      - name: Sign checksums
+        env:
+          SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
+        run: |
+          umask 077
+          printf '%s\n' "$SIGNING_KEY" > "$RUNNER_TEMP/key"
+          ssh-keygen -Y sign -f "$RUNNER_TEMP/key" -n cachy-security-scanner dist/SHA256SUMS
+          rm -f "$RUNNER_TEMP/key"
+      - name: Attach to release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" dist/* --clobber

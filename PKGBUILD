@@ -1,4 +1,4 @@
-# Maintainer: <you>
+# Maintainer: ruepp-jenkins <https://github.com/ruepp-jenkins>
 pkgname=cachy-security-scanner
 pkgver=0.0.1
 pkgrel=1

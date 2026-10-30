@@ -7,19 +7,20 @@ url='https://github.com/ruepp-jenkins/cachyos-security-scanner'
 arch=('any')
 license=('GPL-3.0-or-later')
 depends=('python' 'git' 'openssh' 'pyside6' 'libnotify' 'pacman')
-makedepends=('python-build' 'python-installer' 'python-setuptools' 'python-wheel')
+makedepends=('git' 'python-build' 'python-installer' 'python-setuptools' 'python-wheel')
 optdepends=('rust: build aur-scan automatically if the aur-scanner package is not installed'
             'aur-scanner: PKGBUILD/installed AUR package analysis (aur-scan)'
             'clamui: on-request binary scans')
-source=()
+source=("$pkgname::git+$url.git#tag=v$pkgver")
+sha256sums=('SKIP')  # git source pinned to a release tag
 
 build() {
-  cd "$startdir"
+  cd "$srcdir/$pkgname"
   python -m build --wheel --no-isolation --outdir "$srcdir/dist"
 }
 
 package() {
-  cd "$startdir"
+  cd "$srcdir/$pkgname"
   python -m installer --destdir="$pkgdir" "$srcdir"/dist/*.whl
   install -Dm644 data/cachy-security-scanner.hook "$pkgdir/usr/share/libalpm/hooks/cachy-security-scanner.hook"
   install -Dm644 data/cachy-security-scanner.conf "$pkgdir/usr/lib/tmpfiles.d/cachy-security-scanner.conf"

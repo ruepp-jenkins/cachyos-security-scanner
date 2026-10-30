@@ -4,6 +4,14 @@ Tray app for CachyOS/Arch desktops. It runs in the background, scans on a schedu
 notification when something is found. It only provides the UI and scheduling; detection is done by
 external tools. Removal of flagged packages is optional and always needs your click.
 
+## Install (CachyOS / Arch)
+One line, builds and installs the latest release with pacman (needs `base-devel` and `git`):
+
+    d=$(mktemp -d) && cd "$d" && curl -fsSLO https://github.com/ruepp-jenkins/cachyos-security-scanner/releases/latest/download/PKGBUILD && makepkg -si
+
+Then start "CachyOS Security Scanner" from the application menu (it also autostarts on next login).
+Later versions update themselves from GitHub Releases (see Auto-update); to remove: `sudo pacman -Rns cachy-security-scanner`.
+
 ## Backends (both AUR scanners enabled by default, toggle in Settings)
 | Backend | Source | Notes |
 |---|---|---|

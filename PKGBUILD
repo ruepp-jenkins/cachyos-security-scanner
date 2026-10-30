@@ -1,6 +1,6 @@
 # Maintainer: <you>
 pkgname=cachy-security-scanner
-pkgver=0.1.0
+pkgver=0.0.1
 pkgrel=1
 pkgdesc='Tray app that runs AUR malware checkers in the background and notifies on findings'
 url='https://github.com/ruepp-jenkins/cachyos-security-scanner'

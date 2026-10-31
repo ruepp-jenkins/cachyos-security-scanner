@@ -12,6 +12,7 @@ import time
 
 from . import autostart, engine, history, icons, ignores, notify, remove, scheduler, singleton, updater
 from .scanners import clamd
+from .scanners.base import ERROR, ScanResult
 from .settings import Settings
 from .findings_dialog import FindingsDialog
 from .history_dialog import HistoryDialog
@@ -19,15 +20,22 @@ from .settings_dialog import SettingsDialog
 
 TRIGGER = Path("/var/lib/cachy-security-scanner/trigger")  # touched by the pacman hook
 DEBOUNCE_MS = 30_000
+RESTART_POLL_MS = 5_000
 
 
 class _Job(QRunnable):
-    def __init__(self, fn, done) -> None:
+    def __init__(self, fn, done, on_error=None) -> None:
         super().__init__()
-        self.fn, self.done = fn, done
+        self.fn, self.done, self.on_error = fn, done, on_error
 
     def run(self) -> None:
-        self.done.emit(self.fn())
+        try:
+            payload = self.fn()
+        except Exception as e:  # noqa: BLE001 - without a result the app would stay "busy" and never restart
+            if self.on_error is None:
+                raise
+            payload = self.on_error(e)
+        self.done.emit(payload)
 
 
 class _Done(QObject):
@@ -74,6 +82,7 @@ class Tray(QObject):
         self.busy = False
         self.rescan_pending = False
         self._unsaved = False  # True while the last settings save failed
+        self.pending_version, self._restart_waited, self._restart_hinted = "", 0, False
         self.last_report: engine.Report | None = None
         self.pool = QThreadPool.globalInstance()
         self.done = _Done()
@@ -170,16 +179,42 @@ class Tray(QObject):
             self.act_restart.setVisible(True)
             if updater.supervised():
                 notify.notify("Security scanner updated", f"Version {msg} was installed and is applied automatically as soon as nothing is running.", kind="good")
-                self.restart_timer.start(5000)
+                self.pending_version, self._restart_waited, self._restart_hinted = msg, 0, False
+                self.restart_timer.start(RESTART_POLL_MS)
             else:  # started directly (e.g. from source): no supervisor that could relaunch us
                 notify.notify("Security scanner updated", f"Version {msg} was installed. Restart the app to use it.", kind="good")
         elif self.upd_manual:
             notify.notify("Update check", msg if state == "current" else f"Update failed: {msg}",
                           kind="good" if state == "current" else "bad")
 
+    def _track_dialog(self, dlg) -> None:
+        """Remember an open window (it delays an automatic restart) and forget it when it is gone."""
+        self._dialogs.append(dlg)
+        dlg.destroyed.connect(lambda *_: dlg in self._dialogs and self._dialogs.remove(dlg))
+
+    def _restart_blocker(self) -> str | None:
+        """Why an automatic restart must wait right now, or None if nothing would be interrupted."""
+        if self.busy:
+            return "a scan is running"
+        for d in [self.settings_dlg, *self._dialogs]:
+            try:
+                if d is not None and d.isVisible():
+                    return f"the window \"{d.windowTitle()}\" is open"
+            except RuntimeError:  # the C++ window is already gone
+                continue
+        return None
+
     def _restart_if_idle(self) -> None:
-        """Apply a pending update once no package scan, dialog or removal would be interrupted."""
-        if self.busy or self._dialogs or self.settings_dlg is not None:
+        """Apply a pending update once no package scan or open window would be interrupted."""
+        reason = self._restart_blocker()
+        label = f"Restart to apply update {self.pending_version}"
+        if reason:
+            self.act_restart.setText(f"{label} (waiting: {reason})")
+            self._restart_waited += RESTART_POLL_MS
+            if not self._restart_hinted and self._restart_waited >= 60_000:
+                self._restart_hinted = True  # say once why nothing happens
+                notify.notify("Update waiting", f"The update is installed but the restart waits because {reason}. "
+                              "Close it, or use \"Restart to apply update\" in the tray menu.", kind="info")
             return
         self.restart_timer.stop()
         self._restart()
@@ -219,7 +254,12 @@ class Tray(QObject):
             history.record(report, trigger, started, time.time() - started, s.history_keep)
             return report, manual
 
-        self.pool.start(_Job(job, self.done))
+        def failed(e: Exception):
+            import traceback
+            r = ScanResult("internal", ERROR, [], f"internal error: {e}", log=traceback.format_exc())
+            return engine.Report([r]), manual
+
+        self.pool.start(_Job(job, self.done, failed))
 
     def scan_binaries(self) -> None:
         """Open a terminal showing the live clamdscan output; everything else is up to the user."""
@@ -253,15 +293,9 @@ class Tray(QObject):
                              self.settings.editor_command, self._ignore_finding,
                              lambda: self.scan(manual=True, trigger="after ignore"), scan_info, report.notes)
         box.setAttribute(Qt.WA_DeleteOnClose)
-        self._dialogs.append(box)  # keep a reference while open
+        self._track_dialog(box)  # keeps a reference while open and delays an automatic restart
         self._findings_dialogs.append(box)
-
-        def gone(*_) -> None:
-            for lst in (self._dialogs, self._findings_dialogs):
-                if box in lst:
-                    lst.remove(box)
-
-        box.destroyed.connect(gone)
+        box.destroyed.connect(lambda *_: box in self._findings_dialogs and self._findings_dialogs.remove(box))
         box.show()
 
     def _ignore_finding(self, package: str, version: str, codes: list[str]) -> None:
@@ -279,13 +313,14 @@ class Tray(QObject):
                             QMessageBox.Yes | QMessageBox.No)
             q.setAttribute(Qt.WA_DeleteOnClose)
             q.finished.connect(lambda r: self._do_remove(pkgs) if r == QMessageBox.Yes else None)
-            self._dialogs.append(q)
+            self._track_dialog(q)
             q.open()
         else:
             self._do_remove(pkgs)
 
     def _do_remove(self, pkgs: list[str]) -> None:
-        self.pool.start(_Job(lambda: (remove.remove_packages(pkgs), False), self.rm_done))
+        self.pool.start(_Job(lambda: (remove.remove_packages(pkgs), False), self.rm_done,
+                             lambda e: ((False, f"internal error: {e}"), False)))
 
     def _removed(self, result, _manual) -> None:
         done, out = result
@@ -306,14 +341,8 @@ class Tray(QObject):
             return
         dlg = self.history_dlg = HistoryDialog()
         dlg.setAttribute(Qt.WA_DeleteOnClose)
-        self._dialogs.append(dlg)
-
-        def gone(*_) -> None:
-            self.history_dlg = None
-            if dlg in self._dialogs:
-                self._dialogs.remove(dlg)
-
-        dlg.destroyed.connect(gone)
+        self._track_dialog(dlg)
+        dlg.destroyed.connect(lambda *_: setattr(self, "history_dlg", None))
         dlg.show()
 
     def open_settings(self) -> None:

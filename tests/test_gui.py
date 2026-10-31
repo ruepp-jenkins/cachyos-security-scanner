@@ -149,6 +149,54 @@ class GuiTest(unittest.TestCase):
         self.assertTrue(tray.settings.use_aur_scan)
         self.assertTrue(json.loads(Path(st.config_path()).read_text())["use_aur_scan"])
 
+    def test_pending_restart_waits_only_for_visible_windows_and_scans(self):
+        tray = self._tray()
+        exits = []
+        with mock.patch.object(appmod.QApplication, "exit", side_effect=exits.append), \
+             mock.patch.object(appmod.updater, "supervised", return_value=True):
+            tray.pending_version = "9.9.9"
+            # a settings window that was created but never shown (or already closed) must not block the restart
+            tray.settings_dlg = self._track(SettingsDialog(st.Settings()))
+            self.assertIsNone(tray._restart_blocker())
+            # a visible window does
+            tray.settings_dlg.show()
+            self.assertIn("window", tray._restart_blocker())
+            tray._restart_if_idle()
+            self.assertEqual(exits, [])
+            self.assertIn("waiting", tray.act_restart.text())  # the tray entry says why
+            tray.settings_dlg.hide()
+            # a running scan does too
+            tray.busy = True
+            self.assertEqual(tray._restart_blocker(), "a scan is running")
+            tray._restart_if_idle()
+            self.assertEqual(exits, [])
+            tray.busy = False
+            tray._restart_if_idle()
+            self.assertEqual(exits, [75])  # idle: restart requested
+            tray.settings_dlg = None
+
+    def test_a_failing_scan_does_not_leave_the_app_busy(self):
+        tray = self._tray()
+        with mock.patch.object(engine, "run_scan", side_effect=RuntimeError("boom")):
+            tray.scan(manual=True)
+            pump(lambda: not tray.busy, 5)
+        self.assertFalse(tray.busy)  # otherwise no scan could ever run again and no restart could happen
+        self.assertIn("internal error", tray.last_report.summary())
+
+    def test_closed_windows_are_forgotten(self):
+        from PySide6.QtWidgets import QMessageBox
+        tray = self._tray()
+        box = QMessageBox()
+        box.setAttribute(appmod.Qt.WA_DeleteOnClose)
+        tray._track_dialog(box)
+        box.show()  # windows the user can see are the ones that matter
+        self.assertEqual(len(tray._dialogs), 1)
+        box.close()
+        pump(lambda: not tray._dialogs, 3)
+        QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+        pump(lambda: not tray._dialogs, 3)
+        self.assertEqual(tray._dialogs, [])
+
     def test_help_button_opens_the_settings_reference(self):
         d = self._track(SettingsDialog(st.Settings()))
         help_btn = d.findChild(QDialogButtonBox).button(QDialogButtonBox.Help)

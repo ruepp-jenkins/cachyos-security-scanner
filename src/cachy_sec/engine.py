@@ -14,7 +14,7 @@ from .settings import Settings
 
 def enabled_scanners(s: Settings) -> list[Scanner]:
     pairs = [(s.use_aur_malware_check, AurMalwareCheck),
-             (s.use_aur_scan, lambda: AurScan(s.ignored_findings)),
+             (s.use_aur_scan, lambda: AurScan(s.ignored_findings, s.use_false_positive_list)),
              (s.use_builtin_list, BuiltinList)]
     return [make() for on, make in pairs if on]
 

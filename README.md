@@ -65,6 +65,16 @@ updated the entry no longer matches, so the finding is reported again if it stil
 the same version is reported too. If the installed version cannot be determined, nothing is hidden. The static
 list in Settings (default `SCAN-001`) is separate and applies to every package and version.
 
+## Community false-positive list (aur-scan, opt-in)
+Heuristic scanners cry wolf. The project keeps a list of **known false positives per software version** in
+[`false-positives/aur-scan.json`](false-positives/aur-scan.json); each entry records package, versions, rule codes,
+author, report date, a reason and optionally a description. Tick *"Use the community false-positive list"* under the
+aur-scan settings to let the app hide exactly those findings (it is **off by default**: you decide whether to trust the
+list). The list only hides; every hidden finding is noted in the scan log with its reason, author and date. It is
+published signed on the rolling `false-positives` release and verified against the app's embedded key; without a valid
+signature nothing is hidden. To report one, use the issue template *Report an aur-scan false positive* or open a pull
+request (see [`false-positives/README.md`](false-positives/README.md)).
+
 ## Scan history
 Tray menu → "Scan history…" lists every scan, with **one entry per scanner** (start time, scanner, trigger, status, summary); selecting one shows its
 full log, including the raw output of each scanner. A scanner that is enabled but cannot be set up or run gets an entry with status `error` and the reason

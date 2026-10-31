@@ -1,0 +1,37 @@
+name: Report an aur-scan false positive
+description: A finding of ks-aur-scanner (aur-scan) that is harmless. Maintainers review it before it is added to the list.
+title: "False positive: <package> <version> <rule code>"
+labels: ["false-positive"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Only report findings you have **checked yourself** (PKGBUILD, install script and other files of the package).
+        Accepted reports end up in `false-positives/aur-scan.json` and hide the finding for users who enabled the list.
+  - type: input
+    id: package
+    attributes: { label: Package name, placeholder: heidisql }
+    validations: { required: true }
+  - type: input
+    id: version
+    attributes:
+      label: Exact installed version (as shown by `pacman -Q`)
+      placeholder: "1:12.22-1"
+    validations: { required: true }
+  - type: input
+    id: codes
+    attributes:
+      label: Rule code(s) reported by aur-scan
+      placeholder: DEEP-001
+    validations: { required: true }
+  - type: textarea
+    id: why
+    attributes:
+      label: Why is it harmless?
+      description: Which files/lines trigger it and what they really do. Link the AUR page or upstream if possible.
+    validations: { required: true }
+  - type: textarea
+    id: log
+    attributes:
+      label: Scan output (optional)
+      render: text

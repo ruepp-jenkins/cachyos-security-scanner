@@ -239,6 +239,93 @@ class IconsTest(unittest.TestCase):
         self.assertEqual(engine.Report([], skipped="gaming mode active").kind, "info")
 
 
+def _fp_entry(**kw):
+    e = {"package": "heidisql", "versions": ["1:12.*"], "codes": ["DEEP-001"], "reason": "unzip + bash -c in different files",
+         "author": "someone", "reported": "2026-10-31"}
+    e.update(kw)
+    return {"schema": 1, "entries": [e]}
+
+
+class FalsePositiveListTest(unittest.TestCase):
+    def test_repo_list_is_valid(self):
+        from cachy_sec import fplist
+        data = json.loads((Path(__file__).resolve().parents[1] / "false-positives" / "aur-scan.json").read_text())
+        self.assertTrue(fplist.validate(data))
+
+    def test_validation_rules(self):
+        from cachy_sec import fplist
+        e = fplist.validate(_fp_entry(description="more text"))[0]
+        self.assertEqual((e.author, e.reported, e.description), ("someone", "2026-10-31", "more text"))
+        self.assertEqual(fplist.validate(_fp_entry())[0].description, "")  # description is optional
+        for bad in (_fp_entry(author=""), _fp_entry(reported="31.10.2026"), _fp_entry(reported="2026-13-01"),
+                    _fp_entry(versions=["*"]), _fp_entry(versions=[]), _fp_entry(codes=["deep-001"]),
+                    _fp_entry(codes=["*"]), _fp_entry(reason="short"), _fp_entry(reference="http://x"),
+                    _fp_entry(package="Bad Name"), {"schema": 2, "entries": []}, []):
+            with self.assertRaises(ValueError, msg=str(bad)):
+                fplist.validate(bad)
+        missing = _fp_entry()
+        del missing["entries"][0]["author"]
+        with self.assertRaises(ValueError):
+            fplist.validate(missing)
+
+    def test_match_with_globs_and_versions(self):
+        from cachy_sec import fplist
+        entries = fplist.validate(_fp_entry())
+        self.assertIsNotNone(fplist.match(entries, "heidisql", "1:12.22-1", "DEEP-001"))
+        self.assertIsNone(fplist.match(entries, "heidisql", "2:1.0-1", "DEEP-001"))   # other version
+        self.assertIsNone(fplist.match(entries, "heidisql", "1:12.22-1", "DEEP-003"))  # other rule
+        self.assertIsNone(fplist.match(entries, "other", "1:12.22-1", "DEEP-001"))
+        self.assertIsNone(fplist.match(entries, "heidisql", "", "DEEP-001"))  # unknown version: hide nothing
+
+    def test_refresh_requires_valid_signature_and_load_reverifies(self):
+        import os, subprocess
+        from cachy_sec import fplist, updater
+        with tempfile.TemporaryDirectory() as d, mock.patch.dict(os.environ, {"XDG_CACHE_HOME": d}):
+            key = Path(d) / "k"
+            subprocess.run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", str(key)], check=True)
+            pub = (Path(d) / "k.pub").read_text().strip()
+            payload = Path(d) / "aur-scan.json"
+            payload.write_text(json.dumps(_fp_entry()))
+            subprocess.run(["ssh-keygen", "-Y", "sign", "-q", "-f", str(key), "-n", fplist.SIG_NAMESPACE, str(payload)], check=True)
+            files = {fplist._url("aur-scan.json"): payload.read_bytes(), fplist._url("aur-scan.json.sig"): (Path(d) / "aur-scan.json.sig").read_bytes()}
+            with mock.patch.object(updater, "_get", side_effect=lambda u, limit=0: files[u]):
+                self.assertEqual(fplist.refresh(force=True, pubkey=pub), (True, "updated"))
+                self.assertEqual(len(fplist.load(pub)), 1)
+                self.assertTrue(fplist.refresh(pubkey=pub)[1].startswith("cache is fresh"))
+                self.assertEqual(fplist.load(""), [])  # no signing key configured: nothing is trusted
+                other = Path(d) / "o"
+                subprocess.run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", str(other)], check=True)
+                self.assertEqual(fplist.load((Path(d) / "o.pub").read_text().strip()), [])  # wrong signer
+            # tampered cache file is rejected on load
+            fplist._paths()[0].write_text(json.dumps(_fp_entry(codes=["DEEP-003"])))
+            self.assertEqual(fplist.load(pub), [])
+            # a bad download never replaces the cache
+            files[fplist._url("aur-scan.json")] = b'{"schema":1,"entries":[]}'
+            with mock.patch.object(updater, "_get", side_effect=lambda u, limit=0: files[u]):
+                ok, msg = fplist.refresh(force=True, pubkey=pub)
+            self.assertFalse(ok)
+
+    def test_aur_scan_uses_list_only_when_enabled_and_notes_it_in_the_log(self):
+        from cachy_sec import fplist
+        out = "Scanning: heidisql ISSUES: 1 critical\n    DEEP-001 Decode - /p/PKGBUILD\n"
+        entries = fplist.validate(_fp_entry())
+        common = [mock.patch("cachy_sec.scanners.aur_scan.run", return_value=(1, out)),
+                  mock.patch.object(AurScan, "_binary", return_value="/x/aur-scan"),
+                  mock.patch("cachy_sec.ignores.installed_versions", return_value={"heidisql": "1:12.22-1"}),
+                  mock.patch("cachy_sec.ignores.load", return_value=[]),
+                  mock.patch("cachy_sec.fplist.load", return_value=entries),
+                  mock.patch("cachy_sec.fplist.refresh", return_value=(True, "ok"))]
+        for p in common:
+            p.start()
+        self.addCleanup(mock.patch.stopall)
+        off = AurScan(use_fp_list=False).scan()
+        self.assertEqual(off.status, WARNING)  # opt-in: not used unless the checkbox is on
+        on = AurScan(use_fp_list=True).scan()
+        self.assertEqual(on.status, CLEAN)
+        self.assertIn("hidden by the community false-positive list", on.log)
+        self.assertIn("reported by someone, 2026-10-31", on.log)
+
+
 class IgnoreTest(unittest.TestCase):
     SAMPLE = "Scanning: heidisql ISSUES: 1 critical\n    DEEP-001 Decode - /p/PKGBUILD\n    DEEP-003 Bidi - /p/PKGBUILD\n"
 

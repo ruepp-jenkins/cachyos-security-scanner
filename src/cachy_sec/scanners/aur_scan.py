@@ -11,7 +11,7 @@ import shutil
 from collections.abc import Callable
 from pathlib import Path
 
-from .. import ignores, vendor
+from .. import fplist, ignores, vendor
 from .base import CLEAN, ERROR, WARNING, Finding, Scanner, ScanResult, run, which
 
 _ERROR_CODES = {124, 126, 127}
@@ -107,8 +107,10 @@ class AurScan(Scanner):
     name = "aur_scan"
     label = "aur-scan (ks-aur-scanner)"
 
-    def __init__(self, ignore: list[str] | None = None) -> None:
+    def __init__(self, ignore: list[str] | None = None, use_fp_list: bool = False) -> None:
         self._ignore = frozenset(ignore or [])
+        self._use_fp = use_fp_list  # opt-in: signed community false-positive list from the project's GitHub
+        self._fp_checked = False
         self._prepared = False
         self._build_log = ""
 
@@ -128,8 +130,14 @@ class AurScan(Scanner):
         code, out = run(BUILD_CMD + ["--manifest-path", str(_dir() / "Cargo.toml")], 3600)
         return code == 0, out
 
+    def _refresh_fp(self) -> None:
+        self._fp_checked = True
+        if self._use_fp:
+            fplist.refresh()  # failure keeps the previous verified cache; nothing is hidden without one
+
     def update(self) -> None:
         self._prepared = True
+        self._refresh_fp()
         if which("aur-scan"):
             return  # package-managed
         before = vendor.head(_dir()) if _dir().exists() else ""
@@ -158,10 +166,27 @@ class AurScan(Scanner):
             return ScanResult(self.name, CLEAN, log=out)
         if code in _ERROR_CODES:
             return ScanResult(self.name, ERROR, [], f"exit {code}: {out[-500:]}", log=out)
+        if self._use_fp and not self._fp_checked:
+            self._refresh_fp()
         versions = ignores.installed_versions()
-        findings = parse_output(out, self.label, self._ignore, ignores.matcher(versions), versions)
+        user = ignores.matcher(versions)
+        entries = fplist.load() if self._use_fp else []
+        hits: dict[str, str] = {}
+
+        def suppress(pkg: str, rule: str) -> bool:
+            if user(pkg, rule):
+                return True
+            e = fplist.match(entries, pkg, versions.get(pkg, ""), rule)
+            if e:
+                hits[f"{pkg} {versions.get(pkg)} {rule}"] = f"{e.reason} (reported by {e.author}, {e.reported})"
+            return e is not None
+
+        findings = parse_output(out, self.label, self._ignore, suppress, versions)
+        if hits:  # transparency: show what the community list hid
+            out += "\n\n--- hidden by the community false-positive list ---\n" + "\n".join(
+                f"{k}: {v}" for k, v in hits.items()) + "\n"
         if not findings and recognized(out):
-            return ScanResult(self.name, CLEAN, log=out)  # everything it reported is on the ignore list
+            return ScanResult(self.name, CLEAN, log=out)  # everything it reported is on an ignore list
         if not findings:
             findings = [Finding(WARNING, "aur-scan reported findings at or above 'high'", self.label)]
         return ScanResult(self.name, WARNING, findings, out[-2000:], log=out)

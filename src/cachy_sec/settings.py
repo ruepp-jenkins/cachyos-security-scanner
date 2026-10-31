@@ -38,6 +38,8 @@ class Settings:
     use_aur_malware_check: bool = True
     use_aur_scan: bool = False  # heuristic analysis, produces false positives: opt-in
     use_builtin_list: bool = False  # off until a public blocklist source exists
+    # Opt-in: hide aur-scan findings that the project's signed community list marks as known false positives.
+    use_false_positive_list: bool = False
     # aur-scan results to hide: a rule code (SCAN-001), a package (heidisql) or package:CODE
     ignored_findings: list[str] = field(default_factory=lambda: list(DEFAULT_IGNORED))
     # Binary scan with clamdscan runs only on request from the tray menu.

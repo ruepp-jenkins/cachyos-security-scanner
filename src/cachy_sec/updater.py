@@ -157,7 +157,8 @@ def is_newer(candidate: str) -> bool:
     return (parse_version(candidate) or ()) > (parse_version(effective_version()) or ())
 
 
-def verify_signature(signed: bytes, signature: bytes, pubkey: str | None = None) -> None:
+def verify_signature(signed: bytes, signature: bytes, pubkey: str | None = None,
+                     namespace: str = SIG_NAMESPACE) -> None:
     pubkey = SIGNER_PUBKEY if pubkey is None else pubkey
     if not pubkey.strip():
         raise UpdateError("no release signing key configured; refusing to update")
@@ -166,8 +167,8 @@ def verify_signature(signed: bytes, signature: bytes, pubkey: str | None = None)
     with tempfile.TemporaryDirectory() as d:
         sig, signers = Path(d, "sums.sig"), Path(d, "allowed")
         sig.write_bytes(signature)
-        signers.write_text(f'release namespaces="{SIG_NAMESPACE}" {pubkey.strip()}\n')
-        p = subprocess.run(["ssh-keygen", "-Y", "verify", "-f", str(signers), "-I", "release", "-n", SIG_NAMESPACE,
+        signers.write_text(f'release namespaces="{namespace}" {pubkey.strip()}\n')
+        p = subprocess.run(["ssh-keygen", "-Y", "verify", "-f", str(signers), "-I", "release", "-n", namespace,
                             "-s", str(sig)], input=signed, capture_output=True, timeout=30)
     if p.returncode != 0:
         raise UpdateError("signature verification failed")

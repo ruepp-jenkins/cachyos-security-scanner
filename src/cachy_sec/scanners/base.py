@@ -20,6 +20,7 @@ class Finding:
     files: list[str] = field(default_factory=list)  # files the finding refers to (absolute paths), for "open files"
     version: str = ""  # installed version of `package` when found; ignores are bound to it
     codes: list[str] = field(default_factory=list)  # rule codes behind the finding (scanner specific)
+    rules: list[tuple[str, str, int]] = field(default_factory=list)  # (code, short title, occurrences) per rule
 
 @dataclass
 class ScanResult:

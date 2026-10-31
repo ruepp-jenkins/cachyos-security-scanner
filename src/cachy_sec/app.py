@@ -210,7 +210,8 @@ class Tray(QObject):
     def _offer_removal(self, report: engine.Report) -> None:
         """Non-modal: the dialog never blocks the tray, other scans or update checks."""
         box = FindingsDialog(report.summary(), report.findings, engine.infected_packages(report), self._remove_clicked,
-                             self.settings.editor_command, self._ignore_finding)
+                             self.settings.editor_command, self._ignore_finding,
+                             lambda: self.scan(manual=True, trigger="after ignore"))
         box.setAttribute(Qt.WA_DeleteOnClose)
         self._dialogs.append(box)  # keep a reference while open
         box.destroyed.connect(lambda *_: self._dialogs.remove(box) if box in self._dialogs else None)
@@ -223,7 +224,7 @@ class Tray(QObject):
             notify.notify("Ignore failed", str(e), kind="bad")
             return
         notify.notify("Finding ignored", f"{package} {version}: {', '.join(codes)} – reported again after an update.", kind="info")
-        self.scan(manual=True, trigger="after ignore")  # refresh the tray state and the history
+        # the re-scan (tray state, history) runs once when the findings window is closed
 
     def _remove_clicked(self, pkgs: list[str]) -> None:
         if self.settings.confirm_before_remove:

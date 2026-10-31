@@ -79,6 +79,24 @@ def matcher(versions: dict[str, str], entries: list[Ignore] | None = None):
     return suppress
 
 
+@dataclass
+class Row:
+    """One ignorable entry in the findings window: a rule that fired for a package at its installed version."""
+    package: str
+    version: str
+    code: str
+    title: str
+    count: int
+
+
+def rows(findings) -> list[Row]:
+    out = []
+    for f in findings:
+        if f.package and f.version:
+            out += [Row(f.package, f.version, code, title, n) for code, title, n in f.rules]
+    return out
+
+
 def installed_versions() -> dict[str, str]:
     """Foreign (AUR) packages and their full installed version (epoch:pkgver-pkgrel). Empty if pacman fails."""
     code, out = run(["pacman", "-Qm"], 30)

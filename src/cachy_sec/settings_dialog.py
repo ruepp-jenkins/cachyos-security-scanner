@@ -50,13 +50,19 @@ class SettingsDialog(QDialog):
         bl = QVBoxLayout(back)
         self.b_amc = self._backend(bl, "aur-malware-check (lenucksi)", s.use_aur_malware_check, AurMalwareCheck())
         self.b_scan = self._backend(bl, "aur-scan (ks-aur-scanner) – heuristic, can produce false positives; only enable if you know what it does", s.use_aur_scan, AurScan())
-        self.b_list = self._backend(bl, "Built-in blocklist (off by default: no public list yet; needs CACHY_SEC_BLOCKLIST_URL)", s.use_builtin_list, BuiltinList())
+        # belongs to aur-scan: indented below it and only usable while aur-scan is enabled
         self.b_fp = QCheckBox("Use the community false-positive list (maintained in the project's GitHub repository)")
         self.b_fp.setChecked(s.use_false_positive_list)
         self.b_fp.setToolTip("A signed list of known false positives for specific software versions. It only hides the listed\n"
                              "findings for the listed versions. Off by default: enable it only if you trust the list.\n"
                              "Every hidden finding is noted in the scan log.")
-        bl.addWidget(self.b_fp)
+        fp_row = QHBoxLayout()
+        fp_row.setContentsMargins(24, 0, 0, 0)
+        fp_row.addWidget(self.b_fp)
+        bl.addLayout(fp_row)
+        self.b_scan.toggled.connect(self.b_fp.setEnabled)
+        self.b_fp.setEnabled(self.b_scan.isChecked())
+        self.b_list = self._backend(bl, "Built-in blocklist (off by default: no public list yet; needs CACHY_SEC_BLOCKLIST_URL)", s.use_builtin_list, BuiltinList())
         bl.addWidget(QLabel("aur-scan: findings to ignore, one per line (rule code like SCAN-001, a package name, or package:CODE):"))
         self.ignored = QPlainTextEdit("\n".join(s.ignored_findings))
         self.ignored.setMaximumHeight(70)

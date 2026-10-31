@@ -346,6 +346,26 @@ class IgnoreTest(unittest.TestCase):
             f = parse_output(self.SAMPLE, "x", suppress=ignores.matcher({}, entries), versions={})
             self.assertEqual(f[0].codes, ["DEEP-001", "DEEP-003"])  # version unknown: fail open, show it
 
+    def test_one_row_per_rule_for_the_findings_window(self):
+        from cachy_sec import ignores
+        from cachy_sec.scanners.aur_scan import parse_output
+        sample = ("Scanning: rdm ISSUES: 4 critical\n    SCAN-001 Package file could not be analyzed: a.zst - /p/a.zst\n"
+                  "    SCAN-001 Package file could not be analyzed: b.zst - /p/b.zst\n    DEEP-001 Decode - /p/PKGBUILD\n"
+                  "    DEEP-003 Bidi - /p/PKGBUILD\n")
+        v = {"rdm": "1-1"}
+        f = parse_output(sample, "x", versions=v)
+        rows = ignores.rows(f)
+        self.assertEqual([(r.package, r.version, r.code, r.count) for r in rows],
+                         [("rdm", "1-1", "SCAN-001", 2), ("rdm", "1-1", "DEEP-001", 1), ("rdm", "1-1", "DEEP-003", 1)])
+        self.assertEqual(rows[0].title, "Package file could not be analyzed")
+        self.assertEqual(ignores.rows(parse_output(sample, "x", versions={})), [])  # unknown version: nothing to bind to
+        # ticking entries off one at a time: each ignore only hides its own rule
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "i.json"
+            ignores.add("rdm", "1-1", ["SCAN-001"], p)
+            f = parse_output(sample, "x", suppress=ignores.matcher(v, ignores.load(p)), versions=v)
+            self.assertEqual([r.code for r in ignores.rows(f)], ["DEEP-001", "DEEP-003"])
+
     def test_add_merges_validates_and_revokes(self):
         from cachy_sec import ignores
         with tempfile.TemporaryDirectory() as d:

@@ -58,9 +58,13 @@ def parse_output(out: str, label: str, ignore: frozenset[str] | set[str] = froze
             detail = "\n".join(f"{c} {t}" + (f"  [{p}]" if p else "") for c, t, p in kept)
             n = len(kept)
             files = list(dict.fromkeys(p for _, _, p in kept if p))
+            per_code: dict[str, list] = {}
+            for (c, t), cnt in groups.items():
+                per_code.setdefault(c, [t, 0])[1] += cnt
+            rules = [(c, t, cnt) for c, (t, cnt) in per_code.items()]
             findings.append(Finding(WARNING, f"{pkg}: {n} issue{'s' if n != 1 else ''} – {what}", label, package=pkg,
                                     detail=detail, files=files, version=(versions or {}).get(pkg, ""),
-                                    codes=list(dict.fromkeys(c for c, _, _ in kept))))
+                                    codes=list(dict.fromkeys(c for c, _, _ in kept)), rules=rules))
 
     for line in out.splitlines():
         m = _HEADER.match(line)

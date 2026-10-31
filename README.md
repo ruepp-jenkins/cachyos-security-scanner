@@ -58,8 +58,9 @@ packages give a menu. The folder is only opened, nothing in it is run; with VSCo
 Restricted Mode (do not "trust" it).
 
 ## Accepting a finding (aur-scan)
-In the "Possible compromise" window, **Ignore for this version…** accepts the shown rule codes of one package
-for exactly its installed version (`epoch:pkgver-pkgrel`). It is stored in
+In the "Possible compromise" window every entry (one rule of one package) has its own **Ignore** button, so you can
+tick them off one by one. It accepts that rule for exactly the installed version (`epoch:pkgver-pkgrel`); the re-scan
+runs once when you close the window. It is stored in
 `~/.config/cachy-security-scanner/ignored_findings.json` and can be revoked in Settings. After the package is
 updated the entry no longer matches, so the finding is reported again if it still applies; a different rule code for
 the same version is reported too. If the installed version cannot be determined, nothing is hidden. The static

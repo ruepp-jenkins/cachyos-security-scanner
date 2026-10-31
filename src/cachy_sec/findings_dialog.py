@@ -1,16 +1,19 @@
-"""Dialog shown when a scan finds something: summary, collapsible details, optional removal."""
+"""Dialog shown when a scan finds something: entries (each with its own Ignore button), details, removal."""
 from __future__ import annotations
 
 from collections.abc import Callable
-
-from PySide6.QtGui import QFont, QIcon
-from PySide6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QMenu, QMessageBox, QPlainTextEdit, QPushButton, QVBoxLayout)
-
-from . import icons, opener
 from pathlib import Path
 
-COLLAPSED_SIZE = (640, 200)
-EXPANDED_SIZE = (900, 560)  # roomy enough that file paths and issue lines do not wrap
+from PySide6.QtGui import QFont, QIcon
+from PySide6.QtWidgets import (QDialog, QFrame, QHBoxLayout, QLabel, QMenu, QPlainTextEdit, QPushButton,
+                               QScrollArea, QVBoxLayout, QWidget)
+
+from . import icons, ignores, opener
+
+COLLAPSED_WIDTH = 700
+EXPANDED_SIZE = (900, 620)  # roomy enough that file paths and issue lines do not wrap
+MAX_VISIBLE_ROWS = 6
+ROW_HEIGHT = 36
 
 
 def details_text(findings) -> str:
@@ -23,10 +26,13 @@ def details_text(findings) -> str:
 
 class FindingsDialog(QDialog):
     def __init__(self, summary: str, findings, pkgs: list[str], on_remove: Callable[[list[str]], None],
-                 editor: str = "", on_ignore: Callable[[str, str, list[str]], None] | None = None) -> None:
+                 editor: str = "", on_ignore: Callable[[str, str, list[str]], None] | None = None,
+                 on_changed: Callable[[], None] | None = None) -> None:
         super().__init__()
         self.editor = editor
         self.on_ignore = on_ignore
+        self.on_changed = on_changed  # called once when the window closes after at least one ignore
+        self._ignored_any = False
         self.setWindowTitle("Possible compromise")
         self.setWindowIcon(QIcon(icons.path(icons.BAD)))
         root = QVBoxLayout(self)
@@ -40,6 +46,25 @@ class FindingsDialog(QDialog):
         text.setWordWrap(True)
         top.addWidget(text, 1)
         root.addLayout(top)
+
+        entries = ignores.rows(findings) if on_ignore else []
+        self._entries_height = 0
+        if entries:
+            root.addWidget(QLabel("Each entry can be accepted on its own, for exactly the installed version "
+                                  "(reported again after an update):"))
+            area = QScrollArea()
+            area.setWidgetResizable(True)
+            area.setFrameShape(QFrame.StyledPanel)
+            inner = QWidget()
+            lay = QVBoxLayout(inner)
+            lay.setContentsMargins(6, 4, 6, 4)
+            for r in entries:
+                lay.addLayout(self._entry_row(r))
+            lay.addStretch()
+            area.setWidget(inner)
+            self._entries_height = min(len(entries), MAX_VISIBLE_ROWS) * ROW_HEIGHT + 16
+            area.setMinimumHeight(self._entries_height)
+            root.addWidget(area)
 
         self.details = QPlainTextEdit(details_text(findings), readOnly=True)
         mono = QFont("monospace")
@@ -69,17 +94,6 @@ class FindingsDialog(QDialog):
                     menu.addAction(f"{pkg}  ({d})", lambda d=d: self._open(d))
                 op.setMenu(menu)
             row.addWidget(op)
-        ignorable = [f for f in findings if f.package and f.version and f.codes]
-        if ignorable and on_ignore:
-            ig = QPushButton("Ignore for this version…")
-            ig.setToolTip("Accept these findings for exactly the installed version of the software.\n"
-                          "After an update of the package they are reported again if they still apply.")
-            menu = QMenu(ig)
-            for f in ignorable:
-                act = menu.addAction(f"{f.package} {f.version}  –  {', '.join(f.codes)}")
-                act.triggered.connect(lambda _=False, f=f, act=act: self._ignore(f, act))
-            ig.setMenu(menu)
-            row.addWidget(ig)
         if pkgs:
             rm = QPushButton("Remove packages…")
             rm.clicked.connect(lambda: on_remove(pkgs))
@@ -88,20 +102,34 @@ class FindingsDialog(QDialog):
         close.clicked.connect(self.close)
         row.addWidget(close)
         root.addLayout(row)
-        self.resize(*COLLAPSED_SIZE)
+        self.resize(COLLAPSED_WIDTH, 200 + self._entries_height)
 
-    def _ignore(self, f, action) -> None:
-        q = QMessageBox.question(
-            self, "Ignore findings",
-            f"Ignore {', '.join(f.codes)} for {f.package} {f.version}?\n\n"
-            "This only applies to exactly this version. When the package is updated and the problem is still "
-            "there, you will be notified again. You can revoke it in the settings.")
-        if q != QMessageBox.Yes:
-            return
-        self.on_ignore(f.package, f.version, list(f.codes))
-        action.setEnabled(False)
-        self.details.setVisible(True)
-        self.details.appendPlainText(f"\nIgnored for {f.package} {f.version}: {', '.join(f.codes)}")
+    def _entry_row(self, r: ignores.Row) -> QHBoxLayout:
+        line = QHBoxLayout()
+        times = f"  ×{r.count}" if r.count > 1 else ""
+        label = QLabel(f"{r.package} {r.version} – {r.code} {r.title}{times}")  # plain text: scanner output is untrusted
+        label.setWordWrap(True)
+        line.addWidget(label, 1)
+        btn = QPushButton("Ignore")
+        btn.setToolTip(f"Accept {r.code} for {r.package} {r.version} only.\n"
+                       "After an update of the package it is reported again if it still applies.\n"
+                       "Revoke it any time in the settings.")
+        btn.clicked.connect(lambda _=False, r=r, b=btn, lb=label: self._ignore(r, b, lb))
+        line.addWidget(btn)
+        return line
+
+    def _ignore(self, r: ignores.Row, button: QPushButton, label: QLabel) -> None:
+        self.on_ignore(r.package, r.version, [r.code])
+        self._ignored_any = True
+        button.setEnabled(False)
+        button.setText("Ignored")
+        label.setEnabled(False)
+
+    def closeEvent(self, event) -> None:  # noqa: N802 - Qt override
+        super().closeEvent(event)
+        if self._ignored_any and self.on_changed:
+            self._ignored_any = False
+            self.on_changed()  # re-scan once, after the user is done ticking entries off
 
     def _open(self, directory: Path) -> None:
         ok, msg = opener.open_directory(directory, self.editor)
@@ -112,4 +140,7 @@ class FindingsDialog(QDialog):
     def _toggled(self, on: bool) -> None:
         self.details.setVisible(on)
         self.toggle.setText("Hide details" if on else "Show details")
-        self.resize(*(EXPANDED_SIZE if on else COLLAPSED_SIZE))
+        if on:
+            self.resize(max(self.width(), EXPANDED_SIZE[0]), max(self.height(), EXPANDED_SIZE[1] + self._entries_height // 2))
+        else:
+            self.resize(COLLAPSED_WIDTH, 200 + self._entries_height)

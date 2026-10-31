@@ -9,11 +9,11 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, 
                                QHBoxLayout, QLabel, QMessageBox, QPlainTextEdit, QPushButton, QSpinBox,
                                QVBoxLayout)
 
-from . import clamd_schedule, icons, ignores, updater
+from . import blocklist, clamd_schedule, fplist, icons, ignores, updater
 from .scanners import clamd
 from .scanners.aur_malware_check import AurMalwareCheck
 from .scanners.aur_scan import AurScan
-from .scanners.builtin_list import BuiltinList
+from .scanners.blocklist import CommunityBlocklist
 from .settings import Settings
 
 
@@ -51,18 +51,32 @@ class SettingsDialog(QDialog):
         self.b_amc = self._backend(bl, "aur-malware-check (lenucksi)", s.use_aur_malware_check, AurMalwareCheck())
         self.b_scan = self._backend(bl, "aur-scan (ks-aur-scanner) – heuristic, can produce false positives; only enable if you know what it does", s.use_aur_scan, AurScan())
         # belongs to aur-scan: indented below it and only usable while aur-scan is enabled
-        self.b_fp = QCheckBox("Use the community false-positive list (maintained in the project's GitHub repository)")
+        self.b_fp = QCheckBox("Community false-positive list")
         self.b_fp.setChecked(s.use_false_positive_list)
-        self.b_fp.setToolTip("A signed list of known false positives for specific software versions. It only hides the listed\n"
-                             "findings for the listed versions. Off by default: enable it only if you trust the list.\n"
-                             "Every hidden finding is noted in the scan log.")
-        fp_row = QHBoxLayout()
-        fp_row.setContentsMargins(24, 0, 0, 0)
-        fp_row.addWidget(self.b_fp)
-        bl.addLayout(fp_row)
+        self.b_fp.setToolTip("Signed list of known false positives for specific software versions, maintained in the project's\n"
+                             "GitHub repository. It only hides the listed findings for the listed versions. Off by default:\n"
+                             "enable it only if you trust the list. Every hidden finding is noted in the scan log.")
+        self.fp_status = QLabel(fplist.status())
+        self.fp_status.setEnabled(False)  # greyed hint text
+        fp_col = QVBoxLayout()
+        fp_col.setContentsMargins(24, 0, 0, 0)
+        fp_col.setSpacing(0)
+        fp_col.addWidget(self.b_fp)
+        fp_col.addWidget(self.fp_status)
+        bl.addLayout(fp_col)
         self.b_scan.toggled.connect(self.b_fp.setEnabled)
+        self.b_scan.toggled.connect(lambda on: self.fp_status.setVisible(on))
         self.b_fp.setEnabled(self.b_scan.isChecked())
-        self.b_list = self._backend(bl, "Built-in blocklist (off by default: no public list yet; needs CACHY_SEC_BLOCKLIST_URL)", s.use_builtin_list, BuiltinList())
+        self.fp_status.setVisible(self.b_scan.isChecked())
+        self.b_list = self._backend(bl, "Community blocklist (known malicious AUR packages)", s.use_community_blocklist, CommunityBlocklist())
+        self.b_list.setToolTip("Signed list of known malicious or compromised AUR packages, maintained in the project's GitHub\n"
+                               "repository. Installed packages are matched by name and version.")
+        self.bl_status = QLabel(blocklist.status())
+        self.bl_status.setEnabled(False)
+        bl_col = QHBoxLayout()
+        bl_col.setContentsMargins(24, 0, 0, 0)
+        bl_col.addWidget(self.bl_status)
+        bl.addLayout(bl_col)
         bl.addWidget(QLabel("aur-scan: findings to ignore, one per line (rule code like SCAN-001, a package name, or package:CODE):"))
         self.ignored = QPlainTextEdit("\n".join(s.ignored_findings))
         self.ignored.setMaximumHeight(70)
@@ -182,7 +196,7 @@ class SettingsDialog(QDialog):
         s.notify_when_clean = self.clean_note.isChecked()
         s.use_aur_malware_check = self.b_amc.isChecked()
         s.use_aur_scan = self.b_scan.isChecked()
-        s.use_builtin_list = self.b_list.isChecked()
+        s.use_community_blocklist = self.b_list.isChecked()
         s.use_false_positive_list = self.b_fp.isChecked()
         s.ignored_findings = [x.strip() for x in self.ignored.toPlainText().splitlines() if x.strip()]
         s.binary_scan_paths = self._paths()

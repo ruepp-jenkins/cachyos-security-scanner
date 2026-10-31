@@ -26,7 +26,7 @@ release into an empty directory and run `makepkg -si`.
 |---|---|---|
 | aur-malware-check | https://github.com/lenucksi/aur-malware-check | Blocklist/IOC check of installed AUR packages. Community tool, not endorsed by Arch. Needs Python 3.14+. Cloned and kept up to date automatically (`git clone`/`git pull --ff-only`); a corrupt or diverged checkout is deleted and re-cloned. Needs Python 3.14+ (checked; a clear error otherwise). |
 | aur-scan | https://github.com/KiefStudioMA/ks-aur-scanner (AUR: `aur-scanner`) | **Off by default**: heuristic static analysis of installed AUR packages, can produce false positives; enable it if you know what it does. Findings can be ignored by rule code, package or `package:CODE` (default list: `SCAN-001`, a "could not be analyzed" note) in Settings. Uses the `aur-scan` on PATH; otherwise cloned and built with `cargo build --release -p aur-scanner-cli` automatically and rebuilt after upstream changes (upstream ships no binaries; the package depends on `rust`, `clang`, `pkgconf`, `openssl` for this). A failed build is reported as an error with the build output in the history. |
-| Built-in blocklist | set `CACHY_SEC_BLOCKLIST_URL` (https, one package per line) | Off by default (no public list exists yet). Independent fallback; inactive without a URL. |
+| Community blocklist | `lists/blocklist_aur.json` in this repository (signed, published on the `lists` release) | **On by default.** Known malicious AUR packages, matched against installed packages by name and version. Independent of third-party scanner upkeep; the settings show when the list was published. |
 | ClamAV (`clamdscan`) | https://www.clamav.net | Binary scans run **only on request** from the tray menu: a terminal window opens with the live `clamdscan --fdpass --multiscan -i` output and stays open until you press Enter. Needs the `clamav` package and a running daemon (`sudo systemctl enable --now clamav-daemon`). Settings can set up a weekly systemd user timer. |
 
 Checkouts live in `~/.local/share/cachy-security-scanner/vendor/`; only directories there are ever deleted.
@@ -66,13 +66,16 @@ updated the entry no longer matches, so the finding is reported again if it stil
 the same version is reported too. If the installed version cannot be determined, nothing is hidden. The static
 list in Settings (default `SCAN-001`) is separate and applies to every package and version.
 
+## Community lists
+Two lists live in [`lists/`](lists/) and are published signed on the rolling `lists` release (a workflow validates, stamps and signs them on every change; the app verifies the signature against its embedded key and shows in Settings when each list was published). **Blocklist** (`blocklist_aur.json`, on by default): known malicious AUR packages. **False positives** (below, opt-in).
+
 ## Community false-positive list (aur-scan, opt-in)
 Heuristic scanners cry wolf. The project keeps a list of **known false positives per software version** in
 [`lists/false-positives_aur-scan.json`](lists/false-positives_aur-scan.json); each entry records package, versions, rule codes,
 author, report date, a reason and optionally a description. Tick *"Use the community false-positive list"* under the
 aur-scan settings to let the app hide exactly those findings (it is **off by default**: you decide whether to trust the
 list). The list only hides; every hidden finding is noted in the scan log with its reason, author and date. It is
-published signed on the rolling `false-positives` release and verified against the app's embedded key; without a valid
+published signed on the rolling `lists` release and verified against the app's embedded key; without a valid
 signature nothing is hidden. To report one, use the issue template *Report an aur-scan false positive* or open a pull
 request (see [`lists/README.md`](lists/README.md)).
 

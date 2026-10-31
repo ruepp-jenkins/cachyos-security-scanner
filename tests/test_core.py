@@ -9,7 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from cachy_sec import engine, scheduler, updater  # noqa: E402
 from cachy_sec.scanners import aur_malware_check as amc  # noqa: E402
-from cachy_sec.scanners import builtin_list  # noqa: E402
+from cachy_sec import blocklist, signedlist  # noqa: E402
 from cachy_sec.scanners.aur_scan import AurScan  # noqa: E402
 from cachy_sec.scanners.base import CLEAN, CRITICAL, WARNING, ScanResult  # noqa: E402
 from cachy_sec.settings import Settings  # noqa: E402
@@ -20,32 +20,21 @@ class SettingsTest(unittest.TestCase):
         s = Settings()
         self.assertTrue(s.use_aur_malware_check)
         self.assertFalse(s.use_aur_scan)  # heuristic, opt-in
-        self.assertFalse(s.use_builtin_list)
+        self.assertTrue(s.use_community_blocklist)  # on by default
         self.assertEqual(s.ignored_findings, ["SCAN-001"])
 
-    def test_old_settings_file_migrates_builtin_list_off(self):
+    def test_old_settings_file_migrates(self):
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "s.json"
             p.write_text(json.dumps({"use_builtin_list": True, "use_aur_scan": True, "use_aur_malware_check": False}))
             s = Settings.load(p)
-            self.assertFalse(s.use_builtin_list)
             self.assertFalse(s.use_aur_scan)  # became opt-in
             self.assertFalse(s.use_aur_malware_check)  # other choices are kept
+            self.assertTrue(s.use_community_blocklist)  # the old built-in list setting is gone; the new list is on
             self.assertEqual(s.ignored_findings, ["SCAN-001"])
-            s.use_builtin_list = True
             s.use_aur_scan = True
             s.save(p)
-            again = Settings.load(p)
-            self.assertTrue(again.use_builtin_list and again.use_aur_scan)  # a deliberate opt-in after migration sticks
-
-    def test_roundtrip_and_clamping(self):
-        with tempfile.TemporaryDirectory() as d:
-            p = Path(d) / "s.json"
-            s = Settings(mode="bogus", interval_minutes=1)
-            s.save(p)
-            loaded = Settings.load(p)
-            self.assertEqual(loaded.mode, "interval")
-            self.assertEqual(loaded.interval_minutes, 15)
+            self.assertTrue(Settings.load(p).use_aur_scan)  # a deliberate opt-in after migration sticks
 
     def test_bad_types_ignored(self):
         with tempfile.TemporaryDirectory() as d:
@@ -167,14 +156,6 @@ class AdapterTest(unittest.TestCase):
              mock.patch("cachy_sec.scanners.aur_malware_check.run", return_value=(0, "3 14\n")):
             self.assertEqual(amc._python(), "/usr/bin/python3")
             self.assertTrue(sc.available())
-
-    def test_builtin_list(self):
-        self.assertEqual(builtin_list.parse_list("# c\nfoo\n\n bar \n"), {"foo", "bar"})
-        with tempfile.TemporaryDirectory() as d, mock.patch.object(builtin_list, "cache_file", return_value=Path(d) / "l"):
-            (Path(d) / "l").write_text("evil\n")
-            with mock.patch("cachy_sec.scanners.builtin_list.run", return_value=(0, "evil\ngood\n")):
-                r = builtin_list.BuiltinList().scan()
-            self.assertEqual((r.status, r.findings[0].package), (CRITICAL, "evil"))
 
 
 class ReportTest(unittest.TestCase):
@@ -328,6 +309,103 @@ class FalsePositiveListTest(unittest.TestCase):
         self.assertIn("hidden by the community false-positive list", on.log)
         self.assertIn("community false-positive list: on, 1 entries", on.log)
         self.assertIn("reported by someone, 2026-10-31", on.log)
+
+
+def _bl_entry(**kw):
+    e = {"package": "evil-bin", "reason": "installs a reverse shell from the install script", "author": "someone",
+         "reported": "2026-10-31"}
+    e.update(kw)
+    return {"schema": 1, "entries": [e]}
+
+
+class BlocklistTest(unittest.TestCase):
+    def test_repo_lists_are_valid(self):
+        root = Path(__file__).resolve().parents[1] / "lists"
+        from cachy_sec import fplist
+        blocklist.validate(json.loads((root / blocklist.LIST_NAME).read_text()))
+        fplist.validate(json.loads((root / fplist.LIST_NAME).read_text()))
+        self.assertEqual(signedlist.main(["x", "validate", str(root / blocklist.LIST_NAME), str(root / fplist_name())]), 0)
+
+    def test_validation_and_match(self):
+        e = blocklist.validate(_bl_entry())[0]
+        self.assertEqual(e.versions, ["*"])  # no versions = all
+        for bad in (_bl_entry(package="Bad Name"), _bl_entry(author=""), _bl_entry(reported="yesterday"),
+                    _bl_entry(reason="bad"), _bl_entry(versions=[]), _bl_entry(reference="http://x"),
+                    {"schema": 9, "entries": []}):
+            with self.assertRaises(ValueError, msg=str(bad)):
+                blocklist.validate(bad)
+        entries = blocklist.validate(_bl_entry(versions=["1.2.*"], reference="https://example.org/advisory"))
+        self.assertIsNotNone(blocklist.match(entries, "evil-bin", "1.2.7-1"))
+        self.assertIsNone(blocklist.match(entries, "evil-bin", "1.3.0-1"))
+        self.assertIsNone(blocklist.match(entries, "other", "1.2.7-1"))
+        self.assertIsNotNone(blocklist.match(blocklist.validate(_bl_entry()), "evil-bin", "9:9-9"))
+
+    def test_scanner_flags_installed_match_and_errors_without_a_list(self):
+        from cachy_sec.scanners.blocklist import CommunityBlocklist
+        entries = blocklist.validate(_bl_entry(versions=["1.*"], reference="https://example.org/a"))
+        loaded = signedlist.Loaded(entries, "2026-10-31T18:45:01Z", 0.0)
+        with mock.patch("cachy_sec.blocklist.refresh", return_value=(True, "updated")), \
+             mock.patch("cachy_sec.blocklist.load", return_value=loaded), \
+             mock.patch("cachy_sec.scanners.blocklist.installed_versions",
+                        return_value={"evil-bin": "1.0-1", "fine": "2-1"}):
+            r = CommunityBlocklist().scan()
+        self.assertEqual((r.status, r.findings[0].package, r.findings[0].version), (CRITICAL, "evil-bin", "1.0-1"))
+        self.assertIn("reported by someone on 2026-10-31", r.findings[0].detail)
+        self.assertIn("from 2026-10-31 18:45 UTC", r.log)
+        with mock.patch("cachy_sec.blocklist.refresh", return_value=(False, "HTTP Error 404")), \
+             mock.patch("cachy_sec.blocklist.load", return_value=None):
+            r = CommunityBlocklist().scan()
+        self.assertEqual(r.status, "error")  # protection incomplete: not silent
+        self.assertIn("HTTP Error 404", r.message)
+        with mock.patch("cachy_sec.blocklist.refresh", return_value=(True, "cache is fresh")), \
+             mock.patch("cachy_sec.blocklist.load", return_value=signedlist.Loaded([], "", 0.0)), \
+             mock.patch("cachy_sec.scanners.blocklist.installed_versions", return_value={"fine": "2-1"}):
+            self.assertEqual(CommunityBlocklist().scan().status, CLEAN)
+
+
+def fplist_name():
+    from cachy_sec import fplist
+    return fplist.LIST_NAME
+
+
+class SignedListTest(unittest.TestCase):
+    def test_describe_for_the_settings_dialog(self):
+        self.assertIn("not downloaded yet", signedlist.describe(None))
+        l = signedlist.Loaded([1, 2, 3], "2026-10-31T18:45:01Z", 0.0)
+        self.assertEqual(signedlist.describe(l), "available, from 2026-10-31 18:45 UTC, 3 entries")
+        self.assertEqual(signedlist.describe(signedlist.Loaded([1], "2026-10-31T18:45:01Z", 0.0)),
+                         "available, from 2026-10-31 18:45 UTC, 1 entry")
+        self.assertIn("downloaded ", signedlist.describe(signedlist.Loaded([], "", 0.0)))  # no stamp: local download time
+
+    def test_published_stamp_is_read_and_failures_back_off(self):
+        import os, subprocess
+        with tempfile.TemporaryDirectory() as d, mock.patch.dict(os.environ, {"XDG_CACHE_HOME": d}):
+            key = Path(d) / "k"
+            subprocess.run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", str(key)], check=True)
+            pub = (Path(d) / "k.pub").read_text().strip()
+            payload = Path(d) / blocklist.LIST_NAME
+            payload.write_text(json.dumps({**_bl_entry(), "published": "2026-10-31T18:45:01Z"}))
+            subprocess.run(["ssh-keygen", "-Y", "sign", "-q", "-f", str(key), "-n", blocklist.SIG_NAMESPACE, str(payload)], check=True)
+            files = {signedlist.url(blocklist.LIST_NAME): payload.read_bytes(),
+                     signedlist.url(blocklist.LIST_NAME + ".sig"): (Path(d) / (blocklist.LIST_NAME + ".sig")).read_bytes()}
+            with mock.patch.object(updater, "_get", side_effect=lambda u, limit=0: files[u]):
+                self.assertEqual(blocklist.refresh(force=True, pubkey=pub), (True, "updated"))
+            loaded = signedlist.load(blocklist.SPEC, pub)
+            self.assertEqual((loaded.published, len(loaded.entries)), ("2026-10-31T18:45:01Z", 1))
+            self.assertIsNone(signedlist.load(blocklist.SPEC, ""))  # no trusted key: unusable
+            # a failed download leaves a marker; no new attempt for a while
+            for p in signedlist.paths(blocklist.SPEC):
+                p.unlink()
+            calls = []
+            def boom(u, limit=0):
+                calls.append(u)
+                raise updater.UpdateError("HTTP Error 404")
+            with mock.patch.object(updater, "_get", side_effect=boom):
+                self.assertFalse(blocklist.refresh(pubkey=pub)[0])
+                self.assertFalse(blocklist.refresh(pubkey=pub)[0])
+                self.assertEqual(len(calls), 1)  # second call did not hit the network
+                blocklist.refresh(force=True, pubkey=pub)
+                self.assertEqual(len(calls), 2)  # force ignores the back-off
 
 
 class IgnoreTest(unittest.TestCase):

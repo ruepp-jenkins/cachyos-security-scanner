@@ -8,4 +8,4 @@ jobs:
       - uses: actions/setup-python@v7
         with: { python-version: "3.12" }
       - run: python -m unittest discover -s tests
-      - run: PYTHONPATH=src python -m cachy_sec.fplist validate lists/false-positives_aur-scan.json
+      - run: PYTHONPATH=src python -m cachy_sec.signedlist validate lists/*.json

@@ -1,0 +1,26 @@
+name: Report a malicious AUR package
+description: A package that is malicious or compromised. Maintainers review it (with your evidence) before it is added to the blocklist.
+title: "Blocklist: <package>"
+labels: ["blocklist"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Only report packages you have **checked yourself**. Accepted reports end up in `lists/blocklist_aur.json`;
+        users with the community blocklist enabled are then warned (and can remove the package).
+        Also notify the AUR and the Arch Linux security team, this list does not replace that.
+  - type: input
+    id: package
+    attributes: { label: Package name, placeholder: some-package }
+    validations: { required: true }
+  - type: input
+    id: versions
+    attributes:
+      label: Affected versions (empty = all)
+      placeholder: "1.2.3-1, 1.2.4-*"
+  - type: textarea
+    id: why
+    attributes:
+      label: What makes it malicious? Evidence
+      description: Which file/line, what it does. Link the AUR page, a report or advisory.
+    validations: { required: true }

@@ -7,7 +7,7 @@ permissions:
   contents: write
 jobs:
   build:
-    if: startsWith(github.event.release.tag_name, 'v')  # the rolling false-positives release is not an app release
+    if: startsWith(github.event.release.tag_name, 'v')  # the rolling lists release is not an app release
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7

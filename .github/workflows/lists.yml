@@ -1,0 +1,48 @@
+name: Publish lists
+# Validates, stamps, signs and publishes the community lists in lists/ on the rolling "lists" release, which is
+# where the app fetches them from (signatures are checked against the key embedded in the app).
+on:
+  push:
+    branches: [master, main]
+    paths: ["lists/**"]
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with: { python-version: "3.12" }
+      - name: Validate lists
+        run: PYTHONPATH=src python -m cachy_sec.signedlist validate lists/*.json
+      - name: Stamp publication time
+        run: |
+          mkdir dist
+          python - <<'PY'
+          import glob, json, os, time
+          stamp = time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())
+          for f in glob.glob("lists/*.json"):
+              data = json.load(open(f))
+              data["published"] = stamp
+              json.dump(data, open(os.path.join("dist", os.path.basename(f)), "w"), indent=1)
+          PY
+      - name: Sign
+        env:
+          SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
+        run: |
+          umask 077
+          printf '%s\n' "$SIGNING_KEY" > "$RUNNER_TEMP/key"
+          # one signature namespace per list (must match src/cachy_sec/fplist.py and blocklist.py)
+          ssh-keygen -Y sign -f "$RUNNER_TEMP/key" -n cachy-security-scanner-fplist dist/false-positives_aur-scan.json
+          ssh-keygen -Y sign -f "$RUNNER_TEMP/key" -n cachy-security-scanner-blocklist dist/blocklist_aur.json
+          rm -f "$RUNNER_TEMP/key"
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view lists >/dev/null 2>&1 || gh release create lists \
+            --prerelease --title "Community lists (rolling)" \
+            --notes "Signed community lists (false positives, blocklist). Updated automatically from lists/. Not an app release."
+          gh release upload lists dist/*.json dist/*.json.sig --clobber

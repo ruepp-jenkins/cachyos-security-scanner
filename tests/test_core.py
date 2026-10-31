@@ -491,13 +491,16 @@ class UpdaterTest(unittest.TestCase):
                 updater.install(rel, self.pub)
             self.assertIn("update 1.1.0 installed", updater.describe_version())
 
-    def test_supervised_flag(self):
+    def test_supervised_flag_or_parent_process(self):
         import os
         with mock.patch.dict(os.environ, {updater.SUPERVISED_ENV: "1"}):
             self.assertTrue(updater.supervised())
-        with mock.patch.dict(os.environ, {}, clear=False):
-            os.environ.pop(updater.SUPERVISED_ENV, None)
-            self.assertFalse(updater.supervised())
+        os.environ.pop(updater.SUPERVISED_ENV, None)
+        for parent, expected in (("/usr/bin/python /usr/bin/cachy-security-scanner ", True),   # older supervisor, no env flag
+                                 ("/usr/bin/python -m cachy_sec.bootstrap ", True),
+                                 ("-bash ", False), ("", False)):
+            with mock.patch.object(updater, "_parent_cmdline", return_value=parent):
+                self.assertEqual(updater.supervised(), expected, parent)
 
     def test_hosts(self):
         self.assertTrue(updater._host_ok("https://objects.githubusercontent.com/x"))

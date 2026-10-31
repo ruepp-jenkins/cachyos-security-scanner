@@ -123,9 +123,25 @@ def effective_version() -> str:
     return __version__
 
 
+def _parent_cmdline() -> str:
+    try:
+        return Path(f"/proc/{os.getppid()}/cmdline").read_bytes().replace(b"\0", b" ").decode("utf-8", "replace")
+    except OSError:
+        return ""
+
+
 def supervised() -> bool:
-    """True when started through bootstrap, i.e. exiting with RESTART_EXIT_CODE restarts the app."""
-    return os.environ.get(SUPERVISED_ENV) == "1"
+    """True when a bootstrap supervisor will relaunch us after exiting with RESTART_EXIT_CODE.
+
+    The environment flag is only set by newer supervisors, but every supervisor since the first release
+    handles the exit code. So an update that arrives while an older supervisor is still the parent
+    (the app runs from a downloaded update on top of an older installed package) must be recognised by
+    the parent process instead.
+    """
+    if os.environ.get(SUPERVISED_ENV) == "1":
+        return True
+    parent = _parent_cmdline()
+    return "cachy_sec.bootstrap" in parent or "cachy-security-scanner" in parent
 
 
 def describe_version() -> str:

@@ -233,6 +233,8 @@ class Tray(QObject):
     def _removed(self, result, _manual) -> None:
         done, out = result
         notify.notify("Package removal", "Done." if done else f"Failed: {out}", kind="good" if done else "bad", urgent=not done)
+        if done:  # re-check right away so the tray reflects the fix instead of staying red
+            self.scan(manual=True, trigger="after removal")
 
     def open_history(self) -> None:
         dlg = HistoryDialog()

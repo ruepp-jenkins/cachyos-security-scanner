@@ -49,8 +49,12 @@ class SettingsDialog(QDialog):
         back = QGroupBox("AUR scanners")
         bl = QVBoxLayout(back)
         self.b_amc = self._backend(bl, "aur-malware-check (lenucksi)", s.use_aur_malware_check, AurMalwareCheck())
-        self.b_scan = self._backend(bl, "aur-scan (ks-aur-scanner)", s.use_aur_scan, AurScan())
+        self.b_scan = self._backend(bl, "aur-scan (ks-aur-scanner) – heuristic, can produce false positives; only enable if you know what it does", s.use_aur_scan, AurScan())
         self.b_list = self._backend(bl, "Built-in blocklist (off by default: no public list yet; needs CACHY_SEC_BLOCKLIST_URL)", s.use_builtin_list, BuiltinList())
+        bl.addWidget(QLabel("aur-scan: findings to ignore, one per line (rule code like SCAN-001, a package name, or package:CODE):"))
+        self.ignored = QPlainTextEdit("\n".join(s.ignored_findings))
+        self.ignored.setMaximumHeight(70)
+        bl.addWidget(self.ignored)
         bl.addWidget(QLabel("Scanner repositories are cloned and updated automatically before scans."))
         root.addWidget(back)
 
@@ -139,6 +143,7 @@ class SettingsDialog(QDialog):
         s.use_aur_malware_check = self.b_amc.isChecked()
         s.use_aur_scan = self.b_scan.isChecked()
         s.use_builtin_list = self.b_list.isChecked()
+        s.ignored_findings = [x.strip() for x in self.ignored.toPlainText().splitlines() if x.strip()]
         s.binary_scan_paths = self._paths()
         s.autostart = self.autostart.isChecked()
         s.history_keep = self.keep.value()

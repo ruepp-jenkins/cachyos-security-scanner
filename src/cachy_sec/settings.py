@@ -6,6 +6,8 @@ import os
 from dataclasses import asdict, dataclass, field, fields
 from pathlib import Path
 
+DEFAULT_IGNORED = ["SCAN-001"]  # aur-scan: "package file could not be analyzed" is an analysis note, not a finding
+
 MODES = ("startup", "interval", "manual")
 
 DEFAULT_BINARY_PATHS = [
@@ -24,7 +26,7 @@ def config_path() -> Path:
 
 @dataclass
 class Settings:
-    schema: int = 2  # bump when a default changes meaning; see load()
+    schema: int = 3  # bump when a default changes meaning; see load()
     mode: str = "interval"  # startup | interval | manual
     interval_minutes: int = 360
     scan_on_start: bool = True
@@ -34,8 +36,10 @@ class Settings:
     skip_on_battery: bool = False
     # AUR scanner backends, all enabled by default.
     use_aur_malware_check: bool = True
-    use_aur_scan: bool = True
+    use_aur_scan: bool = False  # heuristic analysis, produces false positives: opt-in
     use_builtin_list: bool = False  # off until a public blocklist source exists
+    # aur-scan results to hide: a rule code (SCAN-001), a package (heidisql) or package:CODE
+    ignored_findings: list[str] = field(default_factory=lambda: list(DEFAULT_IGNORED))
     # Binary scan with clamdscan runs only on request from the tray menu.
     binary_scan_paths: list[str] = field(default_factory=lambda: list(DEFAULT_BINARY_PATHS))
     notify_when_clean: bool = False
@@ -62,9 +66,12 @@ class Settings:
             for f in fields(cls):
                 if f.name in data and isinstance(data[f.name], type(getattr(s, f.name))):
                     setattr(s, f.name, data[f.name])
-        if data.get("schema", 1) < 2 if isinstance(data, dict) else False:
+        old = data.get("schema", 1) if isinstance(data, dict) else 3
+        if old < 2:
             s.use_builtin_list = False  # was on by default but had no data source
-        s.schema = 2
+        if old < 3:
+            s.use_aur_scan = False  # became opt-in: heuristic scanner with false positives
+        s.schema = 3
         s.validate()
         return s
 

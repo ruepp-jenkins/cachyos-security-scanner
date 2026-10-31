@@ -21,27 +21,39 @@ _HEADER = re.compile(r"^Scanning:\s+(\S+)\s+ISSUES:\s*(.*?)\s*$")
 _ISSUE = re.compile(r"^\s{2,}([A-Z][A-Z0-9]*-\d+)\s+(.+?)\s*$")
 
 
-def parse_output(out: str, label: str) -> list[Finding]:
+def is_ignored(pkg: str, code: str, ignore: set[str]) -> bool:
+    return code in ignore or pkg in ignore or f"{pkg}:{code}" in ignore
+
+
+def recognized(out: str) -> bool:
+    return any(ln.startswith("Scanning:") for ln in out.splitlines())
+
+
+def parse_output(out: str, label: str, ignore: frozenset[str] | set[str] = frozenset()) -> list[Finding]:
     """One finding per package that `aur-scan system` reports issues for.
 
     Output format (seen in practice):
         Scanning: <pkg> ISSUES: 10 critical
             CODE-001 Title - /path/to/file
     The trailing summary block ("Severity: 11 critical ...") is deliberately not a finding.
+    Issues matching `ignore` (code, package or package:CODE) are dropped; a package without remaining issues
+    produces no finding.
     """
     findings: list[Finding] = []
     pkg = counts = None
     issues: list[tuple[str, str, str]] = []
 
     def flush() -> None:
-        if pkg and issues:
+        kept = [i for i in issues if not is_ignored(pkg or "", i[0], set(ignore))]
+        if pkg and kept:
             groups: dict[tuple[str, str], int] = {}
-            for code, title, _ in issues:
+            for code, title, _ in kept:
                 key = (code, title.split(": ")[0])
                 groups[key] = groups.get(key, 0) + 1
             what = ", ".join(f"{c} {t}" + (f" ×{n}" if n > 1 else "") for (c, t), n in groups.items())
-            detail = "\n".join(f"{c} {t}" + (f"  [{p}]" if p else "") for c, t, p in issues)
-            findings.append(Finding(WARNING, f"{pkg}: {counts} – {what}", label, package=pkg, detail=detail))
+            detail = "\n".join(f"{c} {t}" + (f"  [{p}]" if p else "") for c, t, p in kept)
+            n = len(kept)
+            findings.append(Finding(WARNING, f"{pkg}: {n} issue{'s' if n != 1 else ''} – {what}", label, package=pkg, detail=detail))
 
     for line in out.splitlines():
         m = _HEADER.match(line)
@@ -88,7 +100,8 @@ class AurScan(Scanner):
     name = "aur_scan"
     label = "aur-scan (ks-aur-scanner)"
 
-    def __init__(self) -> None:
+    def __init__(self, ignore: list[str] | None = None) -> None:
+        self._ignore = frozenset(ignore or [])
         self._prepared = False
         self._build_log = ""
 
@@ -138,7 +151,9 @@ class AurScan(Scanner):
             return ScanResult(self.name, CLEAN, log=out)
         if code in _ERROR_CODES:
             return ScanResult(self.name, ERROR, [], f"exit {code}: {out[-500:]}", log=out)
-        findings = parse_output(out, self.label)
+        findings = parse_output(out, self.label, self._ignore)
+        if not findings and recognized(out):
+            return ScanResult(self.name, CLEAN, log=out)  # everything it reported is on the ignore list
         if not findings:
             findings = [Finding(WARNING, "aur-scan reported findings at or above 'high'", self.label)]
         return ScanResult(self.name, WARNING, findings, out[-2000:], log=out)

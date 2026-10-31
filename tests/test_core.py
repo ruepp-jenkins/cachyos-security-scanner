@@ -18,19 +18,25 @@ from cachy_sec.settings import Settings  # noqa: E402
 class SettingsTest(unittest.TestCase):
     def test_defaults_enable_both_aur_scanners(self):
         s = Settings()
-        self.assertTrue(s.use_aur_malware_check and s.use_aur_scan)
+        self.assertTrue(s.use_aur_malware_check)
+        self.assertFalse(s.use_aur_scan)  # heuristic, opt-in
         self.assertFalse(s.use_builtin_list)
+        self.assertEqual(s.ignored_findings, ["SCAN-001"])
 
     def test_old_settings_file_migrates_builtin_list_off(self):
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "s.json"
-            p.write_text(json.dumps({"use_builtin_list": True, "use_aur_scan": False}))
+            p.write_text(json.dumps({"use_builtin_list": True, "use_aur_scan": True, "use_aur_malware_check": False}))
             s = Settings.load(p)
             self.assertFalse(s.use_builtin_list)
-            self.assertFalse(s.use_aur_scan)  # other choices are kept
+            self.assertFalse(s.use_aur_scan)  # became opt-in
+            self.assertFalse(s.use_aur_malware_check)  # other choices are kept
+            self.assertEqual(s.ignored_findings, ["SCAN-001"])
             s.use_builtin_list = True
+            s.use_aur_scan = True
             s.save(p)
-            self.assertTrue(Settings.load(p).use_builtin_list)  # a deliberate opt-in after migration sticks
+            again = Settings.load(p)
+            self.assertTrue(again.use_builtin_list and again.use_aur_scan)  # a deliberate opt-in after migration sticks
 
     def test_roundtrip_and_clamping(self):
         with tempfile.TemporaryDirectory() as d:
@@ -44,8 +50,8 @@ class SettingsTest(unittest.TestCase):
     def test_bad_types_ignored(self):
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "s.json"
-            p.write_text(json.dumps({"use_aur_scan": "no"}))
-            self.assertTrue(Settings.load(p).use_aur_scan)
+            p.write_text(json.dumps({"use_aur_malware_check": "no"}))
+            self.assertTrue(Settings.load(p).use_aur_malware_check)
 
 
 class SchedulerTest(unittest.TestCase):
@@ -86,10 +92,25 @@ class AdapterTest(unittest.TestCase):
         f = parse_output('AUR Security Scanner | System Audit\n============================================================\n\nGetting installed AUR packages...\nFound 10 AUR packages installed\n\nIOC name check: no installed package matches a known-malicious name indicator.\n\nScanning: chkrootkit OK\nScanning: heidisql ISSUES: 1 critical \n    DEEP-001 Decode-and-execute flow - /home/u/.cache/yay/heidisql/PKGBUILD\nScanning: multitail OK\nScanning: remote-desktop-manager ISSUES: 10 critical \n    SCAN-001 Package file could not be analyzed: rdm-1.pkg.tar.zst - /home/u/.cache/yay/rdm/rdm-1.pkg.tar.zst\n    SCAN-001 Package file could not be analyzed: rdm-2.pkg.tar.zst - /home/u/.cache/yay/rdm/rdm-2.pkg.tar.zst\n    CRYPTO-003 Monero/Bitcoin wallet address (source sidecar) - /home/u/.cache/yay/rdm/rdm-1.pkg.tar.zst\n    DEEP-001 Decode-and-execute flow - /home/u/.cache/yay/rdm/PKGBUILD\n\n============================================================\nSystem Scan Summary\n\n  Total: 5 packages scanned\n  Issues: 2 packages with issues\n  Severity: 11 critical, 0 high severity findings\n\n  Skipped: 5 packages not found in cache (use --rescan to fetch from AUR):\n    - synergy\n', "aur-scan")
         self.assertEqual([x.package for x in f], ["heidisql", "remote-desktop-manager"])
         self.assertNotIn("Severity", " ".join(x.title for x in f))
-        self.assertIn("SCAN-001 Package file could not be analyzed ×2", f[1].title)
+        self.assertIn("SCAN-001 Package file could not be analyzed ×2", f[1].title)  # no ignore list here
         self.assertEqual(len(f[1].detail.splitlines()), 4)
         self.assertIn("[/home/u/.cache/yay/heidisql/PKGBUILD]", f[0].detail)
         self.assertEqual(parse_output("Scanning: a OK\nScanning: b OK\n", "x"), [])
+
+    def test_aur_scan_ignore_list(self):
+        from cachy_sec.scanners.aur_scan import parse_output
+        sample = "Scanning: heidisql ISSUES: 1 critical\n    DEEP-001 Decode - /p/PKGBUILD\nScanning: rdm ISSUES: 2 critical\n    SCAN-001 Package file could not be analyzed: a.zst - /p/a.zst\n    CRYPTO-003 Wallet - /p/a.zst\n"
+        self.assertEqual([f.package for f in parse_output(sample, "x", {"SCAN-001"})], ["heidisql", "rdm"])
+        rdm = parse_output(sample, "x", {"SCAN-001"})[1]
+        self.assertIn("1 issue –", rdm.title)
+        self.assertNotIn("SCAN-001", rdm.title)
+        self.assertEqual([f.package for f in parse_output(sample, "x", {"heidisql"})], ["rdm"])
+        self.assertEqual([f.package for f in parse_output(sample, "x", {"rdm:CRYPTO-003", "SCAN-001"})], ["heidisql"])
+        only_ignored = "Scanning: rdm ISSUES: 1 critical\n    SCAN-001 Package file could not be analyzed: a.zst - /p/a.zst\n"
+        with mock.patch("cachy_sec.scanners.aur_scan.run", return_value=(1, only_ignored)), \
+             mock.patch.object(AurScan, "_binary", return_value="/x/aur-scan"):
+            self.assertEqual(AurScan(["SCAN-001"]).scan().status, CLEAN)  # nothing left to report
+            self.assertEqual(AurScan([]).scan().status, WARNING)
 
     def test_aur_scan(self):
         p = mock.patch.object(AurScan, "_binary", return_value="/x/aur-scan")

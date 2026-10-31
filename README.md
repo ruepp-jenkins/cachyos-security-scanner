@@ -21,11 +21,11 @@ Later versions update themselves from GitHub Releases (see Auto-update). Remove 
 If a release has no `.pkg.tar.zst` asset, you can build it yourself: download the `PKGBUILD` from the same
 release into an empty directory and run `makepkg -si`.
 
-## Backends (both AUR scanners enabled by default, toggle in Settings)
+## Backends (toggle each in Settings)
 | Backend | Source | Notes |
 |---|---|---|
 | aur-malware-check | https://github.com/lenucksi/aur-malware-check | Blocklist/IOC check of installed AUR packages. Community tool, not endorsed by Arch. Needs Python 3.14+. Cloned and kept up to date automatically (`git clone`/`git pull --ff-only`); a corrupt or diverged checkout is deleted and re-cloned. Needs Python 3.14+ (checked; a clear error otherwise). |
-| aur-scan | https://github.com/KiefStudioMA/ks-aur-scanner (AUR: `aur-scanner`) | Static analysis of installed AUR packages. Uses the `aur-scan` on PATH; otherwise cloned and built with `cargo build --release -p aur-scanner-cli` automatically and rebuilt after upstream changes (upstream ships no binaries; the package depends on `rust`, `clang`, `pkgconf`, `openssl` for this). A failed build is reported as an error with the build output in the history. |
+| aur-scan | https://github.com/KiefStudioMA/ks-aur-scanner (AUR: `aur-scanner`) | **Off by default**: heuristic static analysis of installed AUR packages, can produce false positives; enable it if you know what it does. Findings can be ignored by rule code, package or `package:CODE` (default list: `SCAN-001`, a "could not be analyzed" note) in Settings. Uses the `aur-scan` on PATH; otherwise cloned and built with `cargo build --release -p aur-scanner-cli` automatically and rebuilt after upstream changes (upstream ships no binaries; the package depends on `rust`, `clang`, `pkgconf`, `openssl` for this). A failed build is reported as an error with the build output in the history. |
 | Built-in blocklist | set `CACHY_SEC_BLOCKLIST_URL` (https, one package per line) | Off by default (no public list exists yet). Independent fallback; inactive without a URL. |
 | ClamAV (`clamdscan`) | https://www.clamav.net | Binary scans run **only on request** from the tray menu: a terminal window opens with the live `clamdscan --fdpass --multiscan -i` output and stays open until you press Enter. Needs the `clamav` package and a running daemon (`sudo systemctl enable --now clamav-daemon`). Settings can set up a weekly systemd user timer. |
 

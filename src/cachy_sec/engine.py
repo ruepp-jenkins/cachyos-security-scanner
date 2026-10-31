@@ -13,8 +13,10 @@ from .settings import Settings
 
 
 def enabled_scanners(s: Settings) -> list[Scanner]:
-    pairs = [(s.use_aur_malware_check, AurMalwareCheck), (s.use_aur_scan, AurScan), (s.use_builtin_list, BuiltinList)]
-    return [cls() for on, cls in pairs if on]
+    pairs = [(s.use_aur_malware_check, AurMalwareCheck),
+             (s.use_aur_scan, lambda: AurScan(s.ignored_findings)),
+             (s.use_builtin_list, BuiltinList)]
+    return [make() for on, make in pairs if on]
 
 
 def skip_reason(s: Settings, *, manual: bool) -> str | None:

@@ -13,6 +13,7 @@ import time
 from . import autostart, engine, history, icons, notify, remove, scheduler, updater
 from .scanners import clamd
 from .settings import Settings
+from .findings_dialog import FindingsDialog
 from .history_dialog import HistoryDialog
 from .settings_dialog import SettingsDialog
 
@@ -207,22 +208,13 @@ class Tray(QObject):
 
     def _offer_removal(self, report: engine.Report) -> None:
         """Non-modal: the dialog never blocks the tray, other scans or update checks."""
-        pkgs = engine.infected_packages(report)
-        box = QMessageBox(QMessageBox.NoIcon, "Possible compromise", report.summary())
-        box.setIconPixmap(QIcon(icons.path(icons.BAD)).pixmap(64, 64))
-        box.setWindowIcon(QIcon(icons.path(icons.BAD)))
+        box = FindingsDialog(report.summary(), report.findings, engine.infected_packages(report), self._remove_clicked)
         box.setAttribute(Qt.WA_DeleteOnClose)
-        box.setDetailedText("\n".join(f"[{f.severity}] {f.source}: {f.title}" for f in report.findings))
-        rm = box.addButton("Remove packages…", QMessageBox.DestructiveRole) if pkgs else None
-        box.addButton("Close", QMessageBox.RejectRole)
-        box.buttonClicked.connect(lambda b: self._remove_clicked(b is rm, pkgs))
         self._dialogs.append(box)  # keep a reference while open
         box.destroyed.connect(lambda *_: self._dialogs.remove(box) if box in self._dialogs else None)
-        box.open()
+        box.show()
 
-    def _remove_clicked(self, clicked: bool, pkgs: list[str]) -> None:
-        if not clicked:
-            return
+    def _remove_clicked(self, pkgs: list[str]) -> None:
         if self.settings.confirm_before_remove:
             q = QMessageBox(QMessageBox.Question, "Remove packages", "Remove with pacman -Rns?\n\n" + "\n".join(pkgs),
                             QMessageBox.Yes | QMessageBox.No)

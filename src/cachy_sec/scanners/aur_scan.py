@@ -6,6 +6,7 @@ recognisable scan output is treated as "findings"; 126/127/124 are treated as er
 """
 from __future__ import annotations
 
+import re
 import shutil
 from pathlib import Path
 
@@ -14,6 +15,53 @@ from .base import CLEAN, ERROR, WARNING, Finding, Scanner, ScanResult, run, whic
 
 _ERROR_CODES = {124, 126, 127}
 LOG_TAIL = 100_000
+
+
+_HEADER = re.compile(r"^Scanning:\s+(\S+)\s+ISSUES:\s*(.*?)\s*$")
+_ISSUE = re.compile(r"^\s{2,}([A-Z][A-Z0-9]*-\d+)\s+(.+?)\s*$")
+
+
+def parse_output(out: str, label: str) -> list[Finding]:
+    """One finding per package that `aur-scan system` reports issues for.
+
+    Output format (seen in practice):
+        Scanning: <pkg> ISSUES: 10 critical
+            CODE-001 Title - /path/to/file
+    The trailing summary block ("Severity: 11 critical ...") is deliberately not a finding.
+    """
+    findings: list[Finding] = []
+    pkg = counts = None
+    issues: list[tuple[str, str, str]] = []
+
+    def flush() -> None:
+        if pkg and issues:
+            groups: dict[tuple[str, str], int] = {}
+            for code, title, _ in issues:
+                key = (code, title.split(": ")[0])
+                groups[key] = groups.get(key, 0) + 1
+            what = ", ".join(f"{c} {t}" + (f" ×{n}" if n > 1 else "") for (c, t), n in groups.items())
+            detail = "\n".join(f"{c} {t}" + (f"  [{p}]" if p else "") for c, t, p in issues)
+            findings.append(Finding(WARNING, f"{pkg}: {counts} – {what}", label, package=pkg, detail=detail))
+
+    for line in out.splitlines():
+        m = _HEADER.match(line)
+        if m:
+            flush()
+            pkg, counts, issues = m.group(1), m.group(2), []
+            continue
+        if line.startswith("Scanning:"):  # "Scanning: pkg OK": a clean package ends the previous block
+            flush()
+            pkg, issues = None, []
+            continue
+        m = _ISSUE.match(line)
+        if m and pkg:
+            title, _, path = m.group(2).rpartition(" - /")
+            issues.append((m.group(1), title or m.group(2), ("/" + path) if title else ""))
+        elif pkg and line.strip() and not line.startswith(" "):
+            flush()
+            pkg, issues = None, []  # summary block reached
+    flush()
+    return findings
 
 
 REPO_URL = "https://github.com/KiefStudioMA/ks-aur-scanner.git"
@@ -90,8 +138,7 @@ class AurScan(Scanner):
             return ScanResult(self.name, CLEAN, log=out)
         if code in _ERROR_CODES:
             return ScanResult(self.name, ERROR, [], f"exit {code}: {out[-500:]}", log=out)
-        findings = [Finding(WARNING, ln.strip()[:200], self.label)
-                    for ln in out.splitlines() if "high" in ln.lower() or "critical" in ln.lower()][:50]
+        findings = parse_output(out, self.label)
         if not findings:
             findings = [Finding(WARNING, "aur-scan reported findings at or above 'high'", self.label)]
         return ScanResult(self.name, WARNING, findings, out[-2000:], log=out)

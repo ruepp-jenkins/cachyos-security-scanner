@@ -16,7 +16,7 @@ class Finding:
     title: str
     source: str
     package: str | None = None  # set when the finding maps to an installed pacman package
-
+    detail: str = ""  # optional multi-line explanation shown in details views and the history
 
 @dataclass
 class ScanResult:

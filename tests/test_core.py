@@ -81,14 +81,27 @@ class AdapterTest(unittest.TestCase):
         with mock.patch.object(sc, "_cwd_cmd", return_value=(3, "boom")):
             self.assertFalse(sc.scan().ok)
 
+    def test_aur_scan_parses_one_finding_per_package_without_summary_noise(self):
+        from cachy_sec.scanners.aur_scan import parse_output
+        f = parse_output('AUR Security Scanner | System Audit\n============================================================\n\nGetting installed AUR packages...\nFound 10 AUR packages installed\n\nIOC name check: no installed package matches a known-malicious name indicator.\n\nScanning: chkrootkit OK\nScanning: heidisql ISSUES: 1 critical \n    DEEP-001 Decode-and-execute flow - /home/u/.cache/yay/heidisql/PKGBUILD\nScanning: multitail OK\nScanning: remote-desktop-manager ISSUES: 10 critical \n    SCAN-001 Package file could not be analyzed: rdm-1.pkg.tar.zst - /home/u/.cache/yay/rdm/rdm-1.pkg.tar.zst\n    SCAN-001 Package file could not be analyzed: rdm-2.pkg.tar.zst - /home/u/.cache/yay/rdm/rdm-2.pkg.tar.zst\n    CRYPTO-003 Monero/Bitcoin wallet address (source sidecar) - /home/u/.cache/yay/rdm/rdm-1.pkg.tar.zst\n    DEEP-001 Decode-and-execute flow - /home/u/.cache/yay/rdm/PKGBUILD\n\n============================================================\nSystem Scan Summary\n\n  Total: 5 packages scanned\n  Issues: 2 packages with issues\n  Severity: 11 critical, 0 high severity findings\n\n  Skipped: 5 packages not found in cache (use --rescan to fetch from AUR):\n    - synergy\n', "aur-scan")
+        self.assertEqual([x.package for x in f], ["heidisql", "remote-desktop-manager"])
+        self.assertNotIn("Severity", " ".join(x.title for x in f))
+        self.assertIn("SCAN-001 Package file could not be analyzed ×2", f[1].title)
+        self.assertEqual(len(f[1].detail.splitlines()), 4)
+        self.assertIn("[/home/u/.cache/yay/heidisql/PKGBUILD]", f[0].detail)
+        self.assertEqual(parse_output("Scanning: a OK\nScanning: b OK\n", "x"), [])
+
     def test_aur_scan(self):
         p = mock.patch.object(AurScan, "_binary", return_value="/x/aur-scan")
         p.start()
         self.addCleanup(p.stop)
-        with mock.patch("cachy_sec.scanners.aur_scan.run", return_value=(1, "pkg foo: HIGH curl|bash")):
+        with mock.patch("cachy_sec.scanners.aur_scan.run", return_value=(1, "unexpected output format")):
             r = AurScan().scan()
             self.assertEqual(r.status, WARNING)
-            self.assertEqual(len(r.findings), 1)
+            self.assertEqual(len(r.findings), 1)  # unparseable output still must not be lost
+        with mock.patch("cachy_sec.scanners.aur_scan.run", return_value=(1, 'AUR Security Scanner | System Audit\n============================================================\n\nGetting installed AUR packages...\nFound 10 AUR packages installed\n\nIOC name check: no installed package matches a known-malicious name indicator.\n\nScanning: chkrootkit OK\nScanning: heidisql ISSUES: 1 critical \n    DEEP-001 Decode-and-execute flow - /home/u/.cache/yay/heidisql/PKGBUILD\nScanning: multitail OK\nScanning: remote-desktop-manager ISSUES: 10 critical \n    SCAN-001 Package file could not be analyzed: rdm-1.pkg.tar.zst - /home/u/.cache/yay/rdm/rdm-1.pkg.tar.zst\n    SCAN-001 Package file could not be analyzed: rdm-2.pkg.tar.zst - /home/u/.cache/yay/rdm/rdm-2.pkg.tar.zst\n    CRYPTO-003 Monero/Bitcoin wallet address (source sidecar) - /home/u/.cache/yay/rdm/rdm-1.pkg.tar.zst\n    DEEP-001 Decode-and-execute flow - /home/u/.cache/yay/rdm/PKGBUILD\n\n============================================================\nSystem Scan Summary\n\n  Total: 5 packages scanned\n  Issues: 2 packages with issues\n  Severity: 11 critical, 0 high severity findings\n\n  Skipped: 5 packages not found in cache (use --rescan to fetch from AUR):\n    - synergy\n')):
+            r = AurScan().scan()
+            self.assertEqual(len(r.findings), 2)
         with mock.patch("cachy_sec.scanners.aur_scan.run", return_value=(127, "nope")):
             self.assertFalse(AurScan().scan().ok)
 

@@ -46,6 +46,8 @@ class Entry:
             out.append(f"===== {r.get('backend')} – {r.get('status')} =====")
             for f in r.get("findings", []):
                 out.append(f"[{f.get('severity')}] {f.get('title')}")
+                for ln in (f.get("detail") or "").splitlines():
+                    out.append(f"    {ln}")
             if r.get("message"):
                 out.append(r["message"])
             if r.get("log"):
@@ -67,7 +69,8 @@ def _stamp() -> str:
 
 def _result_dict(r: ScanResult) -> dict:
     return {"backend": r.backend, "status": r.status, "message": r.message[-LOG_CAP:], "log": r.log[-LOG_CAP:],
-            "findings": [{"severity": f.severity, "title": f.title, "source": f.source, "package": f.package}
+            "findings": [{"severity": f.severity, "title": f.title, "source": f.source, "package": f.package,
+                          "detail": f.detail}
                          for f in r.findings]}
 
 

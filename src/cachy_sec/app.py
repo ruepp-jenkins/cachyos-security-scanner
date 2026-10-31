@@ -57,6 +57,7 @@ class Tray(QObject):
         super().__init__()
         self.settings = Settings.load()
         self.busy = False
+        self.rescan_pending = False
         self.last_report: engine.Report | None = None
         self.pool = QThreadPool.globalInstance()
         self.done = _Done()
@@ -165,6 +166,8 @@ class Tray(QObject):
         if self.busy:  # only the package scan itself is serialised; binary scans and updates run independently
             if manual:
                 notify.notify("Security scan", "A package scan is already running; the result will follow.")
+            elif trigger == "package change":
+                self.rescan_pending = True  # packages changed mid-scan: scan again afterwards instead of dropping it
             return
         self.busy = True
         self.tray.setToolTip("Scanning…")
@@ -187,6 +190,9 @@ class Tray(QObject):
     def _finished(self, report: engine.Report, manual: bool) -> None:
         self.busy = False
         self.last_report = report
+        if self.rescan_pending:
+            self.rescan_pending = False
+            QTimer.singleShot(2000, lambda: self.scan(manual=False, trigger="package change"))
         text = report.summary()
         self.tray.setToolTip(f"CachyOS Security Scanner – {text}")
         self.act_last.setText(text[:80])

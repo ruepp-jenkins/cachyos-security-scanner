@@ -7,7 +7,7 @@ name = "cachy-security-scanner"
 version = "0.0.0"
 description = "Tray front end for AUR malware checkers on CachyOS"
 requires-python = ">=3.12"
-license = { text = "GPL-3.0-or-later" }
+license = { text = "MIT" }
 dependencies = ["PySide6"]
 
 [project.scripts]

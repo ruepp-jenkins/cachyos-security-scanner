@@ -4,6 +4,20 @@ Tray app for CachyOS/Arch desktops. It runs in the background, scans on a schedu
 notification when something is found. It only provides the UI and scheduling; detection is done by
 external tools. Removal of flagged packages is optional and always needs your click.
 
+## Which projects do the AUR scans?
+This app does not detect anything itself. The AUR scans are done by these independent open-source projects; this app
+only runs them, keeps them up to date and shows their results. All credit for the detection goes to their authors.
+
+| Project | Repository | What it does | License |
+|---|---|---|---|
+| **aur-malware-check** | [lenucksi/aur-malware-check](https://github.com/lenucksi/aur-malware-check) | Checks installed AUR packages (and IOC files, pacman log, caches) against lists of packages compromised in known attack campaigns. | GPL-3.0 |
+| **ks-aur-scanner** (`aur-scan`) | [KiefStudioMA/ks-aur-scanner](https://github.com/KiefStudioMA/ks-aur-scanner) | Heuristic analysis of the PKGBUILDs and install scripts of installed AUR packages (off by default). | GPL-3.0-or-later |
+| **ClamAV** (binary scan on request) | [Cisco-Talos/clamav](https://github.com/Cisco-Talos/clamav) · [clamav.net](https://www.clamav.net/) | Antivirus engine (`clamdscan` / `clamd`) for scanning installed binaries. | GPL-2.0 |
+
+The two [community lists](lists/) (blocklist, false positives) are maintained in this repository.
+These tools are separate programs with their own licenses; this app starts them as external processes and does not
+include their code.
+
 ## Screenshots
 | | |
 |---|---|
@@ -130,3 +144,11 @@ instead of through the `cachy-security-scanner` launcher (e.g. from source) it o
 is shown in Settings and in the tray menu. Without a configured key updates are refused. A new version that crashes within 30 s of start is
 discarded and the packaged version runs. The pacman-installed files are never modified; if the package
 catches up to the downloaded version the downloaded copy is dropped.
+
+## License and disclaimer
+Released under the [MIT License](LICENSE): everyone may use, copy, modify and distribute it, free of charge. It comes
+**without any warranty and without liability** of the author(s) (see `LICENSE`).
+
+This is a helper, not a guarantee. It can miss malicious packages and it can report harmless ones; a clean result does
+not prove that your system is safe, and the tools it relies on have their own limits. You are responsible for what you
+install and remove. Review findings yourself before acting on them.

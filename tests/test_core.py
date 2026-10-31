@@ -530,6 +530,13 @@ class DocsTest(unittest.TestCase):
         missing = [f.name for f in fields(Settings) if f.name != "schema" and f"`{f.name}`" not in text]
         self.assertEqual(missing, [], f"undocumented settings: {missing}")
 
+    def test_license_is_consistent(self):
+        root = Path(__file__).resolve().parents[1]
+        self.assertTrue((root / "LICENSE").read_text().startswith("MIT License"))
+        self.assertIn("license=('MIT')", (root / "PKGBUILD").read_text())
+        self.assertIn('license = { text = "MIT" }', (root / "pyproject.toml").read_text())
+        self.assertIn("/usr/share/licenses/$pkgname/LICENSE", (root / "PKGBUILD").read_text())  # installed with the package
+
     def test_relative_links_in_the_docs_exist(self):
         import re
         root = Path(__file__).resolve().parents[1]

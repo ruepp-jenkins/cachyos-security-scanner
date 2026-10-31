@@ -5,7 +5,7 @@ pkgrel=1
 pkgdesc='Tray app that runs AUR malware checkers in the background and notifies on findings'
 url='https://github.com/ruepp-jenkins/cachyos-security-scanner'
 arch=('any')
-license=('GPL-3.0-or-later')
+license=('MIT')
 depends=('python' 'git' 'openssh' 'pyside6' 'libnotify' 'pacman'
          'rust' 'clang' 'pkgconf' 'openssl')  # rust/clang/pkgconf/openssl: the app builds aur-scan itself
 makedepends=('git' 'python-build' 'python-installer' 'python-setuptools' 'python-wheel')
@@ -23,6 +23,7 @@ build() {
 package() {
   cd "$srcdir/$pkgname"
   python -m installer --destdir="$pkgdir" "$srcdir"/dist/*.whl
+  install -Dm644 LICENSE "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
   install -Dm644 data/cachy-security-scanner.hook "$pkgdir/usr/share/libalpm/hooks/cachy-security-scanner.hook"
   install -Dm644 data/cachy-security-scanner.conf "$pkgdir/usr/lib/tmpfiles.d/cachy-security-scanner.conf"
   install -Dm644 data/cachy-security-scanner.desktop "$pkgdir/etc/xdg/autostart/cachy-security-scanner.desktop"

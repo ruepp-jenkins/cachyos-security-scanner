@@ -247,6 +247,27 @@ class GuiTest(unittest.TestCase):
         d.close()
         self.assertEqual(changed, [1])  # one re-scan, after closing
 
+    def test_every_entry_has_its_own_open_files_button_and_there_is_no_global_one(self):
+        with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
+            (Path(a) / "PKGBUILD").write_text("x")
+            (Path(b) / "PKGBUILD").write_text("x")
+            f1 = Finding(WARNING, "one 1-1: 1 issue", "aur-scan", package="one", version="1-1", codes=["DEEP-001"],
+                         rules=[("DEEP-001", "Decode", 1)], files=[f"{a}/PKGBUILD"], rule_files={"DEEP-001": [f"{a}/PKGBUILD"]})
+            f2 = Finding(WARNING, "two 2-2: 1 issue", "aur-scan", package="two", version="", codes=["DEEP-003"],
+                         rules=[("DEEP-003", "Bidi", 1)], files=[f"{b}/PKGBUILD"], rule_files={"DEEP-003": [f"{b}/PKGBUILD"]})
+            f3 = Finding(WARNING, "gone 1-1: 1 issue", "aur-scan", package="gone", version="1-1", codes=["X-1"],
+                         rules=[("X-1", "T", 1)], files=["/does/not/exist/PKGBUILD"], rule_files={"X-1": ["/does/not/exist/PKGBUILD"]})
+            d = self._track(FindingsDialog("3 findings", [f1, f2, f3], [], lambda p: None, "codium", lambda *x: None))
+            opens = [x for x in d.findChildren(QPushButton) if x.text() in ("Open files", "Open files…")]
+            self.assertEqual([x.text() for x in opens], ["Open files"] * 3)  # one per entry, no global "Open files…"
+            self.assertEqual([x.isEnabled() for x in opens], [True, True, False])  # a vanished folder disables its button
+            ignores_ = [x for x in d.findChildren(QPushButton) if x.text() == "Ignore"]
+            self.assertEqual([x.isEnabled() for x in ignores_], [True, False, True])  # unknown version: cannot be ignored
+            with mock.patch("cachy_sec.findings_dialog.opener.open_directory", return_value=(True, "codium")) as op:
+                opens[1].click()
+                opens[0].click()
+            self.assertEqual([c.args for c in op.call_args_list], [(Path(b), "codium"), (Path(a), "codium")])
+
     def test_history_viewer_keeps_the_selection_when_new_entries_arrive(self):
         for i, name in enumerate(("a", "b")):
             history.record(engine.Report([ScanResult(name, CLEAN)]), "manual", time.time() - 100 + i * 10, 1)

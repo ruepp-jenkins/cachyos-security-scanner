@@ -21,6 +21,7 @@ class Finding:
     version: str = ""  # installed version of `package` when found; ignores are bound to it
     codes: list[str] = field(default_factory=list)  # rule codes behind the finding (scanner specific)
     rules: list[tuple[str, str, int]] = field(default_factory=list)  # (code, short title, occurrences) per rule
+    rule_files: dict[str, list[str]] = field(default_factory=dict)  # rule code -> files that triggered it
 
 @dataclass
 class ScanResult:

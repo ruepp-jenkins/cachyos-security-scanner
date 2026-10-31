@@ -107,6 +107,14 @@ class AdapterTest(unittest.TestCase):
                 self.assertEqual(opener.build_command(Path(d)), ["/usr/bin/xdg-open", d])  # no folder editor: file manager
             self.assertIsNone(opener.build_command(Path(d) / "missing"))
 
+    def test_directory_of_finds_the_folder_of_the_first_existing_file(self):
+        from cachy_sec import opener
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "PKGBUILD").write_text("x")
+            self.assertEqual(opener.directory_of(["/nope/PKGBUILD", f"{d}/PKGBUILD"]), Path(d))
+            self.assertIsNone(opener.directory_of(["/nope/PKGBUILD", "relative/x"]))
+            self.assertIsNone(opener.directory_of([]))
+
     def test_aur_scan_ignore_list(self):
         from cachy_sec.scanners.aur_scan import parse_output
         sample = "Scanning: heidisql ISSUES: 1 critical\n    DEEP-001 Decode - /p/PKGBUILD\nScanning: rdm ISSUES: 2 critical\n    SCAN-001 Package file could not be analyzed: a.zst - /p/a.zst\n    CRYPTO-003 Wallet - /p/a.zst\n"
@@ -630,7 +638,10 @@ class IgnoreTest(unittest.TestCase):
         self.assertEqual([(r.package, r.version, r.code, r.count) for r in rows],
                          [("rdm", "1-1", "SCAN-001", 2), ("rdm", "1-1", "DEEP-001", 1), ("rdm", "1-1", "DEEP-003", 1)])
         self.assertEqual(rows[0].title, "Package file could not be analyzed")
-        self.assertEqual(ignores.rows(parse_output(sample, "x", versions={})), [])  # unknown version: nothing to bind to
+        self.assertEqual(rows[0].files, ["/p/a.zst", "/p/b.zst"])  # the files behind exactly this rule
+        self.assertEqual(rows[1].files, ["/p/PKGBUILD"])
+        unknown = ignores.rows(parse_output(sample, "x", versions={}))
+        self.assertEqual({r.version for r in unknown}, {""})  # still listed (can be inspected), but not ignorable
         # ticking entries off one at a time: each ignore only hides its own rule
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "i.json"

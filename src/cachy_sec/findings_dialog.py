@@ -5,7 +5,7 @@ from collections.abc import Callable
 from pathlib import Path
 
 from PySide6.QtGui import QFont, QIcon
-from PySide6.QtWidgets import (QDialog, QFrame, QHBoxLayout, QLabel, QMenu, QPlainTextEdit, QPushButton,
+from PySide6.QtWidgets import (QDialog, QFrame, QHBoxLayout, QLabel, QPlainTextEdit, QPushButton,
                                QScrollArea, QVBoxLayout, QWidget)
 
 from . import icons, ignores, opener
@@ -59,11 +59,11 @@ class FindingsDialog(QDialog):
             hint.setEnabled(False)  # greyed secondary text
             root.addWidget(hint)
 
-        entries = ignores.rows(findings) if on_ignore else []
+        entries = ignores.rows(findings)
         self._entries_height = 0
         if entries:
-            root.addWidget(QLabel("Each entry can be accepted on its own, for exactly the installed version "
-                                  "(reported again after an update):"))
+            root.addWidget(QLabel("Each entry can be inspected (Open files) and, for a known version, accepted on its own "
+                                  "(Ignore; reported again after an update):"))
             area = QScrollArea()
             area.setWidgetResizable(True)
             area.setFrameShape(QFrame.StyledPanel)
@@ -92,20 +92,6 @@ class FindingsDialog(QDialog):
         self.toggle.toggled.connect(self._toggled)
         row.addWidget(self.toggle)
         row.addStretch()
-        dirs = opener.finding_dirs(findings)
-        if dirs:
-            op = QPushButton("Open files…")
-            op.setToolTip("Open the folder with the scanned files (PKGBUILD, install script, …) in your editor.\n"
-                          "Editors with a restricted mode (VSCodium/VS Code): do not trust the folder.")
-            if len(dirs) == 1:
-                d = next(iter(dirs.values()))
-                op.clicked.connect(lambda: self._open(d))
-            else:
-                menu = QMenu(op)
-                for pkg, d in dirs.items():
-                    menu.addAction(f"{pkg}  ({d})", lambda d=d: self._open(d))
-                op.setMenu(menu)
-            row.addWidget(op)
         if pkgs:
             rm = QPushButton("Remove packages…")
             rm.clicked.connect(lambda: on_remove(pkgs))
@@ -127,11 +113,25 @@ class FindingsDialog(QDialog):
         label = QLabel(f"{r.package} {r.version} – {r.code} {r.title}{times}")  # plain text: scanner output is untrusted
         label.setWordWrap(True)
         line.addWidget(label, 1)
+        directory = opener.directory_of(r.files)
+        op = QPushButton("Open files")
+        if directory is not None:
+            op.setToolTip(f"Open {directory} in your editor.\nEditors with a restricted mode (VSCodium/VS Code): "
+                          "do not trust the folder.")
+            op.clicked.connect(lambda _=False, d=directory: self._open(d))
+        else:
+            op.setEnabled(False)
+            op.setToolTip("The folder with the scanned files no longer exists.")
+        line.addWidget(op)
         btn = QPushButton("Ignore")
-        btn.setToolTip(f"Accept {r.code} for {r.package} {r.version} only.\n"
-                       "After an update of the package it is reported again if it still applies.\n"
-                       "Revoke it any time in the settings.")
-        btn.clicked.connect(lambda _=False, r=r, b=btn, lb=label: self._ignore(r, b, lb))
+        if self.on_ignore and r.version:
+            btn.setToolTip(f"Accept {r.code} for {r.package} {r.version} only.\n"
+                           "After an update of the package it is reported again if it still applies.\n"
+                           "Revoke it any time in the settings.")
+            btn.clicked.connect(lambda _=False, r=r, b=btn, lb=label: self._ignore(r, b, lb))
+        else:
+            btn.setEnabled(False)
+            btn.setToolTip("The version of this package is unknown, so the finding cannot be accepted for one version.")
         line.addWidget(btn)
         return line
 

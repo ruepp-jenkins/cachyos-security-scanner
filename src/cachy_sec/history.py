@@ -72,7 +72,7 @@ def _result_dict(r: ScanResult) -> dict:
             "findings": [{"severity": f.severity, "title": f.title, "source": f.source, "package": f.package,
                           "detail": f.detail, "files": f.files,
                           "version": f.version, "codes": f.codes,
-                          "rules": [list(r) for r in f.rules]}
+                          "rules": [list(r) for r in f.rules], "rule_files": f.rule_files}
                          for f in r.findings]}
 
 

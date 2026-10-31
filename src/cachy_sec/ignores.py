@@ -87,13 +87,14 @@ class Row:
     code: str
     title: str
     count: int
+    files: list[str] = field(default_factory=list)  # files that triggered this rule, for "Open files"
 
 
 def rows(findings) -> list[Row]:
     out = []
     for f in findings:
-        if f.package and f.version:
-            out += [Row(f.package, f.version, code, title, n) for code, title, n in f.rules]
+        if f.package:  # version may be unknown: such a row can be inspected but not ignored
+            out += [Row(f.package, f.version, code, title, n, f.rule_files.get(code, f.files)) for code, title, n in f.rules]
     return out
 
 

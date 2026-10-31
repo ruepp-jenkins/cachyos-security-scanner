@@ -24,6 +24,16 @@ def finding_dirs(findings) -> dict[str, Path]:
     return out
 
 
+def directory_of(files: list[str]) -> Path | None:
+    """The existing directory that holds the first of these (absolute) files, or None."""
+    for file in files:
+        p = Path(file)
+        d = p if p.is_dir() else p.parent
+        if p.is_absolute() and d.is_dir():
+            return d
+    return None
+
+
 def build_command(directory: Path, editor: str = "") -> list[str] | None:
     """Argv to show `directory`: configured editor, else the first known folder editor, else the file manager."""
     if not directory.is_dir():

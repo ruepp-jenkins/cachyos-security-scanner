@@ -69,7 +69,7 @@ package ships the system-wide entry, writes `Hidden=true` over it. If the panel 
 app waits up to 60 s for the system tray.
 
 ## Inspecting findings
-The "Possible compromise" window has an **Open files…** button for aur-scan findings. It opens the package's
+In the "Possible compromise" window every aur-scan entry has its own **Open files** button. It opens the package's
 folder from the scanner's cache (PKGBUILD, install script, wrapper, …) in an editor: the one set under Settings, else the
 first of `codium`, `vscodium`, `code`, `code-oss`, `cursor`, `zed`, `subl`, else the file manager. Several affected
 packages give a menu. The folder is only opened, nothing in it is run; with VSCodium/VS Code keep the folder in

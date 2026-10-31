@@ -73,6 +73,7 @@ class Tray(QObject):
         self.settings = Settings.load()
         self.busy = False
         self.rescan_pending = False
+        self._unsaved = False  # True while the last settings save failed
         self.last_report: engine.Report | None = None
         self.pool = QThreadPool.globalInstance()
         self.done = _Done()
@@ -132,6 +133,14 @@ class Tray(QObject):
         self.lists_timer.timeout.connect(lambda: self.refresh_lists(False))
         self.lists_timer.start(3600 * 1000)
         QTimer.singleShot(3000, lambda: self.refresh_lists(scheduler.scan_at_startup(self.settings)))
+
+    def _reload_settings(self) -> None:
+        """The saved file is the source of truth (another instance or an earlier run may have changed it),
+        unless the last save failed: then the in-memory settings are what the user chose."""
+        if not self._unsaved:
+            fresh = Settings.load_existing()
+            if fresh is not None:
+                self.settings = fresh
 
     def refresh_lists(self, then_scan: bool = False) -> None:
         self.pool.start(_ListsJob(self.settings, then_scan, self.lists_sig))
@@ -201,9 +210,7 @@ class Tray(QObject):
             return
         self.busy = True
         self.tray.setToolTip("Scanning…")
-        fresh = Settings.load_existing()  # the file is the source of truth, e.g. if settings were saved elsewhere
-        if fresh is not None:
-            self.settings = fresh
+        self._reload_settings()
         s = self.settings
 
         def job():
@@ -314,14 +321,22 @@ class Tray(QObject):
         if self.settings_dlg is not None:
             self._focus(self.settings_dlg)
             return
-        dlg = self.settings_dlg = SettingsDialog(self.settings)
+        self._reload_settings()  # never show (and then re-save) a stale in-memory state
+        dlg = SettingsDialog(self.settings)
         dlg.accepted.connect(lambda: self._settings_saved(dlg))  # read the values before the dialog is deleted
         dlg.finished.connect(lambda _: (setattr(self, "settings_dlg", None), dlg.deleteLater()))
+        self.settings_dlg = dlg  # only after the wiring worked: a half-built window must never be "the" settings window
         dlg.show()
 
     def _settings_saved(self, dlg) -> None:
         self.settings = dlg.result_settings()
-        self.settings.save()
+        try:
+            self.settings.save()
+            self._unsaved = False
+        except OSError as e:  # e.g. read-only or foreign-owned config dir: say so instead of failing silently
+            self._unsaved = True
+            notify.notify("Settings could not be saved", f"{e}\nThe changes only apply until the app is restarted.",
+                          kind="bad", urgent=True)
         self._apply_settings()
         autostart.apply(self.settings.autostart)
         self.refresh_lists(False)  # e.g. a list was just switched on: fetch it now (no-op while the cache is fresh)

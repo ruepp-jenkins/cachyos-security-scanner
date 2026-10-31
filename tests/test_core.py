@@ -393,6 +393,26 @@ class SingleInstanceTest(unittest.TestCase):
             self.assertIsNotNone(again)
             again.close()
 
+    def test_save_failure_is_an_error_not_silent(self):
+        with tempfile.TemporaryDirectory() as d:
+            blocker = Path(d) / "cfg"
+            blocker.write_text("a file where the config directory should be")
+            with self.assertRaises(OSError):
+                Settings(use_aur_scan=False).save(blocker / "settings.json")  # the app catches this and notifies
+
+    def test_disabled_scanner_stays_disabled_across_save_and_load(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "cfg" / "settings.json"
+            s = Settings.load(p)  # first start: defaults
+            s.use_aur_scan = True
+            s.save(p)
+            s = Settings.load(p)
+            self.assertTrue(s.use_aur_scan)
+            s.use_aur_scan = False  # the user unticks it and saves
+            s.save(p)
+            self.assertFalse(Settings.load(p).use_aur_scan)  # ... and a restart must not bring it back
+            self.assertFalse(json.loads(p.read_text())["use_aur_scan"])
+
     def test_scan_always_uses_the_saved_settings_file(self):
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "s.json"

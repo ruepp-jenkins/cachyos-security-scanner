@@ -49,7 +49,7 @@ Scan at start, at intervals or manual only; after package installs/updates via a
 skipped in gaming mode (gamemode/gamescope/Steam) or on battery if enabled.
 
 ## Develop
-    python3 -m unittest discover -s tests     # core logic, no Qt needed
+    python3 -m unittest discover -s tests     # core logic; the GUI smoke tests run headless if PySide6 is installed
     PYTHONPATH=src python3 -m cachy_sec        # needs PySide6
 
 ## Status / caveats

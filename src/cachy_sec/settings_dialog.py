@@ -14,7 +14,7 @@ from .scanners import clamd
 from .scanners.aur_malware_check import AurMalwareCheck
 from .scanners.aur_scan import AurScan
 from .scanners.blocklist import CommunityBlocklist
-from .settings import Settings
+from .settings import Settings, config_path
 
 
 class SettingsDialog(QDialog):
@@ -82,9 +82,9 @@ class SettingsDialog(QDialog):
         self.ignored.setMaximumHeight(70)
         bl.addWidget(self.ignored)
         bl.addWidget(QLabel("Accepted findings (bound to the software version; reported again after an update):"))
-        self.accepted = QListWidget()
-        self.accepted.setMaximumHeight(80)
-        bl.addWidget(self.accepted)
+        self.accepted_list = QListWidget()
+        self.accepted_list.setMaximumHeight(80)
+        bl.addWidget(self.accepted_list)
         rev = QPushButton("Revoke selected")
         rev.clicked.connect(self._revoke)
         bl.addWidget(rev)
@@ -136,7 +136,7 @@ class SettingsDialog(QDialog):
         self.confirm_rm.setChecked(s.confirm_before_remove)
         root.addWidget(self.confirm_rm)
 
-        ver = QLabel(f"CachyOS Security Scanner – version {updater.describe_version()}")
+        ver = QLabel(f"CachyOS Security Scanner – version {updater.describe_version()}\nSettings file: {config_path()}")
         ver.setTextInteractionFlags(Qt.TextSelectableByMouse)
         root.addWidget(ver)
 
@@ -161,13 +161,13 @@ class SettingsDialog(QDialog):
         return c
 
     def _load_accepted(self) -> None:
-        self.accepted.clear()
+        self.accepted_list.clear()
         self._entries = ignores.load()
         for e in self._entries:
-            self.accepted.addItem(e.label())
+            self.accepted_list.addItem(e.label())
 
     def _revoke(self) -> None:
-        row = self.accepted.currentRow()
+        row = self.accepted_list.currentRow()
         if row >= 0:
             e = self._entries[row]
             ignores.remove(e.package, e.version)  # applied immediately, independent of "Save"

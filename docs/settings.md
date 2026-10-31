@@ -106,7 +106,7 @@ package and a running daemon: `sudo systemctl enable --now clamav-daemon` (virus
 | **Keep the last N history entries** (`history_keep`) | 200 | Maximum number of entries in *Scan history…* (10 to 5000). One entry is written **per scanner and scan** (plus binary scan logs), so with two scanners 200 entries are about 100 scans. The oldest are deleted first. Files: `~/.local/share/cachy-security-scanner/history/`. |
 | **Ask before removing packages** (`confirm_before_remove`) | on | After you click *Remove packages…* in the findings window, a confirmation shows the packages before `pkexec pacman -Rns` runs (you are asked for your password by polkit). With this off the removal starts right after the click. The app never removes anything on its own. Only critical findings with a known package offer removal. |
 
-The version and the settings file path are shown at the bottom of the dialog. **Help** opens this page.
+The dialog scrolls and never grows taller than your screen; **Save**, **Cancel** and **Help** stay visible at the bottom. The version and the settings file path are shown at the end of the options. **Help** opens this page.
 
 ## Where the app keeps its data
 

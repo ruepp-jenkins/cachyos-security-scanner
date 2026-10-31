@@ -197,6 +197,22 @@ class GuiTest(unittest.TestCase):
         pump(lambda: not tray._dialogs, 3)
         self.assertEqual(tray._dialogs, [])
 
+    def test_settings_window_fits_the_screen_and_scrolls(self):
+        from PySide6.QtGui import QGuiApplication
+        from PySide6.QtWidgets import QScrollArea
+        d = self._track(SettingsDialog(st.Settings()))
+        d.show()
+        QCoreApplication.processEvents()
+        avail = QGuiApplication.primaryScreen().availableGeometry()
+        self.assertLessEqual(d.height(), avail.height())  # not taller than the screen (e.g. a Full-HD laptop)
+        self.assertLessEqual(d.width(), avail.width())
+        scroll = d.findChild(QScrollArea)
+        self.assertIsNotNone(scroll)
+        self.assertGreater(scroll.verticalScrollBar().maximum(), 0)  # the options really are reachable by scrolling
+        buttons = d.findChild(QDialogButtonBox)
+        self.assertFalse(scroll.isAncestorOf(buttons))  # Save/Cancel/Help stay visible outside the scroll area
+        self.assertTrue(buttons.isVisible())
+
     def test_help_button_opens_the_settings_reference(self):
         d = self._track(SettingsDialog(st.Settings()))
         help_btn = d.findChild(QDialogButtonBox).button(QDialogButtonBox.Help)

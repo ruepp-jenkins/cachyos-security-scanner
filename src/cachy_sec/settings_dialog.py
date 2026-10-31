@@ -4,10 +4,10 @@ from __future__ import annotations
 import copy
 
 from PySide6.QtCore import Qt, QUrl
-from PySide6.QtGui import QDesktopServices, QIcon
+from PySide6.QtGui import QDesktopServices, QGuiApplication, QIcon
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QGroupBox, QLineEdit, QListWidget,
                                QHBoxLayout, QLabel, QMessageBox, QPlainTextEdit, QPushButton, QSpinBox,
-                               QVBoxLayout)
+                               QScrollArea, QVBoxLayout, QWidget)
 
 from . import blocklist, clamd_schedule, fplist, icons, ignores, updater
 from .scanners import clamd
@@ -26,7 +26,15 @@ class SettingsDialog(QDialog):
         self.setWindowTitle("CachyOS Security Scanner – Settings")
         self.setWindowIcon(QIcon(icons.path(icons.APP)))
         self.s = copy.deepcopy(s)
-        root = QVBoxLayout(self)
+        # The options are long: they live in a scroll area, while Save/Cancel/Help stay visible at the bottom.
+        outer = QVBoxLayout(self)
+        self.scroll = QScrollArea()
+        self.scroll.setWidgetResizable(True)
+        self.scroll.setFrameShape(QScrollArea.NoFrame)
+        content = QWidget()
+        self.scroll.setWidget(content)
+        outer.addWidget(self.scroll, 1)
+        root = QVBoxLayout(content)
 
         when = QGroupBox("When to scan")
         f = QFormLayout(when)
@@ -148,7 +156,20 @@ class SettingsDialog(QDialog):
         bb.accepted.connect(self.accept)
         bb.rejected.connect(self.reject)
         bb.helpRequested.connect(self.open_help)
-        root.addWidget(bb)
+        outer.addWidget(bb)
+        self._fit_to_screen()
+
+    def _fit_to_screen(self) -> None:
+        """Open at the natural size, but never taller or wider than the screen (the rest is reachable by scrolling)."""
+        screen = QGuiApplication.primaryScreen()
+        content = self.scroll.widget().sizeHint()
+        bar = self.scroll.verticalScrollBar().sizeHint().width()
+        want_w, want_h = content.width() + bar + 24, content.height() + 70  # 70: button row and margins
+        if screen is None:
+            self.resize(want_w, want_h)
+            return
+        avail = screen.availableGeometry()
+        self.resize(min(want_w, int(avail.width() * 0.9)), min(want_h, int(avail.height() * 0.85)))
 
     def open_help(self) -> None:
         """Open the settings reference (docs/settings.md) in the browser."""

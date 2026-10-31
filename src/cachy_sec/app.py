@@ -66,7 +66,8 @@ class Tray(QObject):
         self.rm_done = _Done()
         self.rm_done.emit_report.connect(self._removed)
         self._dialogs: list = []
-        self.dialog_open = False  # modal settings dialog
+        self.history_dlg = None  # single-instance windows; findings dialogs may be many
+        self.settings_dlg = None
 
         app.setWindowIcon(QIcon(icons.path(icons.APP)))
         self.tray = QSystemTrayIcon(QIcon(icons.path(icons.APP)), app)
@@ -141,7 +142,7 @@ class Tray(QObject):
 
     def _restart_if_idle(self) -> None:
         """Apply a pending update once no package scan, dialog or removal would be interrupted."""
-        if self.busy or self._dialogs or self.dialog_open:
+        if self.busy or self._dialogs or self.settings_dlg is not None:
             return
         self.restart_timer.stop()
         self._restart()
@@ -234,23 +235,44 @@ class Tray(QObject):
         if done:  # re-check right away so the tray reflects the fix instead of staying red
             self.scan(manual=True, trigger="after removal")
 
+    @staticmethod
+    def _focus(dlg) -> None:
+        dlg.showNormal()  # un-minimise
+        dlg.raise_()
+        dlg.activateWindow()
+
     def open_history(self) -> None:
-        dlg = HistoryDialog()
+        """At most one history window: a second request just brings the existing one to the front."""
+        if self.history_dlg is not None:
+            self._focus(self.history_dlg)
+            return
+        dlg = self.history_dlg = HistoryDialog()
         dlg.setAttribute(Qt.WA_DeleteOnClose)
         self._dialogs.append(dlg)
-        dlg.destroyed.connect(lambda *_: self._dialogs.remove(dlg) if dlg in self._dialogs else None)
+
+        def gone(*_) -> None:
+            self.history_dlg = None
+            if dlg in self._dialogs:
+                self._dialogs.remove(dlg)
+
+        dlg.destroyed.connect(gone)
         dlg.show()
 
     def open_settings(self) -> None:
-        dlg = SettingsDialog(self.settings)
-        self.dialog_open = True
-        accepted = dlg.exec()
-        self.dialog_open = False
-        if accepted:
-            self.settings = dlg.result_settings()
-            self.settings.save()
-            self._apply_settings()
-            autostart.apply(self.settings.autostart)
+        """At most one settings window (non-modal, so the tray stays usable)."""
+        if self.settings_dlg is not None:
+            self._focus(self.settings_dlg)
+            return
+        dlg = self.settings_dlg = SettingsDialog(self.settings)
+        dlg.accepted.connect(lambda: self._settings_saved(dlg))  # read the values before the dialog is deleted
+        dlg.finished.connect(lambda _: (setattr(self, "settings_dlg", None), dlg.deleteLater()))
+        dlg.show()
+
+    def _settings_saved(self, dlg) -> None:
+        self.settings = dlg.result_settings()
+        self.settings.save()
+        self._apply_settings()
+        autostart.apply(self.settings.autostart)
 
 
 def main() -> int:

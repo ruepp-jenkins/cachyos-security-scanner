@@ -4,6 +4,18 @@ Tray app for CachyOS/Arch desktops. It runs in the background, scans on a schedu
 notification when something is found. It only provides the UI and scheduling; detection is done by
 external tools. Removal of flagged packages is optional and always needs your click.
 
+## Screenshots
+| | |
+|---|---|
+| **Tray menu**<br>![Tray menu](docs/screenshots/tray-menu.png) | **Notification**<br>![Notification when something is found](docs/screenshots/notification.png) |
+| **Findings window**<br>![Findings window](docs/screenshots/findings.png) | **With details**<br>![Findings window with details](docs/screenshots/findings-details.png) |
+
+**Settings**
+
+<img src="docs/screenshots/settings.png" alt="Settings dialog" width="520">
+
+_Screenshots show version 0.0.6; newer versions differ in details (e.g. per-entry Ignore buttons, list status lines)._
+
 ## Install (CachyOS / Arch)
 1. Open the [Releases page](https://github.com/ruepp-jenkins/cachyos-security-scanner/releases) and pick the
    newest release.

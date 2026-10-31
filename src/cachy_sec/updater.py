@@ -80,15 +80,29 @@ def _get(url: str, limit: int = MAX_DOWNLOAD) -> bytes:
     return data
 
 
+def _complete(version: str, assets: dict[str, str]) -> bool:
+    return all(n in assets for n in (f"cachy-security-scanner-{version}.tar.gz", "SHA256SUMS", "SHA256SUMS.sig"))
+
+
 def latest_release() -> Release | None:
-    data = json.loads(_get(f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest", 1_000_000))
-    if data.get("draft") or data.get("prerelease"):
-        return None
-    v = str(data.get("tag_name", "")).lstrip("v")
-    if parse_version(v) is None:
-        return None
-    assets = {a["name"]: a["browser_download_url"] for a in data.get("assets", []) if "browser_download_url" in a}
-    return Release(v, assets)
+    """Newest non-draft release that carries all update files.
+
+    Uses the release list instead of /releases/latest, which returns 404 when every release is
+    marked as pre-release and ignores releases whose build failed and has no assets.
+    """
+    data = json.loads(_get(f"https://api.github.com/repos/{GITHUB_REPO}/releases?per_page=20", 2_000_000))
+    best: Release | None = None
+    for r in data if isinstance(data, list) else []:
+        if r.get("draft"):
+            continue
+        v = str(r.get("tag_name", "")).lstrip("v")
+        pv = parse_version(v)
+        if pv is None:
+            continue
+        assets = {a["name"]: a["browser_download_url"] for a in r.get("assets", []) if "browser_download_url" in a}
+        if _complete(v, assets) and (best is None or pv > (parse_version(best.version) or ())):
+            best = Release(v, assets)
+    return best
 
 
 def installed_overlay() -> tuple[str, Path] | None:

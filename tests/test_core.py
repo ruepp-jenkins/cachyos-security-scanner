@@ -324,6 +324,20 @@ class UpdaterTest(unittest.TestCase):
         self.assertTrue(updater.is_newer("99.0.0"))
         self.assertFalse(updater.is_newer("0.0.1"))
 
+    def test_latest_release_picks_newest_complete_incl_prerelease(self):
+        def rel(tag, names, **kw):
+            return {"tag_name": tag, "draft": False, "prerelease": True, **kw,
+                    "assets": [{"name": n, "browser_download_url": f"https://github.com/x/{n}"} for n in names]}
+        full = lambda v: [f"cachy-security-scanner-{v}.tar.gz", "SHA256SUMS", "SHA256SUMS.sig"]
+        data = [rel("v0.0.4", []),                       # failed build: no assets
+                rel("v0.0.3", full("0.0.3")),
+                rel("v0.0.9", full("0.0.9"), draft=True),  # drafts are ignored
+                rel("v0.0.2", full("0.0.2"))]
+        with mock.patch.object(updater, "_get", return_value=json.dumps(data).encode()):
+            self.assertEqual(updater.latest_release().version, "0.0.3")
+        with mock.patch.object(updater, "_get", return_value=b"[]"):
+            self.assertIsNone(updater.latest_release())
+
     def test_hosts(self):
         self.assertTrue(updater._host_ok("https://objects.githubusercontent.com/x"))
         self.assertFalse(updater._host_ok("https://evilgithub.com/x"))

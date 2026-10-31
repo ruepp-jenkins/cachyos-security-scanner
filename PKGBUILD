@@ -1,6 +1,6 @@
 # Maintainer: ruepp-jenkins <https://github.com/ruepp-jenkins>
 pkgname=cachy-security-scanner
-pkgver=0.0.2
+pkgver=0.0.4
 pkgrel=1
 pkgdesc='Tray app that runs AUR malware checkers in the background and notifies on findings'
 url='https://github.com/ruepp-jenkins/cachyos-security-scanner'

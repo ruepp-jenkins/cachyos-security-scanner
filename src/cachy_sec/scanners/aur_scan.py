@@ -58,11 +58,11 @@ class AurScan(Scanner):
             return ScanResult(self.name, ERROR, [], "aur-scan not available (needs git + cargo to build it)")
         code, out = run([binary, "--no-color", "system", "--fail-on", "high"], 1800)
         if code == 0:
-            return ScanResult(self.name, CLEAN)
+            return ScanResult(self.name, CLEAN, log=out)
         if code in _ERROR_CODES:
-            return ScanResult(self.name, ERROR, [], f"exit {code}: {out[-500:]}")
+            return ScanResult(self.name, ERROR, [], f"exit {code}: {out[-500:]}", log=out)
         findings = [Finding(WARNING, ln.strip()[:200], self.label)
                     for ln in out.splitlines() if "high" in ln.lower() or "critical" in ln.lower()][:50]
         if not findings:
             findings = [Finding(WARNING, "aur-scan reported findings at or above 'high'", self.label)]
-        return ScanResult(self.name, WARNING, findings, out[-2000:])
+        return ScanResult(self.name, WARNING, findings, out[-2000:], log=out)

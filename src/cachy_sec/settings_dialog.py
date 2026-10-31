@@ -73,6 +73,13 @@ class SettingsDialog(QDialog):
         self.auto_update.setChecked(s.auto_update)
         root.addWidget(self.auto_update)
 
+        self.keep = QSpinBox()
+        self.keep.setRange(10, 5000)
+        self.keep.setValue(s.history_keep)
+        self.keep.setPrefix("Keep the last ")
+        self.keep.setSuffix(" scans in the history")
+        root.addWidget(self.keep)
+
         self.confirm_rm = QCheckBox("Ask before removing packages (recommended)")
         self.confirm_rm.setChecked(s.confirm_before_remove)
         root.addWidget(self.confirm_rm)
@@ -122,6 +129,7 @@ class SettingsDialog(QDialog):
         s.use_aur_scan = self.b_scan.isChecked()
         s.use_builtin_list = self.b_list.isChecked()
         s.binary_scan_paths = self._paths()
+        s.history_keep = self.keep.value()
         s.auto_update = self.auto_update.isChecked()
         s.confirm_before_remove = self.confirm_rm.isChecked()
         s.validate()

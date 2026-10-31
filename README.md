@@ -32,7 +32,7 @@ release into an empty directory and run `makepkg -si`.
 Checkouts live in `~/.local/share/cachy-security-scanner/vendor/`; only directories there are ever deleted.
 
 ## Features
-Tray menu (right click): check now (always reports, even when clean), ClamAV binary scan in a terminal window, last result, settings.
+Tray menu (right click): check now (always reports, even when clean), ClamAV binary scan in a terminal window, last result, scan history, settings.
 Scan at start, at intervals or manual only; after package installs/updates via a pacman hook;
 skipped in gaming mode (gamemode/gamescope/Steam) or on battery if enabled.
 
@@ -43,6 +43,13 @@ skipped in gaming mode (gamemode/gamescope/Steam) or on battery if enabled.
 ## Status / caveats
 The Qt UI and the real tools' JSON/exit-code formats were not run or verified against the live tools
 (no Arch host, no PySide6 in the dev container). Adapters parse defensively; check them on a real system.
+
+## Scan history
+Tray menu → "Scan history…" lists every scan (start time, trigger, status, summary); selecting one shows its
+full log, including the raw output of each scanner. Automatic scans that were skipped (e.g. gaming mode) are
+recorded too. Binary scans are logged from the terminal window (`*-binaries.log`). Files live in
+`~/.local/share/cachy-security-scanner/history/` as plain JSON/text; the number kept is set in Settings
+(default 200, oldest are pruned).
 
 ## Auto-update (GitHub Releases only)
 The app checks the latest GitHub release at start and daily, and can be triggered from the tray menu.

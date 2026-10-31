@@ -10,10 +10,14 @@ import shutil
 import subprocess
 
 SCAN_SCRIPT = r'''
-echo "clamdscan: scanning $# path(s) via clamd ..."
+log=$1; shift
+{
+echo "clamdscan: scanning $# path(s) via clamd ($(date '+%F %T'))"
 echo
-clamdscan --fdpass --multiscan -i -- "$@"
-rc=$?
+clamdscan --fdpass --multiscan -i -- "$@" 2>&1
+} | tee "$log"
+rc=${PIPESTATUS[0]}
+{
 echo
 case $rc in
   0) echo "Result: no threats found." ;;
@@ -21,6 +25,7 @@ case $rc in
   *) echo "Result: scan failed (exit $rc). Is clamd running?"
      echo "  sudo systemctl enable --now clamav-daemon" ;;
 esac
+} | tee -a "$log"
 echo
 read -r -p "Press Enter to close this window..." _
 '''
@@ -51,7 +56,7 @@ def find_terminal() -> tuple[str, list[str]] | None:
     return None
 
 
-def build_command(paths: list[str]) -> list[str] | None:
+def build_command(paths: list[str], log_path: str = "/dev/null") -> list[str] | None:
     """Full argv that opens a terminal running the scan, or None if no terminal emulator was found."""
     term = find_terminal()
     if term is None:
@@ -60,13 +65,19 @@ def build_command(paths: list[str]) -> list[str] | None:
     if not existing:
         return None
     binary, pre = term
-    return [binary, *pre, "bash", "-c", SCAN_SCRIPT, "clamdscan", *existing]
+    return [binary, *pre, "bash", "-c", SCAN_SCRIPT, "clamdscan", log_path, *existing]
 
 
 def launch(paths: list[str]) -> tuple[bool, str]:
     if not available():
         return False, "clamdscan not found (install the 'clamav' package)"
-    cmd = build_command(paths)
+    from .. import history
+
+    try:
+        log = str(history.new_binary_log_path())
+    except OSError:
+        log = "/dev/null"
+    cmd = build_command(paths, log)
     if cmd is None:
         return False, "no terminal emulator or none of the configured paths found"
     try:

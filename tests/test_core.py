@@ -129,6 +129,82 @@ class ClamdTest(unittest.TestCase):
         self.assertEqual(subprocess.run(["bash", "-n", "-c", clamd.SCAN_SCRIPT]).returncode, 0)
 
 
+class HistoryTest(unittest.TestCase):
+    def setUp(self):
+        import os
+        self.tmp = tempfile.TemporaryDirectory()
+        self.env = mock.patch.dict(os.environ, {"XDG_DATA_HOME": self.tmp.name})
+        self.env.start()
+
+    def tearDown(self):
+        self.env.stop()
+        self.tmp.cleanup()
+
+    def test_record_list_and_view(self):
+        import time
+        from cachy_sec import history
+        from cachy_sec.scanners.base import Finding
+        rep = engine.Report([ScanResult("aur_scan", CRITICAL, [Finding(CRITICAL, "bad-pkg matches", "x", "bad-pkg")],
+                                        "msg", log="raw tool output")])
+        p = history.record(rep, "manual", time.time(), 1.234)
+        self.assertTrue(p.exists())
+        [e] = history.list_entries()
+        self.assertEqual((e.kind, e.trigger, e.status), ("packages", "manual", CRITICAL))
+        txt = e.log_text()
+        self.assertIn("raw tool output", txt)
+        self.assertIn("bad-pkg matches", txt)
+
+    def test_skipped_scan_is_recorded(self):
+        import time
+        from cachy_sec import history
+        history.record(engine.Report([], skipped="gaming mode active"), "interval", time.time(), 0)
+        self.assertEqual(history.list_entries()[0].status, "skipped")
+
+    def test_prune_and_clear(self):
+        from cachy_sec import history
+        d = history.history_dir()
+        d.mkdir(parents=True)
+        for i in range(15):
+            (d / f"20260101T0000{i:02d}-packages.json").write_text("{}")
+        history.prune(10)
+        self.assertEqual(len(list(d.iterdir())), 10)
+        self.assertEqual(history.clear(), 10)
+
+    def test_binary_log_status(self):
+        from cachy_sec import history
+        d = history.history_dir()
+        d.mkdir(parents=True)
+        (d / "20260101T000001-binaries.log").write_text("x\nResult: THREATS FOUND (listed above).")
+        (d / "20260101T000002-binaries.log").write_text("Result: no threats found.")
+        st = {e.path.name: e.status for e in history.list_entries()}
+        self.assertEqual(st["20260101T000001-binaries.log"], CRITICAL)
+        self.assertEqual(st["20260101T000002-binaries.log"], CLEAN)
+
+    def test_corrupt_file_does_not_break_listing(self):
+        from cachy_sec import history
+        d = history.history_dir()
+        d.mkdir(parents=True)
+        (d / "20260101T000003-packages.json").write_text("not json")
+        self.assertEqual(history.list_entries()[0].status, "unknown")
+
+
+class ClamdScriptTest(unittest.TestCase):
+    def test_script_logs_and_reports_exit(self):
+        import os, subprocess, stat
+        from cachy_sec.scanners import clamd
+        with tempfile.TemporaryDirectory() as d:
+            fake = Path(d) / "clamdscan"
+            fake.write_text("#!/bin/sh\necho 'Eicar-Test: FOUND'\nexit 1\n")
+            fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
+            log = Path(d) / "scan.log"
+            env = dict(os.environ, PATH=f"{d}:{os.environ['PATH']}")
+            subprocess.run(["bash", "-c", clamd.SCAN_SCRIPT, "clamdscan", str(log), d], env=env,
+                           input=b"\n", capture_output=True, timeout=20)
+            text = log.read_text()
+            self.assertIn("Eicar-Test: FOUND", text)
+            self.assertIn("Result: THREATS FOUND", text)
+
+
 class VendorTest(unittest.TestCase):
     def setUp(self):
         import os, subprocess

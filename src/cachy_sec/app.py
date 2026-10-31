@@ -8,9 +8,12 @@ from PySide6.QtCore import Qt, QFileSystemWatcher, QObject, QRunnable, QThreadPo
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 
-from . import engine, notify, remove, scheduler, updater
+import time
+
+from . import engine, history, notify, remove, scheduler, updater
 from .scanners import clamd
 from .settings import Settings
+from .history_dialog import HistoryDialog
 from .settings_dialog import SettingsDialog
 
 TRIGGER = Path("/var/lib/cachy-security-scanner/trigger")  # touched by the pacman hook
@@ -70,6 +73,7 @@ class Tray(QObject):
         self.act_clam = self.menu.addAction("Scan binaries with ClamAV (clamd)", self.scan_binaries)
         self.act_last = self.menu.addAction("No scan yet")
         self.act_last.setEnabled(False)
+        self.menu.addAction("Scan history…", self.open_history)
         self.menu.addSeparator()
         self.act_update = self.menu.addAction("Check for app updates", lambda: self.check_update(manual=True))
         self.act_restart = self.menu.addAction("Restart to apply update", lambda: QApplication.exit(updater.RESTART_EXIT_CODE))
@@ -81,10 +85,10 @@ class Tray(QObject):
         self.tray.show()
 
         self.timer = QTimer(self)
-        self.timer.timeout.connect(lambda: self.scan(manual=False))
+        self.timer.timeout.connect(lambda: self.scan(manual=False, trigger="interval"))
         self.debounce = QTimer(self)
         self.debounce.setSingleShot(True)
-        self.debounce.timeout.connect(lambda: self.scan(manual=False))
+        self.debounce.timeout.connect(lambda: self.scan(manual=False, trigger="package change"))
         self.watcher = QFileSystemWatcher(self)
         self.watcher.fileChanged.connect(self._pkg_changed)
         self.watcher.directoryChanged.connect(self._pkg_changed)
@@ -97,7 +101,7 @@ class Tray(QObject):
         QTimer.singleShot(30_000, lambda: self.check_update(manual=False))
         self._apply_settings()
         if scheduler.scan_at_startup(self.settings):
-            QTimer.singleShot(5000, lambda: self.scan(manual=False))
+            QTimer.singleShot(5000, lambda: self.scan(manual=False, trigger="startup"))
 
     def _apply_settings(self) -> None:
         ms = scheduler.interval_ms(self.settings)
@@ -133,7 +137,7 @@ class Tray(QObject):
         if TRIGGER.exists() and str(TRIGGER) not in self.watcher.files():
             self.watcher.addPath(str(TRIGGER))
 
-    def scan(self, manual: bool) -> None:
+    def scan(self, manual: bool, trigger: str = "manual") -> None:
         if self.busy:  # only the package scan itself is serialised; binary scans and updates run independently
             if manual:
                 notify.notify("Security scan", "A package scan is already running; the result will follow.")
@@ -141,7 +145,14 @@ class Tray(QObject):
         self.busy = True
         self.tray.setToolTip("Scanning…")
         s = self.settings
-        self.pool.start(_Job(lambda: (engine.run_scan(s, manual=manual), manual), self.done))
+
+        def job():
+            started = time.time()
+            report = engine.run_scan(s, manual=manual)
+            history.record(report, trigger, started, time.time() - started, s.history_keep)
+            return report, manual
+
+        self.pool.start(_Job(job, self.done))
 
     def scan_binaries(self) -> None:
         """Open a terminal showing the live clamdscan output; everything else is up to the user."""
@@ -196,6 +207,13 @@ class Tray(QObject):
     def _removed(self, result, _manual) -> None:
         done, out = result
         notify.notify("Package removal", "Done." if done else f"Failed: {out}", urgent=not done)
+
+    def open_history(self) -> None:
+        dlg = HistoryDialog()
+        dlg.setAttribute(Qt.WA_DeleteOnClose)
+        self._dialogs.append(dlg)
+        dlg.destroyed.connect(lambda *_: self._dialogs.remove(dlg) if dlg in self._dialogs else None)
+        dlg.show()
 
     def open_settings(self) -> None:
         dlg = SettingsDialog(self.settings)

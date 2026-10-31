@@ -39,11 +39,13 @@ class Settings:
     binary_scan_paths: list[str] = field(default_factory=lambda: list(DEFAULT_BINARY_PATHS))
     notify_when_clean: bool = False
     confirm_before_remove: bool = True
+    history_keep: int = 200  # number of scan records to keep
     auto_update: bool = True  # app updates from GitHub Releases only
 
     def validate(self) -> None:
         if self.mode not in MODES:
             self.mode = "interval"
+        self.history_keep = max(10, min(int(self.history_keep), 5000))
         self.interval_minutes = max(15, min(int(self.interval_minutes), 7 * 24 * 60))
 
     @classmethod

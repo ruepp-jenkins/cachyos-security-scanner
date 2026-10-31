@@ -23,6 +23,7 @@ class ScanResult:
     status: str = CLEAN
     findings: list[Finding] = field(default_factory=list)
     message: str = ""
+    log: str = ""  # raw tool output, kept for the scan history
 
     @property
     def ok(self) -> bool:

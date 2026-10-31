@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 
 import time
 
-from . import engine, history, notify, remove, scheduler, updater
+from . import autostart, engine, history, notify, remove, scheduler, updater
 from .scanners import clamd
 from .settings import Settings
 from .history_dialog import HistoryDialog
@@ -100,6 +100,7 @@ class Tray(QObject):
         self.upd_timer.start(24 * 3600 * 1000)
         QTimer.singleShot(30_000, lambda: self.check_update(manual=False))
         self._apply_settings()
+        autostart.apply(self.settings.autostart)
         if scheduler.scan_at_startup(self.settings):
             QTimer.singleShot(5000, lambda: self.scan(manual=False, trigger="startup"))
 
@@ -221,13 +222,19 @@ class Tray(QObject):
             self.settings = dlg.result_settings()
             self.settings.save()
             self._apply_settings()
+            autostart.apply(self.settings.autostart)
 
 
 def main() -> int:
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
     app.setApplicationName("cachy-security-scanner")
-    if not QSystemTrayIcon.isSystemTrayAvailable():
+    for _ in range(60):  # right after login the panel may not be up yet: wait up to ~60 s
+        if QSystemTrayIcon.isSystemTrayAvailable():
+            break
+        time.sleep(1)
+        app.processEvents()
+    else:
         print("No system tray available", file=sys.stderr)
         return 1
     tray = Tray(app)  # noqa: F841 - keep reference

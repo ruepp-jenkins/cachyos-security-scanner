@@ -69,6 +69,10 @@ class SettingsDialog(QDialog):
         cl.addLayout(row)
         root.addWidget(clam)
 
+        self.autostart = QCheckBox("Start automatically at login")
+        self.autostart.setChecked(s.autostart)
+        root.addWidget(self.autostart)
+
         self.auto_update = QCheckBox("Check GitHub Releases for app updates and install them (signed releases only)")
         self.auto_update.setChecked(s.auto_update)
         root.addWidget(self.auto_update)
@@ -129,6 +133,7 @@ class SettingsDialog(QDialog):
         s.use_aur_scan = self.b_scan.isChecked()
         s.use_builtin_list = self.b_list.isChecked()
         s.binary_scan_paths = self._paths()
+        s.autostart = self.autostart.isChecked()
         s.history_keep = self.keep.value()
         s.auto_update = self.auto_update.isChecked()
         s.confirm_before_remove = self.confirm_rm.isChecked()

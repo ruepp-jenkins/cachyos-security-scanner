@@ -205,6 +205,45 @@ class ClamdScriptTest(unittest.TestCase):
             self.assertIn("Result: THREATS FOUND", text)
 
 
+class AutostartTest(unittest.TestCase):
+    def setUp(self):
+        import os
+        self.tmp = tempfile.TemporaryDirectory()
+        self.sysdir = Path(self.tmp.name) / "sys"
+        self.env = mock.patch.dict(os.environ, {"XDG_CONFIG_HOME": str(Path(self.tmp.name) / "cfg"),
+                                                "XDG_CONFIG_DIRS": str(self.sysdir)})
+        self.env.start()
+
+    def tearDown(self):
+        self.env.stop()
+        self.tmp.cleanup()
+
+    def test_enable_disable_without_system_entry(self):
+        from cachy_sec import autostart
+        self.assertFalse(autostart.is_enabled())
+        autostart.apply(True)
+        self.assertTrue(autostart.is_enabled())
+        self.assertIn("Exec=", autostart.user_file().read_text())
+        autostart.apply(False)
+        self.assertFalse(autostart.user_file().exists())
+
+    def test_disable_overrides_system_entry_with_hidden(self):
+        from cachy_sec import autostart
+        (self.sysdir / "autostart").mkdir(parents=True)
+        (self.sysdir / "autostart" / autostart.NAME).write_text("[Desktop Entry]\n")
+        self.assertTrue(autostart.is_enabled())  # package-provided entry counts
+        autostart.apply(False)
+        self.assertFalse(autostart.is_enabled())
+        self.assertIn("Hidden=true", autostart.user_file().read_text())
+        autostart.apply(True)
+        self.assertTrue(autostart.is_enabled())
+
+    def test_exec_with_spaces_is_quoted(self):
+        from cachy_sec import autostart
+        with mock.patch("shutil.which", return_value="/opt/my app/bin/x"):
+            self.assertEqual(autostart.exec_line(), '"/opt/my app/bin/x"')
+
+
 class VendorTest(unittest.TestCase):
     def setUp(self):
         import os, subprocess

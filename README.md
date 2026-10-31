@@ -44,6 +44,12 @@ skipped in gaming mode (gamemode/gamescope/Steam) or on battery if enabled.
 The Qt UI and the real tools' JSON/exit-code formats were not run or verified against the live tools
 (no Arch host, no PySide6 in the dev container). Adapters parse defensively; check them on a real system.
 
+## Autostart
+The app registers itself for login: on start it writes `~/.config/autostart/cachy-security-scanner.desktop`
+(no root needed, setting "Start automatically at login", on by default). Turning it off removes that file, or, if the
+package ships the system-wide entry, writes `Hidden=true` over it. If the panel is not ready right after login, the
+app waits up to 60 s for the system tray.
+
 ## Scan history
 Tray menu → "Scan history…" lists every scan (start time, trigger, status, summary); selecting one shows its
 full log, including the raw output of each scanner. Automatic scans that were skipped (e.g. gaming mode) are

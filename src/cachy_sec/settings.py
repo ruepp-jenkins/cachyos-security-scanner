@@ -40,6 +40,7 @@ class Settings:
     notify_when_clean: bool = False
     confirm_before_remove: bool = True
     history_keep: int = 200  # number of scan records to keep
+    autostart: bool = True  # start at login (XDG autostart entry)
     auto_update: bool = True  # app updates from GitHub Releases only
 
     def validate(self) -> None:

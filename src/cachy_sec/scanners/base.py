@@ -41,8 +41,32 @@ def worst(results: list[ScanResult]) -> str:
     return max((r.status for r in results), key=_RANK.get, default=CLEAN)
 
 
-def run(cmd: list[str], timeout: int = 600) -> tuple[int, str]:
-    """Run a command without a shell; returns (exit code, combined output)."""
+_low_priority = True  # set per scan from the settings (see engine.run_scan)
+
+
+def set_low_priority(enabled: bool) -> None:
+    global _low_priority
+    _low_priority = enabled
+
+
+def priority_prefix() -> list[str]:
+    """`nice -n 19` plus the lowest best-effort I/O class, for whichever of the two tools exist."""
+    prefix: list[str] = []
+    if shutil.which("nice"):
+        prefix += ["nice", "-n", "19"]
+    if shutil.which("ionice"):
+        prefix += ["ionice", "-c", "2", "-n", "7"]  # best-effort, lowest level: slow but never starved like "idle"
+    return prefix
+
+
+def run(cmd: list[str], timeout: int = 600, low_priority: bool = False) -> tuple[int, str]:
+    """Run a command without a shell; returns (exit code, combined output).
+
+    low_priority: run it niced (CPU) and with the lowest I/O priority, if the user's setting allows it. Meant for the
+    heavy work (scanners, builds); never for things like package removal.
+    """
+    if low_priority and _low_priority:
+        cmd = priority_prefix() + cmd
     try:
         p = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, errors="replace")
     except subprocess.TimeoutExpired:

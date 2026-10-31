@@ -379,6 +379,49 @@ def fplist_name():
     return fplist.LIST_NAME
 
 
+class LowPriorityTest(unittest.TestCase):
+    NICE = "import os; print(os.nice(0))"
+
+    def tearDown(self):
+        from cachy_sec.scanners import base
+        base.set_low_priority(True)
+
+    def test_scanner_processes_really_run_niced(self):
+        import shutil
+        from cachy_sec.scanners import base
+        if not shutil.which("nice"):
+            self.skipTest("nice not available")
+        base.set_low_priority(True)
+        code, out = base.run([sys.executable, "-c", self.NICE], 30, low_priority=True)
+        self.assertEqual((code, out.strip()), (0, "19"))
+        code, out = base.run([sys.executable, "-c", self.NICE], 30)  # heavy work only: plain calls stay normal
+        self.assertNotEqual(out.strip(), "19")
+        base.set_low_priority(False)  # the user switched it off
+        code, out = base.run([sys.executable, "-c", self.NICE], 30, low_priority=True)
+        self.assertNotEqual(out.strip(), "19")
+
+    def test_prefix_uses_only_tools_that_exist(self):
+        from cachy_sec.scanners import base
+        with mock.patch("shutil.which", side_effect=lambda n: f"/usr/bin/{n}"):
+            self.assertEqual(base.priority_prefix(), ["nice", "-n", "19", "ionice", "-c", "2", "-n", "7"])
+        with mock.patch("shutil.which", side_effect=lambda n: "/usr/bin/nice" if n == "nice" else None):
+            self.assertEqual(base.priority_prefix(), ["nice", "-n", "19"])
+        with mock.patch("shutil.which", return_value=None):
+            self.assertEqual(base.priority_prefix(), [])  # nothing to prepend: the command just runs normally
+
+    def test_engine_applies_the_setting_and_scanners_use_it(self):
+        from cachy_sec.scanners import base
+        self.assertTrue(Settings().low_priority_scans)
+        seen = []
+        with mock.patch("cachy_sec.scanners.aur_scan.run", side_effect=lambda cmd, timeout=0, low_priority=False: seen.append(low_priority) or (0, "")), \
+             mock.patch.object(AurScan, "_binary", return_value="/x/aur-scan"), \
+             mock.patch("cachy_sec.gaming.gaming_active", return_value=False):
+            engine.run_scan(Settings(use_aur_scan=True, use_aur_malware_check=False, use_community_blocklist=False,
+                                     low_priority_scans=False, update_sources_before_scan=False), manual=True)
+            self.assertIs(base._low_priority, False)
+        self.assertEqual(seen, [True])  # the scan call asks for low priority; the setting decides whether it applies
+
+
 class SingleInstanceTest(unittest.TestCase):
     def test_second_instance_is_refused_and_lock_is_released(self):
         from cachy_sec import singleton

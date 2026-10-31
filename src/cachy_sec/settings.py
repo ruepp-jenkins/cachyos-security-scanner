@@ -34,6 +34,7 @@ class Settings:
     update_sources_before_scan: bool = True
     skip_in_gaming_mode: bool = True
     skip_on_battery: bool = False
+    low_priority_scans: bool = True  # run scanners and builds niced, with the lowest I/O priority
     # AUR scanner backends, all enabled by default.
     use_aur_malware_check: bool = True
     use_aur_scan: bool = False  # heuristic analysis, produces false positives: opt-in

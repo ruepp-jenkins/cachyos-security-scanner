@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from . import gaming
 from .scanners.aur_malware_check import AurMalwareCheck
 from .scanners.aur_scan import AurScan
-from .scanners.base import CLEAN, CRITICAL, ERROR, USABLE, Finding, ScanResult, Scanner, worst
+from .scanners.base import CLEAN, CRITICAL, ERROR, USABLE, Finding, ScanResult, Scanner, set_low_priority, worst
 from .scanners.blocklist import CommunityBlocklist
 from .settings import Settings
 
@@ -93,6 +93,7 @@ def run_scan(s: Settings, *, manual: bool = False) -> Report:
     reason = skip_reason(s, manual=manual)
     if reason:
         return Report([], skipped=reason)
+    set_low_priority(s.low_priority_scans)
     results: list[ScanResult] = []
     for sc in enabled_scanners(s):  # every enabled scanner gets its own result, even when it cannot run
         t0 = time.monotonic()

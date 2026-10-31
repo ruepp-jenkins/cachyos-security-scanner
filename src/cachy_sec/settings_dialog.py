@@ -54,6 +54,9 @@ class SettingsDialog(QDialog):
         self.update_src = self._cb("Update scanner sources before each scan", s.update_sources_before_scan, f)
         self.gaming = self._cb("Skip automatic scans in gaming mode (gamemode, gamescope, Steam)", s.skip_in_gaming_mode, f)
         self.battery = self._cb("Skip automatic scans on battery", s.skip_on_battery, f)
+        self.low_prio = self._cb("Run scans with low priority (nice / ionice)", s.low_priority_scans, f)
+        self.low_prio.setToolTip("Scanners, their updates and builds run with the lowest CPU and I/O priority, so they do not\n"
+                                 "slow down your work or games. Scans may take a bit longer.")
         self.clean_note = self._cb("Also notify when nothing was found", s.notify_when_clean, f)
         root.addWidget(when)
 
@@ -223,6 +226,7 @@ class SettingsDialog(QDialog):
         s.update_sources_before_scan = self.update_src.isChecked()
         s.skip_in_gaming_mode = self.gaming.isChecked()
         s.skip_on_battery = self.battery.isChecked()
+        s.low_priority_scans = self.low_prio.isChecked()
         s.notify_when_clean = self.clean_note.isChecked()
         s.use_aur_malware_check = self.b_amc.isChecked()
         s.use_aur_scan = self.b_scan.isChecked()

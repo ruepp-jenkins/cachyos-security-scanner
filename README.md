@@ -43,6 +43,9 @@ release into an empty directory and run `makepkg -si`.
 
 Checkouts live in `~/.local/share/cachy-security-scanner/vendor/`; only directories there are ever deleted.
 
+## Low priority
+Scanners, their `git` updates and the `aur-scan` build run with `nice -n 19` and `ionice -c 2 -n 7` (setting *Run scans with low priority*, on by default), so a scan does not disturb your work or a game.
+
 ## Settings
 Every option is explained in [`docs/settings.md`](docs/settings.md); the **Help** button in the settings dialog opens it.
 

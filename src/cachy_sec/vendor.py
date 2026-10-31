@@ -22,13 +22,13 @@ def _inside_root(d: Path) -> bool:
 
 
 def _healthy(d: Path) -> bool:
-    return (d / ".git").is_dir() and run(["git", "-C", str(d), "fsck", "--connectivity-only", "--no-dangling"], 120)[0] == 0 \
+    return (d / ".git").is_dir() and run(["git", "-C", str(d), "fsck", "--connectivity-only", "--no-dangling"], 120, low_priority=True)[0] == 0 \
         and run(["git", "-C", str(d), "rev-parse", "--verify", "HEAD"], 30)[0] == 0
 
 
 def _clone(url: str, d: Path) -> tuple[bool, str]:
     d.parent.mkdir(parents=True, exist_ok=True)
-    code, out = run(["git", "clone", "--depth", "1", url, str(d)], 300)
+    code, out = run(["git", "clone", "--depth", "1", url, str(d)], 300, low_priority=True)
     if code != 0:
         shutil.rmtree(d, ignore_errors=True)  # never leave a half-cloned directory behind
     return code == 0, out[-300:]
@@ -45,7 +45,7 @@ def ensure_repo(url: str, d: Path) -> tuple[bool, str]:
     if not _healthy(d):
         shutil.rmtree(d, ignore_errors=True)
         return _clone(url, d)
-    code, out = run(["git", "-C", str(d), "pull", "--ff-only", "--quiet"], 180)
+    code, out = run(["git", "-C", str(d), "pull", "--ff-only", "--quiet"], 180, low_priority=True)
     if code == 0:
         return True, "updated"
     # Diverged, shallow-history trouble, corrupt objects, force-pushed upstream: start over.

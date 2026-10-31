@@ -149,7 +149,7 @@ class AurScan(Scanner):
                 "or install the 'aur-scanner' package from the AUR)")
 
     def _build(self) -> tuple[bool, str]:
-        code, out = run(BUILD_CMD + ["--manifest-path", str(_dir() / "Cargo.toml")], 3600)
+        code, out = run(BUILD_CMD + ["--manifest-path", str(_dir() / "Cargo.toml")], 3600, low_priority=True)
         return code == 0, out
 
     def _refresh_fp(self) -> None:
@@ -185,7 +185,7 @@ class AurScan(Scanner):
             return ScanResult(self.name, ERROR, [], "aur-scan could not be set up: "
                               + (self._build_log.strip().splitlines() or ["build failed"])[-1][:200],
                               log=self._build_log[-LOG_TAIL:])
-        code, out = run([binary, "--no-color", "system", "--fail-on", "high"], 1800)
+        code, out = run([binary, "--no-color", "system", "--fail-on", "high"], 1800, low_priority=True)
         if code == 0:
             return ScanResult(self.name, CLEAN, log=out)
         if code in _ERROR_CODES:

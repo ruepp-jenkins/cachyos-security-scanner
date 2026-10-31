@@ -1,6 +1,12 @@
-# Community false-positive list (aur-scan)
+# Community lists
 
-`aur-scan.json` lists findings of the heuristic scanner ks-aur-scanner that are known to be harmless for a
+This folder holds lists maintained by the community, named `<topic>_<scanner>.json`. Currently:
+
+- `false-positives_aur-scan.json`: false positives of aur-scan.
+
+## False positives (aur-scan)
+
+`false-positives_aur-scan.json` lists findings of the heuristic scanner ks-aur-scanner that are known to be harmless for a
 specific software version. The app only uses it if the user ticks **"Use the community false-positive list"**
 for aur-scan in the settings. It only hides the listed findings for the listed versions; it cannot add findings.
 
@@ -26,7 +32,7 @@ Please check the package yourself first. A maintainer reviews every entry.
 }
 ```
 
-Rules (checked by `python -m cachy_sec.fplist validate false-positives/aur-scan.json` and in CI):
+Rules (checked by `python -m cachy_sec.fplist validate lists/false-positives_aur-scan.json` and in CI):
 - `versions` are the full installed versions (`epoch:pkgver-pkgrel`); shell-style globs such as `1:12.*` are allowed
   but must contain a digit. Prefer exact versions: a new version should be reviewed again.
 - `codes` are explicit rule codes (no wildcards).

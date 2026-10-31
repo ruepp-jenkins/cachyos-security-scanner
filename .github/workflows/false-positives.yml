@@ -1,10 +1,10 @@
 name: Publish false-positive list
-# Validates and signs false-positives/aur-scan.json and publishes it on the rolling "false-positives" release,
+# Validates and signs lists/false-positives_aur-scan.json and publishes it on the rolling "false-positives" release,
 # which is where the app fetches it from (signature checked against the key embedded in the app).
 on:
   push:
     branches: [master, main]
-    paths: ["false-positives/**"]
+    paths: ["lists/**"]
   workflow_dispatch:
 permissions:
   contents: write
@@ -16,15 +16,15 @@ jobs:
       - uses: actions/setup-python@v7
         with: { python-version: "3.12" }
       - name: Validate list
-        run: PYTHONPATH=src python -m cachy_sec.fplist validate false-positives/aur-scan.json
+        run: PYTHONPATH=src python -m cachy_sec.fplist validate lists/false-positives_aur-scan.json
       - name: Sign
         env:
           SIGNING_KEY: ${{ secrets.RELEASE_SIGNING_KEY }}
         run: |
-          mkdir dist && cp false-positives/aur-scan.json dist/
+          mkdir dist && cp lists/false-positives_aur-scan.json dist/
           umask 077
           printf '%s\n' "$SIGNING_KEY" > "$RUNNER_TEMP/key"
-          ssh-keygen -Y sign -f "$RUNNER_TEMP/key" -n cachy-security-scanner-fplist dist/aur-scan.json
+          ssh-keygen -Y sign -f "$RUNNER_TEMP/key" -n cachy-security-scanner-fplist dist/false-positives_aur-scan.json
           rm -f "$RUNNER_TEMP/key"
       - name: Publish
         env:
@@ -32,5 +32,5 @@ jobs:
         run: |
           gh release view false-positives >/dev/null 2>&1 || gh release create false-positives \
             --prerelease --title "False-positive list (rolling)" \
-            --notes "Signed list of known aur-scan false positives. Updated automatically from false-positives/. Not an app release."
-          gh release upload false-positives dist/aur-scan.json dist/aur-scan.json.sig --clobber
+            --notes "Signed list of known aur-scan false positives. Updated automatically from lists/. Not an app release."
+          gh release upload false-positives dist/false-positives_aur-scan.json dist/false-positives_aur-scan.json.sig --clobber

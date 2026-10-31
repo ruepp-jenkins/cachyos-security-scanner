@@ -249,7 +249,7 @@ def _fp_entry(**kw):
 class FalsePositiveListTest(unittest.TestCase):
     def test_repo_list_is_valid(self):
         from cachy_sec import fplist
-        data = json.loads((Path(__file__).resolve().parents[1] / "false-positives" / "aur-scan.json").read_text())
+        data = json.loads((Path(__file__).resolve().parents[1] / "lists" / fplist.LIST_NAME).read_text())
         self.assertTrue(fplist.validate(data))
 
     def test_validation_rules(self):
@@ -284,10 +284,10 @@ class FalsePositiveListTest(unittest.TestCase):
             key = Path(d) / "k"
             subprocess.run(["ssh-keygen", "-q", "-t", "ed25519", "-N", "", "-f", str(key)], check=True)
             pub = (Path(d) / "k.pub").read_text().strip()
-            payload = Path(d) / "aur-scan.json"
+            payload = Path(d) / fplist.LIST_NAME
             payload.write_text(json.dumps(_fp_entry()))
             subprocess.run(["ssh-keygen", "-Y", "sign", "-q", "-f", str(key), "-n", fplist.SIG_NAMESPACE, str(payload)], check=True)
-            files = {fplist._url("aur-scan.json"): payload.read_bytes(), fplist._url("aur-scan.json.sig"): (Path(d) / "aur-scan.json.sig").read_bytes()}
+            files = {fplist._url(fplist.LIST_NAME): payload.read_bytes(), fplist._url(fplist.LIST_NAME + ".sig"): (Path(d) / (fplist.LIST_NAME + ".sig")).read_bytes()}
             with mock.patch.object(updater, "_get", side_effect=lambda u, limit=0: files[u]):
                 self.assertEqual(fplist.refresh(force=True, pubkey=pub), (True, "updated"))
                 self.assertEqual(len(fplist.load(pub)), 1)
@@ -300,7 +300,7 @@ class FalsePositiveListTest(unittest.TestCase):
             fplist._paths()[0].write_text(json.dumps(_fp_entry(codes=["DEEP-003"])))
             self.assertEqual(fplist.load(pub), [])
             # a bad download never replaces the cache
-            files[fplist._url("aur-scan.json")] = b'{"schema":1,"entries":[]}'
+            files[fplist._url(fplist.LIST_NAME)] = b'{"schema":1,"entries":[]}'
             with mock.patch.object(updater, "_get", side_effect=lambda u, limit=0: files[u]):
                 ok, msg = fplist.refresh(force=True, pubkey=pub)
             self.assertFalse(ok)

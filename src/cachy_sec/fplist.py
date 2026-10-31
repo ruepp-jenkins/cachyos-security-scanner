@@ -5,7 +5,7 @@ It is opt-in (the user decides whether to trust it), fetched only from this proj
 `false-positives`, signed with the release key (separate signature namespace) and only ever *hides* the listed
 combinations; it cannot add findings or run anything.
 
-    python -m cachy_sec.fplist validate false-positives/aur-scan.json
+    python -m cachy_sec.fplist validate lists/false-positives_aur-scan.json
 """
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ from pathlib import Path
 from . import updater
 
 SCHEMA = 1
-LIST_NAME = "aur-scan.json"
+LIST_NAME = "false-positives_aur-scan.json"  # lists/<topic>_<scanner>.json; more lists can follow
 SIG_NAMESPACE = "cachy-security-scanner-fplist"  # domain separation from release signatures
 MAX_BYTES = 500_000
 MAX_ENTRIES = 5000
@@ -99,7 +99,7 @@ def _dir() -> Path:
 
 
 def _paths() -> tuple[Path, Path]:
-    return _dir() / "false-positives.json", _dir() / "false-positives.json.sig"
+    return _dir() / LIST_NAME, _dir() / (LIST_NAME + ".sig")
 
 
 def _url(name: str) -> str:

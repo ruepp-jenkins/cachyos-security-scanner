@@ -7,7 +7,7 @@ body:
     attributes:
       value: |
         Only report findings you have **checked yourself** (PKGBUILD, install script and other files of the package).
-        Accepted reports end up in `false-positives/aur-scan.json` and hide the finding for users who enabled the list.
+        Accepted reports end up in `lists/false-positives_aur-scan.json` and hide the finding for users who enabled the list.
   - type: input
     id: package
     attributes: { label: Package name, placeholder: heidisql }

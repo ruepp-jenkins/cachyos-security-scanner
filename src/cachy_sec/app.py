@@ -4,7 +4,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import QFileSystemWatcher, QObject, QRunnable, QThreadPool, QTimer, Signal
+from PySide6.QtCore import Qt, QFileSystemWatcher, QObject, QRunnable, QThreadPool, QTimer, Signal
 from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 
@@ -58,6 +58,9 @@ class Tray(QObject):
         self.pool = QThreadPool.globalInstance()
         self.done = _Done()
         self.done.emit_report.connect(self._finished)
+        self.rm_done = _Done()
+        self.rm_done.emit_report.connect(self._removed)
+        self._dialogs: list = []
 
         icon = QIcon.fromTheme("security-high", QIcon.fromTheme("dialog-information"))
         self.tray = QSystemTrayIcon(icon, app)
@@ -123,7 +126,6 @@ class Tray(QObject):
         ok = clamd.available()
         self.act_clam.setEnabled(ok)
         self.act_clam.setText("Scan binaries with ClamAV (clamd)" if ok else "Scan binaries with ClamAV (clamdscan not installed)")
-        self.act_scan.setEnabled(not self.busy)
 
     def _pkg_changed(self, _path: str) -> None:
         if scheduler.scan_after_pkg_change(self.settings):
@@ -132,7 +134,9 @@ class Tray(QObject):
             self.watcher.addPath(str(TRIGGER))
 
     def scan(self, manual: bool) -> None:
-        if self.busy:
+        if self.busy:  # only the package scan itself is serialised; binary scans and updates run independently
+            if manual:
+                notify.notify("Security scan", "A package scan is already running; the result will follow.")
             return
         self.busy = True
         self.tray.setToolTip("Scanning…")
@@ -161,18 +165,37 @@ class Tray(QObject):
                 notify.notify("Security scan finished", text)
 
     def _offer_removal(self, report: engine.Report) -> None:
+        """Non-modal: the dialog never blocks the tray, other scans or update checks."""
         pkgs = engine.infected_packages(report)
         box = QMessageBox(QMessageBox.Warning, "Possible compromise", report.summary())
+        box.setAttribute(Qt.WA_DeleteOnClose)
         box.setDetailedText("\n".join(f"[{f.severity}] {f.source}: {f.title}" for f in report.findings))
         rm = box.addButton("Remove packages…", QMessageBox.DestructiveRole) if pkgs else None
         box.addButton("Close", QMessageBox.RejectRole)
-        box.exec()
-        if rm is not None and box.clickedButton() is rm:
-            ok = QMessageBox.Yes if not self.settings.confirm_before_remove else QMessageBox.question(
-                None, "Remove packages", "Remove with pacman -Rns?\n\n" + "\n".join(pkgs))
-            if ok == QMessageBox.Yes:
-                done, out = remove.remove_packages(pkgs)
-                QMessageBox.information(None, "Removal", "Done." if done else f"Failed:\n{out}")
+        box.buttonClicked.connect(lambda b: self._remove_clicked(b is rm, pkgs))
+        self._dialogs.append(box)  # keep a reference while open
+        box.destroyed.connect(lambda *_: self._dialogs.remove(box) if box in self._dialogs else None)
+        box.open()
+
+    def _remove_clicked(self, clicked: bool, pkgs: list[str]) -> None:
+        if not clicked:
+            return
+        if self.settings.confirm_before_remove:
+            q = QMessageBox(QMessageBox.Question, "Remove packages", "Remove with pacman -Rns?\n\n" + "\n".join(pkgs),
+                            QMessageBox.Yes | QMessageBox.No)
+            q.setAttribute(Qt.WA_DeleteOnClose)
+            q.finished.connect(lambda r: self._do_remove(pkgs) if r == QMessageBox.Yes else None)
+            self._dialogs.append(q)
+            q.open()
+        else:
+            self._do_remove(pkgs)
+
+    def _do_remove(self, pkgs: list[str]) -> None:
+        self.pool.start(_Job(lambda: (remove.remove_packages(pkgs), False), self.rm_done))
+
+    def _removed(self, result, _manual) -> None:
+        done, out = result
+        notify.notify("Package removal", "Done." if done else f"Failed: {out}", urgent=not done)
 
     def open_settings(self) -> None:
         dlg = SettingsDialog(self.settings)

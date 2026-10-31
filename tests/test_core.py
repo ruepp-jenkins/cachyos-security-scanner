@@ -338,6 +338,23 @@ class UpdaterTest(unittest.TestCase):
         with mock.patch.object(updater, "_get", return_value=b"[]"):
             self.assertIsNone(updater.latest_release())
 
+    def test_describe_version_and_pending_update(self):
+        self.assertIn("development build", updater.describe_version())  # repo version is 0.0.0
+        with mock.patch.object(updater, "__version__", "1.0.0"):
+            self.assertEqual(updater.describe_version(), "1.0.0")
+            rel, blobs = self._release(version="1.1.0")
+            with mock.patch.object(updater, "_get", side_effect=lambda u, limit=0: blobs[u]):
+                updater.install(rel, self.pub)
+            self.assertIn("update 1.1.0 installed", updater.describe_version())
+
+    def test_supervised_flag(self):
+        import os
+        with mock.patch.dict(os.environ, {updater.SUPERVISED_ENV: "1"}):
+            self.assertTrue(updater.supervised())
+        with mock.patch.dict(os.environ, {}, clear=False):
+            os.environ.pop(updater.SUPERVISED_ENV, None)
+            self.assertFalse(updater.supervised())
+
     def test_hosts(self):
         self.assertTrue(updater._host_ok("https://objects.githubusercontent.com/x"))
         self.assertFalse(updater._host_ok("https://evilgithub.com/x"))

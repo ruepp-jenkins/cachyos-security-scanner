@@ -64,6 +64,7 @@ class Tray(QObject):
         self.rm_done = _Done()
         self.rm_done.emit_report.connect(self._removed)
         self._dialogs: list = []
+        self.dialog_open = False  # modal settings dialog
 
         icon = QIcon.fromTheme("security-high", QIcon.fromTheme("dialog-information"))
         self.tray = QSystemTrayIcon(icon, app)
@@ -76,9 +77,11 @@ class Tray(QObject):
         self.menu.addAction("Scan history…", self.open_history)
         self.menu.addSeparator()
         self.act_update = self.menu.addAction("Check for app updates", lambda: self.check_update(manual=True))
-        self.act_restart = self.menu.addAction("Restart to apply update", lambda: QApplication.exit(updater.RESTART_EXIT_CODE))
+        self.act_restart = self.menu.addAction("Restart to apply update", self._restart)
         self.act_restart.setVisible(False)
         self.menu.addAction("Settings…", self.open_settings)
+        self.act_version = self.menu.addAction(f"Version {updater.describe_version()}")
+        self.act_version.setEnabled(False)
         self.menu.addAction("Quit", app.quit)
         self.menu.aboutToShow.connect(self._refresh_menu)
         self.tray.setContextMenu(self.menu)
@@ -95,6 +98,8 @@ class Tray(QObject):
         self.upd_sig = _UpdateSignal()
         self.upd_sig.result.connect(self._update_done)
         self.upd_manual = False
+        self.restart_timer = QTimer(self)
+        self.restart_timer.timeout.connect(self._restart_if_idle)
         self.upd_timer = QTimer(self)
         self.upd_timer.timeout.connect(lambda: self.check_update(manual=False))
         self.upd_timer.start(24 * 3600 * 1000)
@@ -123,9 +128,26 @@ class Tray(QObject):
         if state == "installed":
             self.act_restart.setText(f"Restart to apply update {msg}")
             self.act_restart.setVisible(True)
-            notify.notify("Security scanner updated", f"Version {msg} was installed. Restart from the tray menu to use it.")
+            if updater.supervised():
+                notify.notify("Security scanner updated", f"Version {msg} was installed and is applied automatically as soon as nothing is running.")
+                self.restart_timer.start(5000)
+            else:  # started directly (e.g. from source): no supervisor that could relaunch us
+                notify.notify("Security scanner updated", f"Version {msg} was installed. Restart the app to use it.")
         elif self.upd_manual:
             notify.notify("Update check", msg if state == "current" else f"Update failed: {msg}")
+
+    def _restart_if_idle(self) -> None:
+        """Apply a pending update once no package scan, dialog or removal would be interrupted."""
+        if self.busy or self._dialogs or self.dialog_open:
+            return
+        self.restart_timer.stop()
+        self._restart()
+
+    def _restart(self) -> None:
+        if updater.supervised():
+            QApplication.exit(updater.RESTART_EXIT_CODE)
+        else:
+            notify.notify("Restart needed", "Please start the app again to use the new version.")
 
     def _refresh_menu(self) -> None:
         ok = clamd.available()
@@ -218,7 +240,10 @@ class Tray(QObject):
 
     def open_settings(self) -> None:
         dlg = SettingsDialog(self.settings)
-        if dlg.exec():
+        self.dialog_open = True
+        accepted = dlg.exec()
+        self.dialog_open = False
+        if accepted:
             self.settings = dlg.result_settings()
             self.settings.save()
             self._apply_settings()

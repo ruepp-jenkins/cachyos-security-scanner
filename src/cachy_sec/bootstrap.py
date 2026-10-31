@@ -17,7 +17,7 @@ CRASH_WINDOW_S = 30
 
 def main() -> int:
     while True:
-        env = dict(os.environ)
+        env = dict(os.environ, **{updater.SUPERVISED_ENV: "1"})  # tells the app it may exit with 75 to be restarted
         overlay = updater.installed_overlay()
         use = bool(overlay and (updater.parse_version(overlay[0]) or ()) > (updater.parse_version(__version__) or ()))
         if use:

@@ -3,11 +3,12 @@ from __future__ import annotations
 
 import copy
 
+from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QGroupBox,
                                QHBoxLayout, QLabel, QMessageBox, QPlainTextEdit, QPushButton, QSpinBox,
                                QVBoxLayout)
 
-from . import clamd_schedule
+from . import clamd_schedule, updater
 from .scanners import clamd
 from .scanners.aur_malware_check import AurMalwareCheck
 from .scanners.aur_scan import AurScan
@@ -87,6 +88,10 @@ class SettingsDialog(QDialog):
         self.confirm_rm = QCheckBox("Ask before removing packages (recommended)")
         self.confirm_rm.setChecked(s.confirm_before_remove)
         root.addWidget(self.confirm_rm)
+
+        ver = QLabel(f"CachyOS Security Scanner – version {updater.describe_version()}")
+        ver.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        root.addWidget(ver)
 
         bb = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
         bb.accepted.connect(self.accept)

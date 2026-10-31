@@ -31,6 +31,7 @@ SIG_NAMESPACE = "cachy-security-scanner"
 ALLOWED_HOST_SUFFIXES = ("github.com", "githubusercontent.com")
 MAX_DOWNLOAD = 20 * 1024 * 1024
 RESTART_EXIT_CODE = 75
+SUPERVISED_ENV = "CACHY_SEC_SUPERVISED"
 
 
 class UpdateError(Exception):
@@ -120,6 +121,20 @@ def effective_version() -> str:
     if o and (parse_version(o[0]) or ()) > (parse_version(__version__) or ()):
         return o[0]
     return __version__
+
+
+def supervised() -> bool:
+    """True when started through bootstrap, i.e. exiting with RESTART_EXIT_CODE restarts the app."""
+    return os.environ.get(SUPERVISED_ENV) == "1"
+
+
+def describe_version() -> str:
+    """Human readable version of the running code, plus a pending (installed but not yet running) update."""
+    text = "development build" if __version__ == "0.0.0" else __version__
+    o = installed_overlay()
+    if o and (parse_version(o[0]) or ()) > (parse_version(__version__) or ()):
+        text += f" – update {o[0]} installed, applied on restart"
+    return text
 
 
 def is_newer(candidate: str) -> bool:

@@ -72,7 +72,9 @@ Release flow for maintainers:
 
 Client side: downloads only from github.com / githubusercontent.com over HTTPS, verifies the SSH signature
 (`ssh-keygen -Y verify`) against the embedded key, then the SHA-256, extracts safely into
-`~/.local/share/cachy-security-scanner/updates/` and applies it on the next restart (tray: "Restart to apply
-update"). Without a configured key updates are refused. A new version that crashes within 30 s of start is
+`~/.local/share/cachy-security-scanner/updates/` and restarts the app by itself as soon as nothing is running
+(no package scan, no open dialog); the tray menu also has "Restart to apply update". When started directly
+instead of through the `cachy-security-scanner` launcher (e.g. from source) it only notifies. The running version
+is shown in Settings and in the tray menu. Without a configured key updates are refused. A new version that crashes within 30 s of start is
 discarded and the packaged version runs. The pacman-installed files are never modified; if the package
 catches up to the downloaded version the downloaded copy is dropped.

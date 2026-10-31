@@ -13,20 +13,16 @@ class CommunityBlocklist(Scanner):
 
     def __init__(self) -> None:
         self._status = ""
-        self._refreshed = False
 
     def available(self) -> bool:
         return True  # needs only network access (or a cached copy); a missing list is reported as an error in scan()
 
-    def update(self) -> None:
-        self._refreshed = True
-        ok, msg = blocklist.refresh()
-        self._status = msg if ok else f"download/verification failed ({msg}); using the cached list if any"
-
     def scan(self) -> ScanResult:
-        if not self._refreshed:
-            self.update()
         loaded = blocklist.load()
+        if loaded is None:  # regular refreshes run at start and periodically; a scan only fetches when there is nothing yet
+            ok, msg = blocklist.refresh()
+            self._status = msg if ok else f"download/verification failed ({msg})"
+            loaded = blocklist.load()
         if loaded is None:
             return ScanResult(self.name, ERROR, [], f"community blocklist not available yet: {self._status}",
                               log=f"No verified blocklist in the cache.\n{self._status}")
@@ -42,7 +38,7 @@ class CommunityBlocklist(Scanner):
                     detail += f"\n{e.reference}"
                 findings.append(Finding(CRITICAL, f"{pkg} {version} is on the community blocklist: {e.reason}",
                                         self.label, package=pkg, detail=detail, version=version))
-        log = (f"blocklist: {describe(loaded, 'entry', 'entries')}; list refresh: {self._status or 'cache'}\n"
+        log = (f"blocklist: {describe(loaded, 'entry', 'entries')}; list: {self._status or 'from the cache'}\n"
                f"checked {len(installed)} installed AUR/foreign packages\n"
                + "".join(f"HIT {f.title}\n" for f in findings))
         return ScanResult(self.name, CRITICAL if findings else CLEAN, findings, log=log)

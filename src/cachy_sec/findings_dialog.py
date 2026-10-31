@@ -27,7 +27,8 @@ def details_text(findings) -> str:
 class FindingsDialog(QDialog):
     def __init__(self, summary: str, findings, pkgs: list[str], on_remove: Callable[[list[str]], None],
                  editor: str = "", on_ignore: Callable[[str, str, list[str]], None] | None = None,
-                 on_changed: Callable[[], None] | None = None, scan_info: str = "") -> None:
+                 on_changed: Callable[[], None] | None = None, scan_info: str = "",
+                 notes: list[str] | None = None) -> None:
         super().__init__()
         self._base_title = "Possible compromise" + (f" – {scan_info}" if scan_info else "")
         self.editor = editor
@@ -52,6 +53,11 @@ class FindingsDialog(QDialog):
         text.setWordWrap(True)
         top.addWidget(text, 1)
         root.addLayout(top)
+        if notes:
+            hint = QLabel("\n".join(notes))
+            hint.setWordWrap(True)
+            hint.setEnabled(False)  # greyed secondary text
+            root.addWidget(hint)
 
         entries = ignores.rows(findings) if on_ignore else []
         self._entries_height = 0

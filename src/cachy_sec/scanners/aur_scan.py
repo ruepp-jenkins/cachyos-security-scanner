@@ -153,10 +153,11 @@ class AurScan(Scanner):
         return code == 0, out
 
     def _refresh_fp(self) -> None:
+        """Fetch the list only if there is no verified copy yet; regular refreshes happen at start and periodically."""
         self._fp_checked = True
-        if self._use_fp:
-            ok, msg = fplist.refresh()  # failure keeps the previous verified cache; nothing is hidden without one
-            self._fp_status = msg if ok else f"download/verification failed ({msg}); using the cached list if any"
+        if self._use_fp and not fplist.load():
+            ok, msg = fplist.refresh()
+            self._fp_status = msg if ok else f"download/verification failed ({msg})"
 
     def update(self) -> None:
         self._prepared = True
@@ -221,8 +222,17 @@ class AurScan(Scanner):
         if hits:  # transparency: show what the community list hid
             out += "\n\n--- hidden by the community false-positive list ---\n" + "\n".join(
                 f"{k}: {v}" for k, v in hits.items()) + "\n"
+        notes: list[str] = []
+        if hits:
+            notes.append(f"{len(hits)} finding(s) were hidden by the community false-positive list.")
+        if findings and recognized(out):
+            if not self._use_fp:
+                notes.append("The community false-positive list is switched off (Settings > aur-scan).")
+            elif not entries:
+                notes.append("The community false-positive list is on but not available "
+                             f"({self._fp_status or 'no verified copy in the cache'}); nothing could be hidden.")
         if not findings and recognized(out):
-            return ScanResult(self.name, CLEAN, log=out)  # everything it reported is on an ignore list
+            return ScanResult(self.name, CLEAN, log=out, notes=notes)  # everything it reported is on an ignore list
         if not findings:
             findings = [Finding(WARNING, "aur-scan reported findings at or above 'high'", self.label)]
-        return ScanResult(self.name, WARNING, findings, out[-2000:], log=out)
+        return ScanResult(self.name, WARNING, findings, out[-2000:], log=out, notes=notes)

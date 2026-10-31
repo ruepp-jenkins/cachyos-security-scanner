@@ -88,7 +88,7 @@ author, report date, a reason and optionally a description. Tick *"Use the commu
 aur-scan settings to let the app hide exactly those findings (it is **on by default** while aur-scan is enabled; untick it if you do not trust the
 list). The list only hides; every hidden finding is noted in the scan log with its reason, author and date. It is
 published signed on the rolling `lists` release and verified against the app's embedded key; without a valid
-signature nothing is hidden. To report one, use the issue template *Report an aur-scan false positive* or open a pull
+signature nothing is hidden. Lists are downloaded when the app starts (the startup scan waits for them) and then re-downloaded when older than 6 hours (checked hourly); scans only fetch a list if none is cached yet. If a download fails, Settings shows the reason. To report one, use the issue template *Report an aur-scan false positive* or open a pull
 request (see [`lists/README.md`](lists/README.md)).
 
 ## Scan history

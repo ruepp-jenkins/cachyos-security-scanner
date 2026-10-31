@@ -111,4 +111,4 @@ def load(pubkey: str | None = None) -> list[Entry]:
 
 
 def status() -> str:
-    return signedlist.describe(signedlist.load(SPEC))
+    return signedlist.describe(signedlist.load(SPEC), error=signedlist.last_error(SPEC))

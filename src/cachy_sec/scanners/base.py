@@ -30,6 +30,7 @@ class ScanResult:
     message: str = ""
     log: str = ""  # raw tool output, kept for the scan history
     duration_s: float = 0.0
+    notes: list[str] = field(default_factory=list)  # short hints shown with the findings (why something was/was not hidden)
 
     @property
     def ok(self) -> bool:

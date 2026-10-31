@@ -89,4 +89,4 @@ def load(pubkey: str | None = None) -> signedlist.Loaded | None:
 
 
 def status() -> str:
-    return signedlist.describe(load(), "entry", "entries")
+    return signedlist.describe(load(), "entry", "entries", signedlist.last_error(SPEC))

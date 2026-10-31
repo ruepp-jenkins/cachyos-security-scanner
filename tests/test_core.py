@@ -306,12 +306,18 @@ class FalsePositiveListTest(unittest.TestCase):
         off = AurScan(use_fp_list=False).scan()
         self.assertEqual(off.status, WARNING)  # not used when the checkbox is off
         self.assertIn("community false-positive list: off", off.log)  # the log says why nothing was hidden
+        self.assertTrue(any("switched off" in n for n in off.notes))  # and so does the findings window
         self.assertIn("scanned PKGBUILD version / installed version: heidisql 1:12.22-1 / 1:12.22-1", off.log)
         self.assertIn("heidisql 1:12.22-1:", off.findings[0].title)
         on = AurScan(use_fp_list=True).scan()
         self.assertEqual(on.status, CLEAN)
         self.assertIn("hidden by the community false-positive list", on.log)
         self.assertIn("community false-positive list: on, 1 entries", on.log)
+        self.assertTrue(any("1 finding(s) were hidden" in n for n in on.notes))
+        with mock.patch("cachy_sec.fplist.load", return_value=[]):  # enabled, but no verified list in the cache
+            missing = AurScan(use_fp_list=True).scan()
+        self.assertEqual(missing.status, WARNING)
+        self.assertTrue(any("on but not available" in n for n in missing.notes))
         self.assertIn("reported by someone, 2026-10-31", on.log)
 
 
@@ -372,9 +378,58 @@ def fplist_name():
     return fplist.LIST_NAME
 
 
+class ListRefreshPolicyTest(unittest.TestCase):
+    def test_scans_do_not_download_when_a_list_is_cached(self):
+        from cachy_sec.scanners.blocklist import CommunityBlocklist
+        loaded = signedlist.Loaded([], "", 0.0)
+        with mock.patch("cachy_sec.blocklist.load", return_value=loaded), \
+             mock.patch("cachy_sec.blocklist.refresh") as refresh, \
+             mock.patch("cachy_sec.scanners.blocklist.installed_versions", return_value={}):
+            self.assertEqual(CommunityBlocklist().scan().status, CLEAN)
+        refresh.assert_not_called()
+        # nothing cached yet: one fetch attempt, and a clear error if it fails
+        with mock.patch("cachy_sec.blocklist.load", return_value=None), \
+             mock.patch("cachy_sec.blocklist.refresh", return_value=(False, "HTTP Error 404")) as refresh:
+            r = CommunityBlocklist().scan()
+        refresh.assert_called_once()
+        self.assertEqual(r.status, "error")
+
+    def test_aur_scan_does_not_download_when_cached_but_fetches_when_missing(self):
+        entries = []
+        with mock.patch("cachy_sec.fplist.load", return_value=[object()]), mock.patch("cachy_sec.fplist.refresh") as refresh:
+            AurScan(use_fp_list=True)._refresh_fp()
+        refresh.assert_not_called()
+        with mock.patch("cachy_sec.fplist.load", return_value=entries), \
+             mock.patch("cachy_sec.fplist.refresh", return_value=(True, "updated")) as refresh:
+            AurScan(use_fp_list=True)._refresh_fp()
+        refresh.assert_called_once()
+
+    def test_engine_refresh_lists_follows_the_settings(self):
+        with mock.patch("cachy_sec.blocklist.refresh", return_value=(True, "updated")) as bl, \
+             mock.patch("cachy_sec.fplist.refresh", return_value=(True, "cache is fresh")) as fp:
+            out = engine.refresh_lists(Settings(use_community_blocklist=True, use_aur_scan=True, use_false_positive_list=True))
+            self.assertEqual(out, {"blocklist": "updated", "false-positives": "cache is fresh"})
+            bl.reset_mock(); fp.reset_mock()
+            out = engine.refresh_lists(Settings(use_community_blocklist=False, use_aur_scan=False, use_false_positive_list=True))
+            self.assertEqual(out, {})  # false-positive list is pointless without aur-scan
+            bl.assert_not_called(); fp.assert_not_called()
+        with mock.patch("cachy_sec.blocklist.refresh", side_effect=RuntimeError("boom")):
+            self.assertIn("boom", engine.refresh_lists(Settings())["error"])  # never raises
+
+    def test_failed_download_reason_is_shown_in_the_status(self):
+        import os
+        from cachy_sec import fplist
+        with tempfile.TemporaryDirectory() as d, mock.patch.dict(os.environ, {"XDG_CACHE_HOME": d}):
+            self.assertIn("not downloaded yet", fplist.status())
+            with mock.patch.object(updater, "_get", side_effect=updater.UpdateError("download failed: HTTP Error 404: Not Found")):
+                self.assertFalse(fplist.refresh(force=True)[0])
+            self.assertIn("last download failed (download failed: HTTP Error 404", fplist.status())
+
+
 class SignedListTest(unittest.TestCase):
     def test_describe_for_the_settings_dialog(self):
         self.assertIn("not downloaded yet", signedlist.describe(None))
+        self.assertIn("last download failed (boom)", signedlist.describe(None, error="boom"))
         l = signedlist.Loaded([1, 2, 3], "2026-10-31T18:45:01Z", 0.0)
         self.assertEqual(signedlist.describe(l), "available, from 2026-10-31 18:45 UTC, 3 entries")
         self.assertEqual(signedlist.describe(signedlist.Loaded([1], "2026-10-31T18:45:01Z", 0.0)),

@@ -54,6 +54,14 @@ def paths(spec: Spec) -> tuple[Path, Path]:
     return _dir() / spec.name, _dir() / (spec.name + ".sig")
 
 
+def last_error(spec: Spec) -> str:
+    """Why the last download failed ("" if it did not, or a later one succeeded)."""
+    try:
+        return _failed_marker(spec).read_text().strip()
+    except OSError:
+        return ""
+
+
 def _failed_marker(spec: Spec) -> Path:
     return _dir() / (spec.name + ".failed")
 
@@ -86,7 +94,7 @@ def refresh(spec: Spec, force: bool = False, pubkey: str | None = None) -> tuple
     except (updater.UpdateError, ValueError) as e:
         try:
             _dir().mkdir(parents=True, exist_ok=True)
-            _failed_marker(spec).touch()
+            _failed_marker(spec).write_text(str(e)[:300])
         except OSError:
             pass
         return False, str(e)
@@ -117,10 +125,12 @@ def load(spec: Spec, pubkey: str | None = None) -> Loaded | None:
         return None
 
 
-def describe(loaded: Loaded | None, noun: str = "entry", plural: str = "entries") -> str:
+def describe(loaded: Loaded | None, noun: str = "entry", plural: str = "entries", error: str = "") -> str:
     """One line for the settings dialog: availability and how current the list is."""
     if loaded is None:
-        return "not downloaded yet (fetched with the next scan)"
+        if error:
+            return f"not available: the last download failed ({error})"
+        return "not downloaded yet (fetched at start and then every few hours)"
     n = len(loaded.entries)
     if loaded.published:
         when = loaded.published[:10] + " " + loaded.published[11:16] + " UTC"

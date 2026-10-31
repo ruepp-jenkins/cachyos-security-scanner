@@ -44,6 +44,10 @@ class Report:
         return [f for r in self.results for f in r.findings]
 
     @property
+    def notes(self) -> list[str]:
+        return [n for r in self.results for n in r.notes]
+
+    @property
     def kind(self) -> str:
         """Notification/icon class: "bad" (findings, or any enabled scanner failed to run), "info" (skipped), else "good"."""
         if self.skipped:
@@ -68,6 +72,21 @@ class Report:
         # an enabled scanner that could not run means incomplete protection: report it as an error
         head = "Scan incomplete" if ran else "Scan failed"
         return f"{head}: " + "; ".join(f"{r.backend}: {r.message}" for r in problems)[:300]
+
+
+def refresh_lists(s: Settings, force: bool = False) -> dict[str, str]:
+    """Download the community lists the settings use (skipped while the cached copy is fresh). Never raises."""
+    from . import blocklist, fplist  # local: keeps engine importable without the list modules during tests
+
+    out: dict[str, str] = {}
+    try:
+        if s.use_community_blocklist:
+            out["blocklist"] = blocklist.refresh(force)[1]
+        if s.use_aur_scan and s.use_false_positive_list:
+            out["false-positives"] = fplist.refresh(force)[1]
+    except Exception as e:  # noqa: BLE001 - a failed download must never break the app
+        out["error"] = str(e)
+    return out
 
 
 def run_scan(s: Settings, *, manual: bool = False) -> Report:

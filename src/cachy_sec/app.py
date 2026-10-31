@@ -46,6 +46,20 @@ class _UpdateJob(QRunnable):
         self.sig.emit(*updater.check_and_install())
 
 
+class _ListsJob(QRunnable):
+    def __init__(self, settings, then_scan: bool, sig) -> None:
+        super().__init__()
+        self.settings, self.then_scan, self.sig = settings, then_scan, sig
+
+    def run(self) -> None:
+        engine.refresh_lists(self.settings)
+        self.sig.done.emit(self.then_scan)
+
+
+class _ListsSignal(QObject):
+    done = Signal(bool)
+
+
 class _UpdateSignal(QObject):
     result = Signal(str, str)
 
@@ -110,8 +124,21 @@ class Tray(QObject):
         QTimer.singleShot(30_000, lambda: self.check_update(manual=False))
         self._apply_settings()
         autostart.apply(self.settings.autostart)
-        if scheduler.scan_at_startup(self.settings):
-            QTimer.singleShot(5000, lambda: self.scan(manual=False, trigger="startup"))
+        # Community lists: downloaded at start (the startup scan waits for them), then re-checked hourly and
+        # re-downloaded when older than signedlist.STALE_AFTER_S. Scans themselves never trigger a download.
+        self.lists_sig = _ListsSignal()
+        self.lists_sig.done.connect(self._lists_done)
+        self.lists_timer = QTimer(self)
+        self.lists_timer.timeout.connect(lambda: self.refresh_lists(False))
+        self.lists_timer.start(3600 * 1000)
+        QTimer.singleShot(3000, lambda: self.refresh_lists(scheduler.scan_at_startup(self.settings)))
+
+    def refresh_lists(self, then_scan: bool = False) -> None:
+        self.pool.start(_ListsJob(self.settings, then_scan, self.lists_sig))
+
+    def _lists_done(self, then_scan: bool) -> None:
+        if then_scan:
+            self.scan(manual=False, trigger="startup")
 
     def _apply_settings(self) -> None:
         ms = scheduler.interval_ms(self.settings)
@@ -214,7 +241,7 @@ class Tray(QObject):
         """Non-modal: the dialog never blocks the tray, other scans or update checks."""
         box = FindingsDialog(report.summary(), report.findings, engine.infected_packages(report), self._remove_clicked,
                              self.settings.editor_command, self._ignore_finding,
-                             lambda: self.scan(manual=True, trigger="after ignore"), scan_info)
+                             lambda: self.scan(manual=True, trigger="after ignore"), scan_info, report.notes)
         box.setAttribute(Qt.WA_DeleteOnClose)
         self._dialogs.append(box)  # keep a reference while open
         self._findings_dialogs.append(box)
@@ -294,6 +321,7 @@ class Tray(QObject):
         self.settings.save()
         self._apply_settings()
         autostart.apply(self.settings.autostart)
+        self.refresh_lists(False)  # e.g. a list was just switched on: fetch it now (no-op while the cache is fresh)
 
 
 def main() -> int:

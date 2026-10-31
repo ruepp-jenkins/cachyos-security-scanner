@@ -5,18 +5,21 @@ notification when something is found. It only provides the UI and scheduling; de
 external tools. Removal of flagged packages is optional and always needs your click.
 
 ## Install (CachyOS / Arch)
-Download the prebuilt package from the latest release and install it with pacman:
+1. Open the [Releases page](https://github.com/ruepp-jenkins/cachyos-security-scanner/releases) and pick the
+   newest release.
+2. Under **Assets**, download `cachy-security-scanner.pkg.tar.zst`.
+3. Open a terminal in the download folder and install it with pacman:
 
-    curl -LO https://github.com/ruepp-jenkins/cachyos-security-scanner/releases/latest/download/cachy-security-scanner.pkg.tar.zst
-    sudo pacman -U cachy-security-scanner.pkg.tar.zst
+       sudo pacman -U cachy-security-scanner.pkg.tar.zst
 
-pacman pulls in the dependencies (`python`, `pyside6`, `git`, `libnotify`, `openssh`). Then start
-"CachyOS Security Scanner" from the application menu (it also autostarts on next login).
+pacman pulls in the dependencies (`python`, `pyside6`, `git`, `libnotify`, `openssh`).
+4. Start "CachyOS Security Scanner" from the application menu (it also autostarts on next login).
+
 Later versions update themselves from GitHub Releases (see Auto-update). Remove with
 `sudo pacman -Rns cachy-security-scanner`.
 
-Prefer to build it yourself? Every release also carries the `PKGBUILD`; download it into an empty
-directory and run `makepkg -si`.
+If a release has no `.pkg.tar.zst` asset, you can build it yourself: download the `PKGBUILD` from the same
+release into an empty directory and run `makepkg -si`.
 
 ## Backends (both AUR scanners enabled by default, toggle in Settings)
 | Backend | Source | Notes |

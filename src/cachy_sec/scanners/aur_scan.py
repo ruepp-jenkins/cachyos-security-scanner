@@ -62,7 +62,9 @@ def parse_output(out: str, label: str, ignore: frozenset[str] | set[str] = froze
             for (c, t), cnt in groups.items():
                 per_code.setdefault(c, [t, 0])[1] += cnt
             rules = [(c, t, cnt) for c, (t, cnt) in per_code.items()]
-            findings.append(Finding(WARNING, f"{pkg}: {n} issue{'s' if n != 1 else ''} – {what}", label, package=pkg,
+            ver = (versions or {}).get(pkg, "")
+            findings.append(Finding(WARNING, f"{pkg}{' ' + ver if ver else ''}: {n} issue{'s' if n != 1 else ''} – {what}",
+                                    label, package=pkg,
                                     detail=detail, files=files, version=(versions or {}).get(pkg, ""),
                                     codes=list(dict.fromkeys(c for c, _, _ in kept)), rules=rules))
 
@@ -115,6 +117,7 @@ class AurScan(Scanner):
         self._ignore = frozenset(ignore or [])
         self._use_fp = use_fp_list  # opt-in: signed community false-positive list from the project's GitHub
         self._fp_checked = False
+        self._fp_status = ""
         self._prepared = False
         self._build_log = ""
 
@@ -137,7 +140,8 @@ class AurScan(Scanner):
     def _refresh_fp(self) -> None:
         self._fp_checked = True
         if self._use_fp:
-            fplist.refresh()  # failure keeps the previous verified cache; nothing is hidden without one
+            ok, msg = fplist.refresh()  # failure keeps the previous verified cache; nothing is hidden without one
+            self._fp_status = msg if ok else f"download/verification failed ({msg}); using the cached list if any"
 
     def update(self) -> None:
         self._prepared = True
@@ -186,6 +190,12 @@ class AurScan(Scanner):
             return e is not None
 
         findings = parse_output(out, self.label, self._ignore, suppress, versions)
+        if recognized(out):  # make the "why was it (not) hidden" question answerable from the history
+            reported = sorted({m.group(1) for m in map(_HEADER.match, out.splitlines()) if m})
+            out += ("\n\n--- context ---\n"
+                    + ("community false-positive list: " + (f"on, {len(entries)} entries ({self._fp_status or 'cache'})"
+                                                            if self._use_fp else "off (Settings > aur-scan to enable)") + "\n")
+                    + "installed versions: " + (", ".join(f"{p} {versions.get(p, '?')}" for p in reported) or "-") + "\n")
         if hits:  # transparency: show what the community list hid
             out += "\n\n--- hidden by the community false-positive list ---\n" + "\n".join(
                 f"{k}: {v}" for k, v in hits.items()) + "\n"

@@ -320,9 +320,13 @@ class FalsePositiveListTest(unittest.TestCase):
         self.addCleanup(mock.patch.stopall)
         off = AurScan(use_fp_list=False).scan()
         self.assertEqual(off.status, WARNING)  # opt-in: not used unless the checkbox is on
+        self.assertIn("community false-positive list: off", off.log)  # the log says why nothing was hidden
+        self.assertIn("installed versions: heidisql 1:12.22-1", off.log)
+        self.assertIn("heidisql 1:12.22-1:", off.findings[0].title)
         on = AurScan(use_fp_list=True).scan()
         self.assertEqual(on.status, CLEAN)
         self.assertIn("hidden by the community false-positive list", on.log)
+        self.assertIn("community false-positive list: on, 1 entries", on.log)
         self.assertIn("reported by someone, 2026-10-31", on.log)
 
 

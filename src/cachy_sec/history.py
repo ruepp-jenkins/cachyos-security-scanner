@@ -40,7 +40,7 @@ class Entry:
             data = json.loads(_read(self.path))
         except ValueError:
             return "(unreadable history file)"
-        out = [f"Started:  {data.get('started')}", f"Trigger:  {data.get('trigger')}",
+        out = [f"Started:  {data.get('started')}", f"Trigger:  {data.get('trigger')}", f"Process:  {data.get('pid', '?')}",
                f"Duration: {data.get('duration_s')}s", f"Status:   {data.get('status')}", f"Summary:  {data.get('summary')}", ""]
         for r in data.get("results", []):
             out.append(f"===== {r.get('backend')} – {r.get('status')} =====")
@@ -100,7 +100,7 @@ def record(report, trigger: str, started: float, duration_s: float, keep: int = 
     """
     when = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(started))
     stamp = time.strftime("%Y%m%dT%H%M%S", time.localtime(started))
-    base = {"started": when, "trigger": trigger}
+    base = {"started": when, "trigger": trigger, "pid": os.getpid()}  # pid: two different pids = two running instances
     paths: list[Path] = []
     try:
         d = history_dir()

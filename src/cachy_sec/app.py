@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 
 import time
 
-from . import autostart, engine, history, icons, ignores, notify, remove, scheduler, updater
+from . import autostart, engine, history, icons, ignores, notify, remove, scheduler, singleton, updater
 from .scanners import clamd
 from .settings import Settings
 from .findings_dialog import FindingsDialog
@@ -201,6 +201,9 @@ class Tray(QObject):
             return
         self.busy = True
         self.tray.setToolTip("Scanning…")
+        fresh = Settings.load_existing()  # the file is the source of truth, e.g. if settings were saved elsewhere
+        if fresh is not None:
+            self.settings = fresh
         s = self.settings
 
         def job():
@@ -325,6 +328,10 @@ class Tray(QObject):
 
 
 def main() -> int:
+    if singleton.acquire() is None:
+        print("CachyOS Security Scanner is already running.", file=sys.stderr)
+        notify.notify("Security scanner", "Already running – look for its icon in the system tray.", kind="info")
+        return 0
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
     app.setApplicationName("cachy-security-scanner")

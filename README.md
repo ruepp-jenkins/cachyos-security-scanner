@@ -91,6 +91,11 @@ published signed on the rolling `lists` release and verified against the app's e
 signature nothing is hidden. Lists are downloaded when the app starts (the startup scan waits for them) and then re-downloaded when older than 6 hours (checked hourly); scans only fetch a list if none is cached yet. If a download fails, Settings shows the reason. To report one, use the issue template *Report an aur-scan false positive* or open a pull
 request (see [`lists/README.md`](lists/README.md)).
 
+## One instance
+Only one tray app runs per session (a lock in `$XDG_RUNTIME_DIR`); starting it again just says it is already running. Each scan
+reads the saved settings file again, so a scanner that is switched off is never run. The history shows the process id of
+every scan (two different ids would mean two instances).
+
 ## Scan history
 Tray menu → "Scan history…" lists every scan, with **one entry per scanner** (start time, scanner, trigger, status, summary); selecting one shows its
 full log, including the raw output of each scanner. A scanner that is enabled but cannot be set up or run gets an entry with status `error` and the reason

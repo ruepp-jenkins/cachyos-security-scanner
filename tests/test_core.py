@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -378,6 +379,30 @@ def fplist_name():
     return fplist.LIST_NAME
 
 
+class SingleInstanceTest(unittest.TestCase):
+    def test_second_instance_is_refused_and_lock_is_released(self):
+        from cachy_sec import singleton
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "x.lock"
+            first = singleton.acquire(p)
+            self.assertIsNotNone(first)
+            self.assertIsNone(singleton.acquire(p))  # a second instance must not start
+            self.assertEqual(p.read_text(), str(os.getpid()))
+            first.close()  # process exit does the same: no stale lock after a crash
+            again = singleton.acquire(p)
+            self.assertIsNotNone(again)
+            again.close()
+
+    def test_scan_always_uses_the_saved_settings_file(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "s.json"
+            self.assertIsNone(Settings.load_existing(p))  # no file: callers keep what they have
+            Settings(use_aur_scan=False, use_aur_malware_check=True).save(p)
+            s = Settings.load_existing(p)
+            self.assertFalse(s.use_aur_scan)
+            self.assertEqual([type(x).__name__ for x in engine.enabled_scanners(s)], ["AurMalwareCheck", "CommunityBlocklist"])
+
+
 class ListRefreshPolicyTest(unittest.TestCase):
     def test_scans_do_not_download_when_a_list_is_cached(self):
         from cachy_sec.scanners.blocklist import CommunityBlocklist
@@ -628,6 +653,13 @@ class HistoryTest(unittest.TestCase):
         self.assertEqual(by["aur_scan"].status, "error")
         self.assertIn("Not run: needs cargo", by["aur_scan"].log_text())
         self.assertNotIn("ok output", by["aur_scan"].log_text())
+
+    def test_history_records_the_process_id(self):
+        import time
+        from cachy_sec import history
+        [p] = history.record(engine.Report([ScanResult("a", CLEAN)]), "manual", time.time(), 1)
+        self.assertEqual(json.loads(p.read_text())["pid"], os.getpid())
+        self.assertIn(f"Process:  {os.getpid()}", history.list_entries()[0].log_text())
 
     def test_skipped_scan_is_recorded(self):
         import time

@@ -77,6 +77,11 @@ class Settings:
         s.validate()
         return s
 
+    @classmethod
+    def load_existing(cls, path: Path | None = None) -> "Settings | None":
+        """The saved settings, or None if there is no readable settings file (callers then keep what they have)."""
+        return cls.load(path) if (path or config_path()).is_file() else None
+
     def save(self, path: Path | None = None) -> None:
         path = path or config_path()
         path.parent.mkdir(parents=True, exist_ok=True)

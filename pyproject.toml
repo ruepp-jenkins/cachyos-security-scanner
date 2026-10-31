@@ -15,3 +15,6 @@ cachy-security-scanner = "cachy_sec.bootstrap:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+cachy_sec = ["icons/*.svg"]

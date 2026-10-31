@@ -26,5 +26,6 @@ package() {
   install -Dm644 data/cachy-security-scanner.hook "$pkgdir/usr/share/libalpm/hooks/cachy-security-scanner.hook"
   install -Dm644 data/cachy-security-scanner.conf "$pkgdir/usr/lib/tmpfiles.d/cachy-security-scanner.conf"
   install -Dm644 data/cachy-security-scanner.desktop "$pkgdir/etc/xdg/autostart/cachy-security-scanner.desktop"
+  install -Dm644 src/cachy_sec/icons/cachy-security-scanner.svg "$pkgdir/usr/share/icons/hicolor/scalable/apps/cachy-security-scanner.svg"
   install -Dm644 data/cachy-security-scanner.desktop "$pkgdir/usr/share/applications/cachy-security-scanner.desktop"
 }

@@ -40,6 +40,15 @@ class Report:
     def findings(self) -> list[Finding]:
         return [f for r in self.results for f in r.findings]
 
+    @property
+    def kind(self) -> str:
+        """Notification/icon class: "bad" (findings or every scanner failed), "info" (skipped), else "good"."""
+        if self.skipped:
+            return "info"
+        if self.findings or not self.results or all(r.status == ERROR for r in self.results):
+            return "bad"
+        return "good"
+
     def summary(self) -> str:
         if self.skipped:
             return f"Scan skipped: {self.skipped}"

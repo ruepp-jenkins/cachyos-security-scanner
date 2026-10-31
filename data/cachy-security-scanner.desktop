@@ -3,6 +3,6 @@ Type=Application
 Name=CachyOS Security Scanner
 Comment=Background scanner for compromised AUR packages
 Exec=cachy-security-scanner
-Icon=security-high
+Icon=cachy-security-scanner
 Categories=System;Security;
 X-GNOME-Autostart-enabled=true

@@ -9,6 +9,8 @@ from __future__ import annotations
 import os
 import shutil
 import sys
+
+from . import icons
 from pathlib import Path
 
 NAME = "cachy-security-scanner.desktop"
@@ -33,7 +35,7 @@ def exec_line() -> str:
 def _render(hidden: bool = False) -> str:
     lines = ["[Desktop Entry]", "Type=Application", "Name=CachyOS Security Scanner",
              "Comment=Background scanner for compromised AUR packages", f"Exec={exec_line()}",
-             "Icon=security-high", "Terminal=false", "X-GNOME-Autostart-Delay=10"]
+             f"Icon={icons.path(icons.APP)}", "Terminal=false", "X-GNOME-Autostart-Delay=10"]
     if hidden:
         lines.append("Hidden=true")
     return "\n".join(lines) + "\n"

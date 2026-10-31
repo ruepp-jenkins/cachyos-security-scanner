@@ -104,6 +104,31 @@ class ReportTest(unittest.TestCase):
         self.assertEqual(r.results[0].status, "error")
 
 
+class IconsTest(unittest.TestCase):
+    def test_bundled_icons_exist_and_map_to_kinds(self):
+        import xml.dom.minidom
+        from cachy_sec import icons
+        for name in (icons.APP, icons.GOOD, icons.BAD):
+            xml.dom.minidom.parse(icons.path(name))  # exists and is well-formed
+        self.assertTrue(icons.for_kind("good").endswith("status-good.svg"))
+        self.assertTrue(icons.for_kind("bad").endswith("status-bad.svg"))
+        self.assertTrue(icons.for_kind("info").endswith("cachy-security-scanner.svg"))
+
+    def test_notify_passes_icon(self):
+        from cachy_sec import notify
+        with mock.patch("subprocess.run") as r:
+            notify.notify("t", "b", kind="bad", urgent=True)
+        cmd = r.call_args[0][0]
+        self.assertEqual(cmd[cmd.index("-i") + 1].rsplit("/", 1)[1], "status-bad.svg")
+
+    def test_report_kind(self):
+        from cachy_sec.scanners.base import Finding
+        self.assertEqual(engine.Report([ScanResult("a", CLEAN)]).kind, "good")
+        self.assertEqual(engine.Report([ScanResult("a", CRITICAL, [Finding(CRITICAL, "x", "s")])]).kind, "bad")
+        self.assertEqual(engine.Report([ScanResult("a", "error")]).kind, "bad")
+        self.assertEqual(engine.Report([], skipped="gaming mode active").kind, "info")
+
+
 class ClamdTest(unittest.TestCase):
     def test_build_command_per_terminal(self):
         from cachy_sec.scanners import clamd

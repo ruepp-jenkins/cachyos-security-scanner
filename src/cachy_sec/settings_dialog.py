@@ -4,11 +4,12 @@ from __future__ import annotations
 import copy
 
 from PySide6.QtCore import Qt
+from PySide6.QtGui import QIcon
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QGroupBox,
                                QHBoxLayout, QLabel, QMessageBox, QPlainTextEdit, QPushButton, QSpinBox,
                                QVBoxLayout)
 
-from . import clamd_schedule, updater
+from . import clamd_schedule, icons, updater
 from .scanners import clamd
 from .scanners.aur_malware_check import AurMalwareCheck
 from .scanners.aur_scan import AurScan
@@ -20,6 +21,7 @@ class SettingsDialog(QDialog):
     def __init__(self, s: Settings) -> None:
         super().__init__()
         self.setWindowTitle("CachyOS Security Scanner – Settings")
+        self.setWindowIcon(QIcon(icons.path(icons.APP)))
         self.s = copy.deepcopy(s)
         root = QVBoxLayout(self)
 

@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 
 import time
 
-from . import autostart, engine, history, notify, remove, scheduler, updater
+from . import autostart, engine, history, icons, notify, remove, scheduler, updater
 from .scanners import clamd
 from .settings import Settings
 from .history_dialog import HistoryDialog
@@ -66,8 +66,8 @@ class Tray(QObject):
         self._dialogs: list = []
         self.dialog_open = False  # modal settings dialog
 
-        icon = QIcon.fromTheme("security-high", QIcon.fromTheme("dialog-information"))
-        self.tray = QSystemTrayIcon(icon, app)
+        app.setWindowIcon(QIcon(icons.path(icons.APP)))
+        self.tray = QSystemTrayIcon(QIcon(icons.path(icons.APP)), app)
         self.tray.setToolTip("CachyOS Security Scanner")
         self.menu = QMenu()
         self.act_scan = self.menu.addAction("Check for compromised packages now", lambda: self.scan(manual=True))
@@ -129,12 +129,13 @@ class Tray(QObject):
             self.act_restart.setText(f"Restart to apply update {msg}")
             self.act_restart.setVisible(True)
             if updater.supervised():
-                notify.notify("Security scanner updated", f"Version {msg} was installed and is applied automatically as soon as nothing is running.")
+                notify.notify("Security scanner updated", f"Version {msg} was installed and is applied automatically as soon as nothing is running.", kind="good")
                 self.restart_timer.start(5000)
             else:  # started directly (e.g. from source): no supervisor that could relaunch us
-                notify.notify("Security scanner updated", f"Version {msg} was installed. Restart the app to use it.")
+                notify.notify("Security scanner updated", f"Version {msg} was installed. Restart the app to use it.", kind="good")
         elif self.upd_manual:
-            notify.notify("Update check", msg if state == "current" else f"Update failed: {msg}")
+            notify.notify("Update check", msg if state == "current" else f"Update failed: {msg}",
+                          kind="good" if state == "current" else "bad")
 
     def _restart_if_idle(self) -> None:
         """Apply a pending update once no package scan, dialog or removal would be interrupted."""
@@ -147,7 +148,7 @@ class Tray(QObject):
         if updater.supervised():
             QApplication.exit(updater.RESTART_EXIT_CODE)
         else:
-            notify.notify("Restart needed", "Please start the app again to use the new version.")
+            notify.notify("Restart needed", "Please start the app again to use the new version.", kind="info")
 
     def _refresh_menu(self) -> None:
         ok = clamd.available()
@@ -181,7 +182,7 @@ class Tray(QObject):
         """Open a terminal showing the live clamdscan output; everything else is up to the user."""
         ok, msg = clamd.launch(self.settings.binary_scan_paths)
         if not ok:
-            notify.notify("Binary scan not started", msg)
+            notify.notify("Binary scan not started", msg, kind="bad")
 
     def _finished(self, report: engine.Report, manual: bool) -> None:
         self.busy = False
@@ -190,18 +191,20 @@ class Tray(QObject):
         self.tray.setToolTip(f"CachyOS Security Scanner – {text}")
         self.act_last.setText(text[:80])
         if report.findings:
-            notify.notify("Security scanner: possible compromise", text, urgent=True)
-            self.tray.setIcon(QIcon.fromTheme("dialog-warning"))
+            notify.notify("Security scanner: possible compromise", text, kind="bad", urgent=True)
+            self.tray.setIcon(QIcon(icons.path(icons.BAD)))
             self._offer_removal(report)
         else:
-            self.tray.setIcon(QIcon.fromTheme("security-high", QIcon.fromTheme("dialog-information")))
-            if manual or self.settings.notify_when_clean:
-                notify.notify("Security scan finished", text)
+            self.tray.setIcon(QIcon(icons.path({"good": icons.GOOD, "bad": icons.BAD}.get(report.kind, icons.APP))))
+            if manual or self.settings.notify_when_clean or report.kind == "bad":
+                notify.notify("Security scan finished", text, kind=report.kind, urgent=report.kind == "bad")
 
     def _offer_removal(self, report: engine.Report) -> None:
         """Non-modal: the dialog never blocks the tray, other scans or update checks."""
         pkgs = engine.infected_packages(report)
-        box = QMessageBox(QMessageBox.Warning, "Possible compromise", report.summary())
+        box = QMessageBox(QMessageBox.NoIcon, "Possible compromise", report.summary())
+        box.setIconPixmap(QIcon(icons.path(icons.BAD)).pixmap(64, 64))
+        box.setWindowIcon(QIcon(icons.path(icons.BAD)))
         box.setAttribute(Qt.WA_DeleteOnClose)
         box.setDetailedText("\n".join(f"[{f.severity}] {f.source}: {f.title}" for f in report.findings))
         rm = box.addButton("Remove packages…", QMessageBox.DestructiveRole) if pkgs else None
@@ -229,7 +232,7 @@ class Tray(QObject):
 
     def _removed(self, result, _manual) -> None:
         done, out = result
-        notify.notify("Package removal", "Done." if done else f"Failed: {out}", urgent=not done)
+        notify.notify("Package removal", "Done." if done else f"Failed: {out}", kind="good" if done else "bad", urgent=not done)
 
     def open_history(self) -> None:
         dlg = HistoryDialog()

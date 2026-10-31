@@ -3,20 +3,21 @@ from __future__ import annotations
 
 import subprocess
 
-from PySide6.QtGui import QFont
+from PySide6.QtGui import QFont, QIcon
 from PySide6.QtWidgets import (QDialog, QHBoxLayout, QMessageBox, QPlainTextEdit, QPushButton, QSplitter,
                                QTableWidget, QTableWidgetItem, QVBoxLayout, QAbstractItemView, QHeaderView)
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer
 
-from . import history
+from . import history, icons
 
 
 class HistoryDialog(QDialog):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle("Scan history")
+        self.setWindowIcon(QIcon(icons.path(icons.APP)))
         self.resize(900, 600)
         self.entries: list[history.Entry] = []
         self.selected: Path | None = None  # selection is tracked by file, not by row, so new entries don't move it

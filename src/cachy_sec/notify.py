@@ -3,10 +3,12 @@ from __future__ import annotations
 
 import subprocess
 
+from . import icons
 
-def notify(title: str, body: str, *, urgent: bool = False) -> None:
-    cmd = ["notify-send", "-a", "CachyOS Security Scanner", "-i",
-           "security-low" if not urgent else "dialog-warning",
+
+def notify(title: str, body: str, *, kind: str = "info", urgent: bool = False) -> None:
+    """kind: "good" (green icon), "bad" (red icon) or "info" (neutral app icon)."""
+    cmd = ["notify-send", "-a", "CachyOS Security Scanner", "-i", icons.for_kind(kind),
            "-u", "critical" if urgent else "normal", title, body]
     try:
         subprocess.run(cmd, timeout=10, check=False)

@@ -9,7 +9,7 @@ from PySide6.QtGui import QAction, QIcon
 from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 
 from . import engine, notify, remove, scheduler, updater
-from .scanners import clamui
+from .scanners import clamd
 from .settings import Settings
 from .settings_dialog import SettingsDialog
 
@@ -64,7 +64,7 @@ class Tray(QObject):
         self.tray.setToolTip("CachyOS Security Scanner")
         self.menu = QMenu()
         self.act_scan = self.menu.addAction("Check for compromised packages now", lambda: self.scan(manual=True))
-        self.act_clam = self.menu.addAction("Scan binaries with ClamUI", self.scan_clamui)
+        self.act_clam = self.menu.addAction("Scan binaries with ClamAV (clamd)", self.scan_binaries)
         self.act_last = self.menu.addAction("No scan yet")
         self.act_last.setEnabled(False)
         self.menu.addSeparator()
@@ -120,9 +120,9 @@ class Tray(QObject):
             notify.notify("Update check", msg if state == "current" else f"Update failed: {msg}")
 
     def _refresh_menu(self) -> None:
-        ok = clamui.available()
-        self.act_clam.setEnabled(ok and not self.busy)
-        self.act_clam.setText("Scan binaries with ClamUI" if ok else "Scan binaries with ClamUI (ClamUI not installed)")
+        ok = clamd.available()
+        self.act_clam.setEnabled(ok)
+        self.act_clam.setText("Scan binaries with ClamAV (clamd)" if ok else "Scan binaries with ClamAV (clamdscan not installed)")
         self.act_scan.setEnabled(not self.busy)
 
     def _pkg_changed(self, _path: str) -> None:
@@ -139,13 +139,11 @@ class Tray(QObject):
         s = self.settings
         self.pool.start(_Job(lambda: (engine.run_scan(s, manual=manual), manual), self.done))
 
-    def scan_clamui(self) -> None:
-        if self.busy:
-            return
-        self.busy = True
-        self.tray.setToolTip("ClamUI scan running…")
-        s = self.settings
-        self.pool.start(_Job(lambda: (engine.run_clamui_scan(s), True), self.done))
+    def scan_binaries(self) -> None:
+        """Open a terminal showing the live clamdscan output; everything else is up to the user."""
+        ok, msg = clamd.launch(self.settings.binary_scan_paths)
+        if not ok:
+            notify.notify("Binary scan not started", msg)
 
     def _finished(self, report: engine.Report, manual: bool) -> None:
         self.busy = False

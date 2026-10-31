@@ -10,7 +10,7 @@ depends=('python' 'git' 'openssh' 'pyside6' 'libnotify' 'pacman')
 makedepends=('git' 'python-build' 'python-installer' 'python-setuptools' 'python-wheel')
 optdepends=('rust: build aur-scan automatically if the aur-scanner package is not installed'
             'aur-scanner: PKGBUILD/installed AUR package analysis (aur-scan)'
-            'clamui: on-request binary scans')
+            'clamav: on-request binary scans via clamdscan (clamd must be running)')
 source=("$pkgname::git+$url.git#tag=v$pkgver")
 sha256sums=('SKIP')  # git source pinned to a release tag
 

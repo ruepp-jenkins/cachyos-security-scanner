@@ -7,8 +7,8 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, 
                                QHBoxLayout, QLabel, QMessageBox, QPlainTextEdit, QPushButton, QSpinBox,
                                QVBoxLayout)
 
-from . import clamui_schedule
-from .scanners import clamui
+from . import clamd_schedule
+from .scanners import clamd
 from .scanners.aur_malware_check import AurMalwareCheck
 from .scanners.aur_scan import AurScan
 from .scanners.builtin_list import BuiltinList
@@ -51,19 +51,19 @@ class SettingsDialog(QDialog):
         bl.addWidget(QLabel("Scanner repositories are cloned and updated automatically before scans."))
         root.addWidget(back)
 
-        clam = QGroupBox("ClamUI binary scan (on request from the tray menu)")
+        clam = QGroupBox("Binary scan with ClamAV (clamdscan, on request from the tray menu)")
         cl = QVBoxLayout(clam)
-        if not clamui.available():
-            cl.addWidget(QLabel("ClamUI is not installed – the tray entry stays disabled."))
+        if not clamd.available():
+            cl.addWidget(QLabel("clamdscan not found (package clamav) – the tray entry stays disabled."))
         cl.addWidget(QLabel("Paths to scan, one per line:"))
-        self.paths = QPlainTextEdit("\n".join(s.clamui_paths))
+        self.paths = QPlainTextEdit("\n".join(s.binary_scan_paths))
         cl.addWidget(self.paths)
         row = QHBoxLayout()
-        en = QPushButton("Set up regular ClamUI scan (weekly)")
+        en = QPushButton("Set up regular clamd scan (weekly)")
         dis = QPushButton("Remove regular scan")
         en.clicked.connect(self._sched_on)
         dis.clicked.connect(self._sched_off)
-        en.setEnabled(clamui.available())
+        en.setEnabled(clamd.available())
         row.addWidget(en)
         row.addWidget(dis)
         cl.addLayout(row)
@@ -101,12 +101,12 @@ class SettingsDialog(QDialog):
         return [p.strip() for p in self.paths.toPlainText().splitlines() if p.strip()]
 
     def _sched_on(self) -> None:
-        ok, out = clamui_schedule.enable(self._paths())
-        QMessageBox.information(self, "Regular ClamUI scan", "Enabled (systemd user timer)." if ok else out)
+        ok, out = clamd_schedule.enable(self._paths())
+        QMessageBox.information(self, "Regular clamd scan", "Enabled (systemd user timer)." if ok else out)
 
     def _sched_off(self) -> None:
-        ok, out = clamui_schedule.disable()
-        QMessageBox.information(self, "Regular ClamUI scan", "Removed." if ok else out)
+        ok, out = clamd_schedule.disable()
+        QMessageBox.information(self, "Regular clamd scan", "Removed." if ok else out)
 
     def result_settings(self) -> Settings:
         s = self.s
@@ -121,7 +121,7 @@ class SettingsDialog(QDialog):
         s.use_aur_malware_check = self.b_amc.isChecked()
         s.use_aur_scan = self.b_scan.isChecked()
         s.use_builtin_list = self.b_list.isChecked()
-        s.clamui_paths = self._paths()
+        s.binary_scan_paths = self._paths()
         s.auto_update = self.auto_update.isChecked()
         s.confirm_before_remove = self.confirm_rm.isChecked()
         s.validate()

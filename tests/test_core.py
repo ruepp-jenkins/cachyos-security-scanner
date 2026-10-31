@@ -104,6 +104,31 @@ class ReportTest(unittest.TestCase):
         self.assertEqual(r.results[0].status, "error")
 
 
+class ClamdTest(unittest.TestCase):
+    def test_build_command_per_terminal(self):
+        from cachy_sec.scanners import clamd
+        with tempfile.TemporaryDirectory() as d:
+            with mock.patch("shutil.which", side_effect=lambda n: f"/usr/bin/{n}" if n == "konsole" else None):
+                cmd = clamd.build_command([d, "/does/not/exist"])
+            self.assertEqual(cmd[:3], ["/usr/bin/konsole", "-e", "bash"])
+            self.assertEqual(cmd[-1], d)  # missing paths are dropped
+            self.assertIn("clamdscan --fdpass", cmd[4])
+            with mock.patch("shutil.which", side_effect=lambda n: "/usr/bin/foot" if n == "foot" else None):
+                self.assertEqual(clamd.build_command([d])[:2], ["/usr/bin/foot", "bash"])
+
+    def test_no_terminal_or_no_paths(self):
+        from cachy_sec.scanners import clamd
+        with mock.patch("shutil.which", return_value=None):
+            self.assertIsNone(clamd.build_command(["/tmp"]))
+        with mock.patch("shutil.which", return_value="/usr/bin/xterm"):
+            self.assertIsNone(clamd.build_command(["/does/not/exist"]))
+
+    def test_script_is_valid_bash(self):
+        import subprocess
+        from cachy_sec.scanners import clamd
+        self.assertEqual(subprocess.run(["bash", "-n", "-c", clamd.SCAN_SCRIPT]).returncode, 0)
+
+
 class VendorTest(unittest.TestCase):
     def setUp(self):
         import os, subprocess

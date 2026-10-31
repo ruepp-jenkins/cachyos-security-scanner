@@ -1,4 +1,4 @@
-"""Optional helper: recurring ClamUI scans through a systemd *user* timer.
+"""Optional helper: recurring clamd scans (`clamdscan`) through a systemd *user* timer.
 
 Created only on explicit user request from the settings dialog; removable again.
 """
@@ -10,7 +10,7 @@ from pathlib import Path
 
 from .scanners.base import run, which
 
-UNIT = "cachy-sec-clamui"
+UNIT = "cachy-sec-clamd"
 
 
 def unit_dir() -> Path:
@@ -19,16 +19,16 @@ def unit_dir() -> Path:
 
 
 def render(paths: list[str], calendar: str = "weekly") -> tuple[str, str]:
-    exe = which("clamui") or "clamui"
+    exe = which("clamdscan") or "clamdscan"
     args = " ".join(shlex.quote(os.path.expanduser(p)) for p in paths)
-    service = f"[Unit]\nDescription=Regular ClamUI scan\n\n[Service]\nType=oneshot\nNice=19\nIOSchedulingClass=idle\nExecStart={exe} scan {args}\n"
-    timer = f"[Unit]\nDescription=Regular ClamUI scan\n\n[Timer]\nOnCalendar={calendar}\nPersistent=true\nRandomizedDelaySec=1h\n\n[Install]\nWantedBy=timers.target\n"
+    service = f"[Unit]\nDescription=Regular clamd scan\n\n[Service]\nType=oneshot\nNice=19\nIOSchedulingClass=idle\nExecStart={exe} --fdpass --multiscan -i -- {args}\n"
+    timer = f"[Unit]\nDescription=Regular clamd scan\n\n[Timer]\nOnCalendar={calendar}\nPersistent=true\nRandomizedDelaySec=1h\n\n[Install]\nWantedBy=timers.target\n"
     return service, timer
 
 
 def enable(paths: list[str], calendar: str = "weekly") -> tuple[bool, str]:
-    if not which("clamui"):
-        return False, "ClamUI is not installed"
+    if not which("clamdscan"):
+        return False, "clamdscan is not installed (package clamav)"
     service, timer = render(paths, calendar)
     d = unit_dir()
     d.mkdir(parents=True, exist_ok=True)

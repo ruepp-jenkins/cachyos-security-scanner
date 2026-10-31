@@ -8,7 +8,7 @@ from pathlib import Path
 
 MODES = ("startup", "interval", "manual")
 
-DEFAULT_CLAMUI_PATHS = [
+DEFAULT_BINARY_PATHS = [
     "/usr/bin",
     "/usr/local/bin",
     "/opt",
@@ -35,8 +35,8 @@ class Settings:
     use_aur_malware_check: bool = True
     use_aur_scan: bool = True
     use_builtin_list: bool = True
-    # ClamUI is only ever run on request from the tray menu.
-    clamui_paths: list[str] = field(default_factory=lambda: list(DEFAULT_CLAMUI_PATHS))
+    # Binary scan with clamdscan runs only on request from the tray menu.
+    binary_scan_paths: list[str] = field(default_factory=lambda: list(DEFAULT_BINARY_PATHS))
     notify_when_clean: bool = False
     confirm_before_remove: bool = True
     auto_update: bool = True  # app updates from GitHub Releases only

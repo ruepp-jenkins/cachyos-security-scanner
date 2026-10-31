@@ -4,7 +4,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from . import gaming
-from .scanners import clamui
 from .scanners.aur_malware_check import AurMalwareCheck
 from .scanners.aur_scan import AurScan
 from .scanners.base import CLEAN, CRITICAL, ERROR, Finding, ScanResult, Scanner, worst
@@ -74,13 +73,6 @@ def run_scan(s: Settings, *, manual: bool = False) -> Report:
         except Exception as e:  # noqa: BLE001
             results.append(ScanResult(sc.name, ERROR, [], str(e)))
     return Report(results)
-
-
-def run_clamui_scan(s: Settings) -> Report:
-    """On-request binary scan; ClamUI must be installed."""
-    if not clamui.available():
-        return Report([ScanResult("clamui", ERROR, [], "ClamUI is not installed")])
-    return Report([clamui.scan(s.clamui_paths)])
 
 
 def infected_packages(report: Report) -> list[str]:

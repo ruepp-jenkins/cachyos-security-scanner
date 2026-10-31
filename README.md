@@ -27,12 +27,12 @@ release into an empty directory and run `makepkg -si`.
 | aur-malware-check | https://github.com/lenucksi/aur-malware-check | Blocklist/IOC check of installed AUR packages. Community tool, not endorsed by Arch. Needs Python 3.14+. Cloned and kept up to date automatically (`git clone`/`git pull --ff-only`); a corrupt or diverged checkout is deleted and re-cloned. |
 | aur-scan | https://github.com/KiefStudioMA/ks-aur-scanner (AUR: `aur-scanner`) | Static analysis of installed AUR packages. Uses the `aur-scan` on PATH; otherwise cloned and built with `cargo` automatically (needs `git` + `cargo`). |
 | Built-in blocklist | set `CACHY_SEC_BLOCKLIST_URL` (https, one package per line) | Independent fallback; inactive without a URL. |
-| ClamUI | https://github.com/linx-systems/clamui | Required for binary scans, which run **only on request** from the tray menu. Settings can set up a weekly systemd user timer. |
+| ClamAV (`clamdscan`) | https://www.clamav.net | Binary scans run **only on request** from the tray menu: a terminal window opens with the live `clamdscan --fdpass --multiscan -i` output and stays open until you press Enter. Needs the `clamav` package and a running daemon (`sudo systemctl enable --now clamav-daemon`). Settings can set up a weekly systemd user timer. |
 
 Checkouts live in `~/.local/share/cachy-security-scanner/vendor/`; only directories there are ever deleted.
 
 ## Features
-Tray menu (right click): check now (always reports, even when clean), ClamUI binary scan, last result, settings.
+Tray menu (right click): check now (always reports, even when clean), ClamAV binary scan in a terminal window, last result, settings.
 Scan at start, at intervals or manual only; after package installs/updates via a pacman hook;
 skipped in gaming mode (gamemode/gamescope/Steam) or on battery if enabled.
 

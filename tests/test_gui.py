@@ -149,6 +149,16 @@ class GuiTest(unittest.TestCase):
         self.assertTrue(tray.settings.use_aur_scan)
         self.assertTrue(json.loads(Path(st.config_path()).read_text())["use_aur_scan"])
 
+    def test_help_button_opens_the_settings_reference(self):
+        d = self._track(SettingsDialog(st.Settings()))
+        help_btn = d.findChild(QDialogButtonBox).button(QDialogButtonBox.Help)
+        self.assertIsNotNone(help_btn)
+        with mock.patch("cachy_sec.settings_dialog.QDesktopServices.openUrl") as open_url:
+            help_btn.click()
+        url = open_url.call_args[0][0].toString()
+        self.assertTrue(url.startswith("https://github.com/ruepp-jenkins/cachyos-security-scanner/"))
+        self.assertTrue(url.endswith("/docs/settings.md"))
+
     def test_dialogs_do_not_shadow_qt_attributes(self):
         finding = Finding(WARNING, "t", "s", package="p", version="1-1", rules=[("X-1", "title", 1)])
         dialogs = [self._track(SettingsDialog(st.Settings())), self._track(HistoryDialog()),

@@ -43,6 +43,9 @@ release into an empty directory and run `makepkg -si`.
 
 Checkouts live in `~/.local/share/cachy-security-scanner/vendor/`; only directories there are ever deleted.
 
+## Settings
+Every option is explained in [`docs/settings.md`](docs/settings.md); the **Help** button in the settings dialog opens it.
+
 ## Features
 Tray menu (right click): check now (always reports, even when clean), ClamAV binary scan in a terminal window, last result, scan history, settings.
 Scan at start, at intervals or manual only; after package installs/updates via a pacman hook;

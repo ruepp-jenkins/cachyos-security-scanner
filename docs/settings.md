@@ -1,0 +1,134 @@
+# Settings reference
+
+This page describes every option in **Settings…** (tray icon → right click → *Settings…*), what it does, its default, and
+the key used in the settings file. Changes are applied when you click **Save**; **Cancel** discards them. Two buttons act
+immediately instead (*Revoke selected*, and the ClamAV timer buttons), as noted below.
+
+The settings file is `~/.config/cachy-security-scanner/settings.json` (its path is also shown at the bottom of the dialog).
+You can edit it by hand while the app is closed; unknown or wrongly typed values are ignored and replaced by the default.
+
+- [When to scan](#when-to-scan)
+- [AUR scanners](#aur-scanners)
+- [Community lists](#community-lists)
+- [Ignoring findings](#ignoring-findings)
+- [Binary scan with ClamAV](#binary-scan-with-clamav)
+- [General](#general)
+- [Where the app keeps its data](#where-the-app-keeps-its-data)
+- [Recipes](#recipes)
+
+---
+
+## When to scan
+
+Only *package scans* (the AUR scanners below) run automatically. The ClamAV binary scan never does; it runs only when you
+start it from the tray menu.
+
+| Setting (key) | Default | What it does |
+|---|---|---|
+| **Mode** (`mode`) | At regular intervals | **Only right after start** (`startup`): no timer, scans happen at start (if enabled) and after package changes (if enabled). **At regular intervals** (`interval`): additionally a scan every *Interval*. **Manual only** (`manual`): no automatic scan at all – this also switches off *Scan at start* and *Scan after package installs/updates*. |
+| **Interval** (`interval_minutes`) | 360 min (6 h) | Time between scans in *interval* mode. Allowed: 15 minutes to 7 days. Ignored in the other modes. |
+| **Scan at start** (`scan_on_start`) | on | One scan shortly after the app starts. The app first downloads the [community lists](#community-lists), so the scan already uses current data. Has no effect in *Manual only* mode. |
+| **Scan after package installs/updates** (`scan_after_pkg_changes`) | on | A scan about 30 seconds after `pacman` installed, upgraded or removed packages (the delay merges multi-step upgrades into one scan). Needs the pacman hook that the package installs (`/usr/share/libalpm/hooks/cachy-security-scanner.hook`); it does not exist if you run the app from source. A package change that happens during a running scan triggers one more scan afterwards. Has no effect in *Manual only* mode. |
+| **Update scanner sources before each scan** (`update_sources_before_scan`) | on | Before a scan the app updates the scanner programs it manages itself: it runs `git pull` on `aur-malware-check` and, if `aur-scan` is not installed from the AUR, on `ks-aur-scanner` (rebuilding it when the source changed). A broken checkout is deleted and cloned again. This does **not** control the community lists (they have their own schedule) nor the app's own updates. |
+| **Skip automatic scans in gaming mode** (`skip_in_gaming_mode`) | on | Automatic scans are skipped while one of these processes runs: `gamemoded` ([GameMode](https://github.com/FeralInteractive/gamemode)), `gamescope` / `gamescope-wl` / `gamescopereaper` ([gamescope](https://github.com/ValveSoftware/gamescope)), `reaper` / `SteamLaunch` ([Steam](https://store.steampowered.com/)) or `lutris-wrapper` ([Lutris](https://lutris.net/)). The skipped scan is recorded in the history as *skipped*. **Manual scans are never skipped.** |
+| **Skip automatic scans on battery** (`skip_on_battery`) | off | Skips automatic scans while no AC adapter is connected (laptops). Manual scans still run. |
+| **Also notify when nothing was found** (`notify_when_clean`) | off | Automatic scans only notify you about findings or errors. With this on, a clean automatic scan shows a short notification too. Manual scans (*Check for compromised packages now*) always report their result, clean or not. |
+
+## AUR scanners
+
+The app does not detect anything itself; it runs external tools and shows their results. Each enabled scanner runs on every
+scan and gets **its own entry** in the [history](#keep-the-last-n-history-entries). A scanner that is switched off is never run,
+cloned, built or downloaded. A scanner that is switched on but cannot run (missing tool, failed build) is reported as an
+**error** and the scan counts as incomplete (red tray icon); the reason is in the history.
+
+| Setting (key) | Default | What it does |
+|---|---|---|
+| **aur-malware-check** (`use_aur_malware_check`) | on | Runs [lenucksi/aur-malware-check](https://github.com/lenucksi/aur-malware-check): compares your installed AUR (foreign) packages, the pacman log, systemd units, npm/bun caches and known IOC files against lists of packages compromised in documented attack campaigns (including the official Arch Linux notice). Only matches **known** bad packages, so it has few false positives but cannot see new attacks. The app clones it into `~/.local/share/cachy-security-scanner/vendor/` and keeps it up to date. Needs `git` and Python 3.14 or newer. |
+| **aur-scan (ks-aur-scanner)** (`use_aur_scan`) | **off** | Runs [KiefStudioMA/ks-aur-scanner](https://github.com/KiefStudioMA/ks-aur-scanner) (`aur-scan system`): a **heuristic** analysis of the PKGBUILD and install scripts of your installed AUR packages (142 rules, e.g. "decode and execute" patterns). It can find new kinds of attacks, but it also **produces false positives**, so it is off by default; enable it only if you are willing to judge findings. It uses the `aur-scan` from the AUR package [`aur-scanner`](https://aur.archlinux.org/packages/aur-scanner) if installed; otherwise the app clones the repository and builds it with `cargo` (needs `git`, `rust`, `clang`; the app's own package depends on them). It analyses the PKGBUILDs in your AUR helper's cache (for example `~/.cache/yay/<package>`). |
+| **Community blocklist** (`use_community_blocklist`) | on | Matches your installed AUR packages by name and version against [`lists/blocklist_aur.json`](../lists/blocklist_aur.json), a list of known malicious or compromised packages maintained in this project. A match is a **critical** finding; the *Remove packages…* button then offers to remove it (after confirmation). Needs no extra software. See [community lists](#community-lists). |
+
+## Community lists
+
+Two signed lists are maintained in this repository ([`lists/`](../lists/)) and published automatically on the rolling
+[`lists` release](https://github.com/ruepp-jenkins/cachyos-security-scanner/releases/tag/lists). The app downloads them only
+from there and verifies the SSH signature against the key built into the app; a list without a valid signature is never
+used. Proposals for new entries are welcome (see [`lists/README.md`](../lists/README.md)).
+
+| Setting (key) | Default | What it does |
+|---|---|---|
+| **Community false-positive list** (`use_false_positive_list`) | on | Shown indented below *aur-scan* and only usable while *aur-scan* is on. Hides `aur-scan` findings that are listed as known false positives **for the exact software version** (for example `heidisql 1:12.22-1`, rule `DEEP-001`). It only ever hides; it cannot add findings. Every hidden finding is noted in the scan log with reason, author and date, and the findings window says when something was hidden. Untick it if you do not want to rely on the list. File: [`lists/false-positives_aur-scan.json`](../lists/false-positives_aur-scan.json). |
+
+The grey line under each list in the dialog shows its state:
+
+| Text | Meaning |
+|---|---|
+| `available, from 2026-10-31 20:22 UTC, 1 entry` | A verified copy is cached. The date is when the list was **published** on GitHub; the number is how many entries it has. |
+| `not downloaded yet (fetched at start and then every few hours)` | No copy yet (first start, or no network so far). |
+| `not available: the last download failed (…)` | The last attempt failed; the reason is in the brackets (for example `HTTP Error 404` if the `lists` release does not exist, or `signature verification failed`). The previous verified copy, if any, keeps being used. |
+
+**When lists are downloaded:** at app start (the start scan waits for it), then checked every hour and downloaded again
+when the cached copy is older than 6 hours, and right after you switch a list on. Scans do not download anything, except
+that a scan fetches a list once if none is cached at all. After a failed download the app waits 15 minutes before it tries again.
+
+## Ignoring findings
+
+Both controls apply to **aur-scan** findings only (the other scanners report no rule codes).
+
+| Setting (key) | Default | What it does |
+|---|---|---|
+| **aur-scan: findings to ignore** (`ignored_findings`) | `SCAN-001` | One entry per line. Hides findings everywhere, for all versions. Accepted forms: a **rule code** (`SCAN-001`), a **package name** (`heidisql`, hides all findings of that package) or **`package:CODE`** (`heidisql:DEEP-001`). The default hides `SCAN-001` ("package file could not be analyzed"), which is an analysis note rather than a finding. Use this sparingly: it is not tied to a version. |
+| **Accepted findings** (list; stored in `~/.config/cachy-security-scanner/ignored_findings.json`) | empty | Findings you accepted with the **Ignore** button in the "Possible compromise" window. Each entry is bound to one **package, one version and one rule**: heidisql `1:12.22-1`, `DEEP-001`. After the package is updated the entry no longer matches, so the finding is reported again if it still applies. **Revoke selected** removes the highlighted entry **immediately** (without *Save*). |
+
+In the "Possible compromise" window every entry has its own **Ignore** button. The re-scan runs once when you close the window.
+The version used is that of the scanned PKGBUILD (from the `.SRCINFO` next to it in your AUR helper's cache), or the installed
+version if there is none.
+
+## Binary scan with ClamAV
+
+Scans executables on request (tray menu → *Scan binaries with ClamAV (clamd)*) with `clamdscan`, which talks to the ClamAV
+daemon. A terminal window shows the live output and stays open until you press Enter; the output is also saved to the
+[history](#keep-the-last-n-history-entries). The scan never deletes anything. Needs the [`clamav`](https://www.clamav.net/)
+package and a running daemon: `sudo systemctl enable --now clamav-daemon` (virus definitions are updated by `clamav-freshclam`).
+
+| Setting (key) | Default | What it does |
+|---|---|---|
+| **Paths to scan** (`binary_scan_paths`) | `/usr/bin`, `/usr/local/bin`, `/opt`, `~/.local/bin`, `/var/lib/flatpak/exports/bin` | One path per line; `~` is expanded, paths that do not exist are skipped. These are the usual places where installed applications live. |
+| **Set up regular clamd scan (weekly)** (button) | – | Creates a systemd **user** timer (`cachy-sec-clamd.timer`, weekly, low priority) that runs `clamdscan` over the paths above in the background. Applies **immediately** (no *Save* needed). The result is in the journal: `journalctl --user -u cachy-sec-clamd`. Disabled while `clamdscan` is not installed. |
+| **Remove regular scan** (button) | – | Removes that timer again (immediately). |
+
+## General
+
+| Setting (key) | Default | What it does |
+|---|---|---|
+| **Editor for "Open files"** (`editor_command`) | empty | Command used by the *Open files…* button of the findings window to show the folder with the scanned files (PKGBUILD, install script, …). Example: `codium` or `kate --new`. Empty = the first installed of `codium`, `vscodium`, `code`, `code-oss`, `cursor`, `zed`, `subl` ([VSCodium](https://vscodium.com/), [VS Code](https://code.visualstudio.com/), [Zed](https://zed.dev/), …), otherwise your file manager (`xdg-open`). Nothing in the folder is run; with VSCodium/VS Code keep the folder in **Restricted Mode** (do not "trust" it). |
+| **Start automatically at login** (`autostart`) | on | Writes `~/.config/autostart/cachy-security-scanner.desktop` (the app waits up to a minute for the system tray after login). Switching it off removes that file; if the package also ships the system-wide entry `/etc/xdg/autostart/…`, a `Hidden=true` override is written instead. |
+| **Check GitHub Releases for app updates** (`auto_update`) | on | Looks for a newer version of this app on the project's [GitHub Releases](https://github.com/ruepp-jenkins/cachyos-security-scanner/releases) 30 seconds after the start and then daily. Updates are **signed**: the app verifies the signature and checksum and installs only into your home directory (`~/.local/share/cachy-security-scanner/updates/`), never into system folders. It then restarts itself when no scan or window is open (only when started through the `cachy-security-scanner` launcher; otherwise it asks you to restart). The tray menu has *Check for app updates* for a manual check. Changes to system files (pacman hook, new package dependencies) need a newly installed package. |
+| **Keep the last N history entries** (`history_keep`) | 200 | Maximum number of entries in *Scan history…* (10 to 5000). One entry is written **per scanner and scan** (plus binary scan logs), so with two scanners 200 entries are about 100 scans. The oldest are deleted first. Files: `~/.local/share/cachy-security-scanner/history/`. |
+| **Ask before removing packages** (`confirm_before_remove`) | on | After you click *Remove packages…* in the findings window, a confirmation shows the packages before `pkexec pacman -Rns` runs (you are asked for your password by polkit). With this off the removal starts right after the click. The app never removes anything on its own. Only critical findings with a known package offer removal. |
+
+The version and the settings file path are shown at the bottom of the dialog. **Help** opens this page.
+
+## Where the app keeps its data
+
+| What | Location |
+|---|---|
+| Settings | `~/.config/cachy-security-scanner/settings.json` |
+| Accepted findings | `~/.config/cachy-security-scanner/ignored_findings.json` |
+| Scan history and logs | `~/.local/share/cachy-security-scanner/history/` |
+| Cloned scanner repositories | `~/.local/share/cachy-security-scanner/vendor/` |
+| Downloaded app updates | `~/.local/share/cachy-security-scanner/updates/` |
+| Cached community lists | `~/.cache/cachy-security-scanner/` |
+| Autostart entry | `~/.config/autostart/cachy-security-scanner.desktop` |
+| ClamAV timer | `~/.config/systemd/user/cachy-sec-clamd.{service,timer}` |
+| Single-instance lock | `$XDG_RUNTIME_DIR/cachy-security-scanner.lock` |
+
+Only one instance of the app runs per login session; starting it again just says it is already running.
+
+## Recipes
+
+- **Only check when I decide:** *Mode* = *Manual only*. Use the tray menu entries; nothing runs on its own.
+- **Quiet while gaming, check otherwise:** keep *Skip automatic scans in gaming mode* on (default); the skipped scans show as *skipped* in the history.
+- **Check after every install, nothing else:** *Mode* = *Only right after start*, *Scan after package installs/updates* on, *Scan at start* off.
+- **Get fewer false positives from aur-scan:** keep the community false-positive list on, accept single entries with **Ignore**, and
+  add rule codes you never want to see to *findings to ignore*.
+- **Slow or metered connection:** switch off *Update scanner sources before each scan* and the app updates; the lists need only two small downloads every few hours.

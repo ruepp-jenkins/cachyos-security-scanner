@@ -471,6 +471,22 @@ class ListRefreshPolicyTest(unittest.TestCase):
             self.assertIn("last download failed (download failed: HTTP Error 404", fplist.status())
 
 
+class DocsTest(unittest.TestCase):
+    def test_every_setting_is_documented(self):
+        """docs/settings.md must mention each settings key, so a new option cannot be forgotten."""
+        from dataclasses import fields
+        text = (Path(__file__).resolve().parents[1] / "docs" / "settings.md").read_text()
+        missing = [f.name for f in fields(Settings) if f.name != "schema" and f"`{f.name}`" not in text]
+        self.assertEqual(missing, [], f"undocumented settings: {missing}")
+
+    def test_relative_links_in_the_docs_exist(self):
+        import re
+        root = Path(__file__).resolve().parents[1]
+        for doc in (root / "docs" / "settings.md", root / "README.md"):
+            for target in re.findall(r"\]\((?!https?:|#|mailto:)([^)#]+)", doc.read_text()):
+                self.assertTrue((doc.parent / target).exists(), f"{doc.name}: broken link {target}")
+
+
 class SignedListTest(unittest.TestCase):
     def test_describe_for_the_settings_dialog(self):
         self.assertIn("not downloaded yet", signedlist.describe(None))

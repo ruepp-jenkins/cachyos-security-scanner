@@ -3,8 +3,8 @@ from __future__ import annotations
 
 import copy
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QIcon
+from PySide6.QtCore import Qt, QUrl
+from PySide6.QtGui import QDesktopServices, QIcon
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QGroupBox, QLineEdit, QListWidget,
                                QHBoxLayout, QLabel, QMessageBox, QPlainTextEdit, QPushButton, QSpinBox,
                                QVBoxLayout)
@@ -15,6 +15,9 @@ from .scanners.aur_malware_check import AurMalwareCheck
 from .scanners.aur_scan import AurScan
 from .scanners.blocklist import CommunityBlocklist
 from .settings import Settings, config_path
+
+
+HELP_URL = f"https://github.com/{updater.GITHUB_REPO}/blob/master/docs/settings.md"
 
 
 class SettingsDialog(QDialog):
@@ -136,14 +139,20 @@ class SettingsDialog(QDialog):
         self.confirm_rm.setChecked(s.confirm_before_remove)
         root.addWidget(self.confirm_rm)
 
-        ver = QLabel(f"CachyOS Security Scanner – version {updater.describe_version()}\nSettings file: {config_path()}")
+        v = updater.describe_version()
+        ver = QLabel(f"CachyOS Security Scanner – {v if v.startswith('development') else 'version ' + v}\nSettings file: {config_path()}")
         ver.setTextInteractionFlags(Qt.TextSelectableByMouse)
         root.addWidget(ver)
 
-        bb = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel)
+        bb = QDialogButtonBox(QDialogButtonBox.Save | QDialogButtonBox.Cancel | QDialogButtonBox.Help)
         bb.accepted.connect(self.accept)
         bb.rejected.connect(self.reject)
+        bb.helpRequested.connect(self.open_help)
         root.addWidget(bb)
+
+    def open_help(self) -> None:
+        """Open the settings reference (docs/settings.md) in the browser."""
+        QDesktopServices.openUrl(QUrl(HELP_URL))
 
     @staticmethod
     def _cb(text: str, val: bool, form: QFormLayout) -> QCheckBox:

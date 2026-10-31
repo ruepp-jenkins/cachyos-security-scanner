@@ -10,7 +10,7 @@ from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 
 import time
 
-from . import autostart, engine, history, icons, notify, remove, scheduler, updater
+from . import autostart, engine, history, icons, ignores, notify, remove, scheduler, updater
 from .scanners import clamd
 from .settings import Settings
 from .findings_dialog import FindingsDialog
@@ -210,11 +210,20 @@ class Tray(QObject):
     def _offer_removal(self, report: engine.Report) -> None:
         """Non-modal: the dialog never blocks the tray, other scans or update checks."""
         box = FindingsDialog(report.summary(), report.findings, engine.infected_packages(report), self._remove_clicked,
-                             self.settings.editor_command)
+                             self.settings.editor_command, self._ignore_finding)
         box.setAttribute(Qt.WA_DeleteOnClose)
         self._dialogs.append(box)  # keep a reference while open
         box.destroyed.connect(lambda *_: self._dialogs.remove(box) if box in self._dialogs else None)
         box.show()
+
+    def _ignore_finding(self, package: str, version: str, codes: list[str]) -> None:
+        try:
+            ignores.add(package, version, codes)
+        except (ValueError, OSError) as e:
+            notify.notify("Ignore failed", str(e), kind="bad")
+            return
+        notify.notify("Finding ignored", f"{package} {version}: {', '.join(codes)} – reported again after an update.", kind="info")
+        self.scan(manual=True, trigger="after ignore")  # refresh the tray state and the history
 
     def _remove_clicked(self, pkgs: list[str]) -> None:
         if self.settings.confirm_before_remove:

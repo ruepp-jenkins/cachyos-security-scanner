@@ -8,9 +8,10 @@ from __future__ import annotations
 
 import re
 import shutil
+from collections.abc import Callable
 from pathlib import Path
 
-from .. import vendor
+from .. import ignores, vendor
 from .base import CLEAN, ERROR, WARNING, Finding, Scanner, ScanResult, run, which
 
 _ERROR_CODES = {124, 126, 127}
@@ -29,22 +30,25 @@ def recognized(out: str) -> bool:
     return any(ln.startswith("Scanning:") for ln in out.splitlines())
 
 
-def parse_output(out: str, label: str, ignore: frozenset[str] | set[str] = frozenset()) -> list[Finding]:
+def parse_output(out: str, label: str, ignore: frozenset[str] | set[str] = frozenset(),
+                 suppress: Callable[[str, str], bool] | None = None,
+                 versions: dict[str, str] | None = None) -> list[Finding]:
     """One finding per package that `aur-scan system` reports issues for.
 
     Output format (seen in practice):
         Scanning: <pkg> ISSUES: 10 critical
             CODE-001 Title - /path/to/file
     The trailing summary block ("Severity: 11 critical ...") is deliberately not a finding.
-    Issues matching `ignore` (code, package or package:CODE) are dropped; a package without remaining issues
-    produces no finding.
+    Issues matching `ignore` (code, package or package:CODE) or `suppress(package, code)` (per-version ignores)
+    are dropped; a package without remaining issues produces no finding.
     """
     findings: list[Finding] = []
     pkg = counts = None
     issues: list[tuple[str, str, str]] = []
 
     def flush() -> None:
-        kept = [i for i in issues if not is_ignored(pkg or "", i[0], set(ignore))]
+        kept = [i for i in issues if not is_ignored(pkg or "", i[0], set(ignore))
+                and not (suppress and suppress(pkg or "", i[0]))]
         if pkg and kept:
             groups: dict[tuple[str, str], int] = {}
             for code, title, _ in kept:
@@ -55,7 +59,8 @@ def parse_output(out: str, label: str, ignore: frozenset[str] | set[str] = froze
             n = len(kept)
             files = list(dict.fromkeys(p for _, _, p in kept if p))
             findings.append(Finding(WARNING, f"{pkg}: {n} issue{'s' if n != 1 else ''} – {what}", label, package=pkg,
-                                    detail=detail, files=files))
+                                    detail=detail, files=files, version=(versions or {}).get(pkg, ""),
+                                    codes=list(dict.fromkeys(c for c, _, _ in kept))))
 
     for line in out.splitlines():
         m = _HEADER.match(line)
@@ -153,7 +158,8 @@ class AurScan(Scanner):
             return ScanResult(self.name, CLEAN, log=out)
         if code in _ERROR_CODES:
             return ScanResult(self.name, ERROR, [], f"exit {code}: {out[-500:]}", log=out)
-        findings = parse_output(out, self.label, self._ignore)
+        versions = ignores.installed_versions()
+        findings = parse_output(out, self.label, self._ignore, ignores.matcher(versions), versions)
         if not findings and recognized(out):
             return ScanResult(self.name, CLEAN, log=out)  # everything it reported is on the ignore list
         if not findings:

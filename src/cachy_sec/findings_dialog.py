@@ -4,7 +4,7 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from PySide6.QtGui import QFont, QIcon
-from PySide6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QMenu, QPlainTextEdit, QPushButton, QVBoxLayout)
+from PySide6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QMenu, QMessageBox, QPlainTextEdit, QPushButton, QVBoxLayout)
 
 from . import icons, opener
 from pathlib import Path
@@ -23,9 +23,10 @@ def details_text(findings) -> str:
 
 class FindingsDialog(QDialog):
     def __init__(self, summary: str, findings, pkgs: list[str], on_remove: Callable[[list[str]], None],
-                 editor: str = "") -> None:
+                 editor: str = "", on_ignore: Callable[[str, str, list[str]], None] | None = None) -> None:
         super().__init__()
         self.editor = editor
+        self.on_ignore = on_ignore
         self.setWindowTitle("Possible compromise")
         self.setWindowIcon(QIcon(icons.path(icons.BAD)))
         root = QVBoxLayout(self)
@@ -68,6 +69,17 @@ class FindingsDialog(QDialog):
                     menu.addAction(f"{pkg}  ({d})", lambda d=d: self._open(d))
                 op.setMenu(menu)
             row.addWidget(op)
+        ignorable = [f for f in findings if f.package and f.version and f.codes]
+        if ignorable and on_ignore:
+            ig = QPushButton("Ignore for this version…")
+            ig.setToolTip("Accept these findings for exactly the installed version of the software.\n"
+                          "After an update of the package they are reported again if they still apply.")
+            menu = QMenu(ig)
+            for f in ignorable:
+                act = menu.addAction(f"{f.package} {f.version}  –  {', '.join(f.codes)}")
+                act.triggered.connect(lambda _=False, f=f, act=act: self._ignore(f, act))
+            ig.setMenu(menu)
+            row.addWidget(ig)
         if pkgs:
             rm = QPushButton("Remove packages…")
             rm.clicked.connect(lambda: on_remove(pkgs))
@@ -77,6 +89,19 @@ class FindingsDialog(QDialog):
         row.addWidget(close)
         root.addLayout(row)
         self.resize(*COLLAPSED_SIZE)
+
+    def _ignore(self, f, action) -> None:
+        q = QMessageBox.question(
+            self, "Ignore findings",
+            f"Ignore {', '.join(f.codes)} for {f.package} {f.version}?\n\n"
+            "This only applies to exactly this version. When the package is updated and the problem is still "
+            "there, you will be notified again. You can revoke it in the settings.")
+        if q != QMessageBox.Yes:
+            return
+        self.on_ignore(f.package, f.version, list(f.codes))
+        action.setEnabled(False)
+        self.details.setVisible(True)
+        self.details.appendPlainText(f"\nIgnored for {f.package} {f.version}: {', '.join(f.codes)}")
 
     def _open(self, directory: Path) -> None:
         ok, msg = opener.open_directory(directory, self.editor)

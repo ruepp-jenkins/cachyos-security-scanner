@@ -239,6 +239,58 @@ class IconsTest(unittest.TestCase):
         self.assertEqual(engine.Report([], skipped="gaming mode active").kind, "info")
 
 
+class IgnoreTest(unittest.TestCase):
+    SAMPLE = "Scanning: heidisql ISSUES: 1 critical\n    DEEP-001 Decode - /p/PKGBUILD\n    DEEP-003 Bidi - /p/PKGBUILD\n"
+
+    def test_ignore_is_bound_to_package_version_and_codes(self):
+        from cachy_sec import ignores
+        from cachy_sec.scanners.aur_scan import parse_output
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "i.json"
+            ignores.add("heidisql", "1:12.22-1", ["DEEP-001"], p)
+            entries = ignores.load(p)
+            v1 = {"heidisql": "1:12.22-1"}
+            f = parse_output(self.SAMPLE, "x", suppress=ignores.matcher(v1, entries), versions=v1)
+            self.assertEqual([x.codes for x in f], [["DEEP-003"]])  # a not-accepted code still shows
+            self.assertEqual(f[0].version, "1:12.22-1")
+            v2 = {"heidisql": "1:12.23-1"}  # the package was updated
+            f = parse_output(self.SAMPLE, "x", suppress=ignores.matcher(v2, entries), versions=v2)
+            self.assertEqual(f[0].codes, ["DEEP-001", "DEEP-003"])  # reported again
+            f = parse_output(self.SAMPLE, "x", suppress=ignores.matcher({}, entries), versions={})
+            self.assertEqual(f[0].codes, ["DEEP-001", "DEEP-003"])  # version unknown: fail open, show it
+
+    def test_add_merges_validates_and_revokes(self):
+        from cachy_sec import ignores
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "i.json"
+            ignores.add("a", "1-1", ["X-1"], p)
+            ignores.add("a", "1-1", ["X-2"], p)
+            ignores.add("a", "2-1", ["X-1"], p)
+            self.assertEqual([(e.version, e.codes) for e in ignores.load(p)], [("1-1", ["X-1", "X-2"]), ("2-1", ["X-1"])])
+            with self.assertRaises(ValueError):
+                ignores.add("a", "", ["X-1"], p)  # an ignore without a version could never expire
+            ignores.remove("a", "1-1", p)
+            self.assertEqual([e.version for e in ignores.load(p)], ["2-1"])
+            p.write_text("garbage")
+            self.assertEqual(ignores.load(p), [])
+
+    def test_aur_scan_end_to_end_with_versions(self):
+        from cachy_sec import ignores
+        out = "Scanning: heidisql ISSUES: 1 critical\n    DEEP-001 Decode - /p/PKGBUILD\n"
+        ent = [ignores.Ignore("heidisql", "1:12.22-1", ["DEEP-001"])]
+        with mock.patch("cachy_sec.scanners.aur_scan.run", return_value=(1, out)), \
+             mock.patch.object(AurScan, "_binary", return_value="/x/aur-scan"), \
+             mock.patch("cachy_sec.ignores.installed_versions", return_value={"heidisql": "1:12.22-1"}), \
+             mock.patch("cachy_sec.ignores.load", return_value=ent):
+            self.assertEqual(AurScan().scan().status, CLEAN)
+        with mock.patch("cachy_sec.scanners.aur_scan.run", return_value=(1, out)), \
+             mock.patch.object(AurScan, "_binary", return_value="/x/aur-scan"), \
+             mock.patch("cachy_sec.ignores.installed_versions", return_value={"heidisql": "1:12.23-1"}), \
+             mock.patch("cachy_sec.ignores.load", return_value=ent):
+            r = AurScan().scan()
+            self.assertEqual((r.status, r.findings[0].version), (WARNING, "1:12.23-1"))
+
+
 class ClamdTest(unittest.TestCase):
     def test_build_command_per_terminal(self):
         from cachy_sec.scanners import clamd

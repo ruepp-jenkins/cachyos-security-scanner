@@ -5,11 +5,11 @@ import copy
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
-from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QGroupBox, QLineEdit,
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QGroupBox, QLineEdit, QListWidget,
                                QHBoxLayout, QLabel, QMessageBox, QPlainTextEdit, QPushButton, QSpinBox,
                                QVBoxLayout)
 
-from . import clamd_schedule, icons, updater
+from . import clamd_schedule, icons, ignores, updater
 from .scanners import clamd
 from .scanners.aur_malware_check import AurMalwareCheck
 from .scanners.aur_scan import AurScan
@@ -55,6 +55,14 @@ class SettingsDialog(QDialog):
         self.ignored = QPlainTextEdit("\n".join(s.ignored_findings))
         self.ignored.setMaximumHeight(70)
         bl.addWidget(self.ignored)
+        bl.addWidget(QLabel("Accepted findings (bound to the software version; reported again after an update):"))
+        self.accepted = QListWidget()
+        self.accepted.setMaximumHeight(80)
+        bl.addWidget(self.accepted)
+        rev = QPushButton("Revoke selected")
+        rev.clicked.connect(self._revoke)
+        bl.addWidget(rev)
+        self._load_accepted()
         bl.addWidget(QLabel("Scanner repositories are cloned and updated automatically before scans."))
         root.addWidget(back)
 
@@ -125,6 +133,19 @@ class SettingsDialog(QDialog):
         c.setChecked(val)
         layout.addWidget(c)
         return c
+
+    def _load_accepted(self) -> None:
+        self.accepted.clear()
+        self._entries = ignores.load()
+        for e in self._entries:
+            self.accepted.addItem(e.label())
+
+    def _revoke(self) -> None:
+        row = self.accepted.currentRow()
+        if row >= 0:
+            e = self._entries[row]
+            ignores.remove(e.package, e.version)  # applied immediately, independent of "Save"
+            self._load_accepted()
 
     def _paths(self) -> list[str]:
         return [p.strip() for p in self.paths.toPlainText().splitlines() if p.strip()]

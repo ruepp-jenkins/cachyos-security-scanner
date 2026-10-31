@@ -18,6 +18,8 @@ class Finding:
     package: str | None = None  # set when the finding maps to an installed pacman package
     detail: str = ""  # optional multi-line explanation shown in details views and the history
     files: list[str] = field(default_factory=list)  # files the finding refers to (absolute paths), for "open files"
+    version: str = ""  # installed version of `package` when found; ignores are bound to it
+    codes: list[str] = field(default_factory=list)  # rule codes behind the finding (scanner specific)
 
 @dataclass
 class ScanResult:

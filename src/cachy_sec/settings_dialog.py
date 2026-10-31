@@ -28,12 +28,12 @@ class SettingsDialog(QDialog):
         self.s = copy.deepcopy(s)
         # The options are long: they live in a scroll area, while Save/Cancel/Help stay visible at the bottom.
         outer = QVBoxLayout(self)
-        self.scroll = QScrollArea()
-        self.scroll.setWidgetResizable(True)
-        self.scroll.setFrameShape(QScrollArea.NoFrame)
+        self.scroll_area = QScrollArea()
+        self.scroll_area.setWidgetResizable(True)
+        self.scroll_area.setFrameShape(QScrollArea.NoFrame)
         content = QWidget()
-        self.scroll.setWidget(content)
-        outer.addWidget(self.scroll, 1)
+        self.scroll_area.setWidget(content)
+        outer.addWidget(self.scroll_area, 1)
         root = QVBoxLayout(content)
 
         when = QGroupBox("When to scan")
@@ -162,8 +162,8 @@ class SettingsDialog(QDialog):
     def _fit_to_screen(self) -> None:
         """Open at the natural size, but never taller or wider than the screen (the rest is reachable by scrolling)."""
         screen = QGuiApplication.primaryScreen()
-        content = self.scroll.widget().sizeHint()
-        bar = self.scroll.verticalScrollBar().sizeHint().width()
+        content = self.scroll_area.widget().sizeHint()
+        bar = self.scroll_area.verticalScrollBar().sizeHint().width()
         want_w, want_h = content.width() + bar + 24, content.height() + 70  # 70: button row and margins
         if screen is None:
             self.resize(want_w, want_h)

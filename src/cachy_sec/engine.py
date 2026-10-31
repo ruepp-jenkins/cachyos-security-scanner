@@ -59,7 +59,8 @@ class Report:
             return "No AUR scanner enabled. Enable one in Settings."
         if self.findings:
             n = len(self.findings)
-            return f"{n} finding{'s' if n != 1 else ''} – review before using the affected software"
+            who = ", ".join(r.backend for r in self.results if r.findings)  # which scanner(s) reported it
+            return f"{n} finding{'s' if n != 1 else ''} from {who} – review before using the affected software"
         ran = [r for r in self.results if r.status in USABLE]
         problems = [r for r in self.results if r.status not in USABLE]
         if not problems:

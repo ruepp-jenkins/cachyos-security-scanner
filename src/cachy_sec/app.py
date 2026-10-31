@@ -66,6 +66,7 @@ class Tray(QObject):
         self.rm_done = _Done()
         self.rm_done.emit_report.connect(self._removed)
         self._dialogs: list = []
+        self._findings_dialogs: list = []  # open findings windows, to mark them outdated by a newer scan
         self.history_dlg = None  # single-instance windows; findings dialogs may be many
         self.settings_dlg = None
 
@@ -195,26 +196,35 @@ class Tray(QObject):
         if self.rescan_pending:
             self.rescan_pending = False
             QTimer.singleShot(2000, lambda: self.scan(manual=False, trigger="package change"))
+        for old in list(self._findings_dialogs):
+            old.mark_outdated()
         text = report.summary()
         self.tray.setToolTip(f"CachyOS Security Scanner – {text}")
         self.act_last.setText(text[:80])
         if report.findings:
             notify.notify("Security scanner: possible compromise", text, kind="bad", urgent=True)
             self.tray.setIcon(QIcon(icons.path(icons.BAD)))
-            self._offer_removal(report)
+            self._offer_removal(report, f"{time.strftime('%H:%M')}, {'manual' if manual else 'automatic'} scan")
         else:
             self.tray.setIcon(QIcon(icons.path({"good": icons.GOOD, "bad": icons.BAD}.get(report.kind, icons.APP))))
             if manual or self.settings.notify_when_clean or report.kind == "bad":
                 notify.notify("Security scan finished", text, kind=report.kind, urgent=report.kind == "bad")
 
-    def _offer_removal(self, report: engine.Report) -> None:
+    def _offer_removal(self, report: engine.Report, scan_info: str = "") -> None:
         """Non-modal: the dialog never blocks the tray, other scans or update checks."""
         box = FindingsDialog(report.summary(), report.findings, engine.infected_packages(report), self._remove_clicked,
                              self.settings.editor_command, self._ignore_finding,
-                             lambda: self.scan(manual=True, trigger="after ignore"))
+                             lambda: self.scan(manual=True, trigger="after ignore"), scan_info)
         box.setAttribute(Qt.WA_DeleteOnClose)
         self._dialogs.append(box)  # keep a reference while open
-        box.destroyed.connect(lambda *_: self._dialogs.remove(box) if box in self._dialogs else None)
+        self._findings_dialogs.append(box)
+
+        def gone(*_) -> None:
+            for lst in (self._dialogs, self._findings_dialogs):
+                if box in lst:
+                    lst.remove(box)
+
+        box.destroyed.connect(gone)
         box.show()
 
     def _ignore_finding(self, package: str, version: str, codes: list[str]) -> None:

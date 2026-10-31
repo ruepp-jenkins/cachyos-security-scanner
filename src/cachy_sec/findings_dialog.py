@@ -27,15 +27,21 @@ def details_text(findings) -> str:
 class FindingsDialog(QDialog):
     def __init__(self, summary: str, findings, pkgs: list[str], on_remove: Callable[[list[str]], None],
                  editor: str = "", on_ignore: Callable[[str, str, list[str]], None] | None = None,
-                 on_changed: Callable[[], None] | None = None) -> None:
+                 on_changed: Callable[[], None] | None = None, scan_info: str = "") -> None:
         super().__init__()
+        self._base_title = "Possible compromise" + (f" – {scan_info}" if scan_info else "")
         self.editor = editor
         self.on_ignore = on_ignore
         self.on_changed = on_changed  # called once when the window closes after at least one ignore
         self._ignored_any = False
-        self.setWindowTitle("Possible compromise")
+        self.setWindowTitle(self._base_title)
         self.setWindowIcon(QIcon(icons.path(icons.BAD)))
         root = QVBoxLayout(self)
+        self.banner = QLabel("A newer scan has finished since this window opened; these findings may no longer apply.")
+        self.banner.setWordWrap(True)
+        self.banner.setStyleSheet("background: #8a6d00; color: white; padding: 4px;")
+        self.banner.setVisible(False)
+        root.addWidget(self.banner)
 
         top = QHBoxLayout()
         pic = QLabel()
@@ -103,6 +109,11 @@ class FindingsDialog(QDialog):
         row.addWidget(close)
         root.addLayout(row)
         self.resize(COLLAPSED_WIDTH, 200 + self._entries_height)
+
+    def mark_outdated(self) -> None:
+        """Called when a newer scan has produced a result, so an old window is not mistaken for the current state."""
+        self.setWindowTitle(self._base_title + " (outdated)")
+        self.banner.setVisible(True)
 
     def _entry_row(self, r: ignores.Row) -> QHBoxLayout:
         line = QHBoxLayout()

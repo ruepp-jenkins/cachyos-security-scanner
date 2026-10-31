@@ -212,6 +212,9 @@ class IconsTest(unittest.TestCase):
     def test_report_kind(self):
         from cachy_sec.scanners.base import Finding
         self.assertEqual(engine.Report([ScanResult("a", CLEAN)]).kind, "good")
+        from cachy_sec.scanners.base import Finding as F
+        rep = engine.Report([ScanResult("aur_scan", WARNING, [F(WARNING, "x", "s")]), ScanResult("blocklist", CLEAN)])
+        self.assertIn("1 finding from aur_scan", rep.summary())  # says which scanner reported it
         self.assertEqual(engine.Report([ScanResult("a", CRITICAL, [Finding(CRITICAL, "x", "s")])]).kind, "bad")
         self.assertEqual(engine.Report([ScanResult("a", "error")]).kind, "bad")
         mixed = engine.Report([ScanResult("a", CLEAN), ScanResult("b", "error", [], "x")])

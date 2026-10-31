@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from . import gaming
 from .scanners.aur_malware_check import AurMalwareCheck
 from .scanners.aur_scan import AurScan
-from .scanners.base import CLEAN, CRITICAL, ERROR, UNAVAILABLE, USABLE, Finding, ScanResult, Scanner, worst
+from .scanners.base import CLEAN, CRITICAL, ERROR, USABLE, Finding, ScanResult, Scanner, worst
 from .scanners.builtin_list import BuiltinList
 from .settings import Settings
 
@@ -43,10 +43,10 @@ class Report:
 
     @property
     def kind(self) -> str:
-        """Notification/icon class: "bad" (findings, or no scanner could run), "info" (skipped), else "good"."""
+        """Notification/icon class: "bad" (findings, or any enabled scanner failed to run), "info" (skipped), else "good"."""
         if self.skipped:
             return "info"
-        if self.findings or not any(r.status in USABLE for r in self.results):
+        if self.findings or not self.results or any(r.status not in USABLE for r in self.results):
             return "bad"
         return "good"
 
@@ -60,12 +60,11 @@ class Report:
             return f"{n} finding{'s' if n != 1 else ''} – review before using the affected software"
         ran = [r for r in self.results if r.status in USABLE]
         problems = [r for r in self.results if r.status not in USABLE]
-        if not ran:
-            return "Scan failed: " + "; ".join(f"{r.backend}: {r.message}" for r in problems)[:300]
-        text = "No threats found (" + ", ".join(r.backend for r in ran) + ")"
-        if problems:
-            text += "; not run: " + ", ".join(f"{r.backend} ({r.status})" for r in problems)
-        return text
+        if not problems:
+            return "No threats found (" + ", ".join(r.backend for r in ran) + ")"
+        # an enabled scanner that could not run means incomplete protection: report it as an error
+        head = "Scan incomplete" if ran else "Scan failed"
+        return f"{head}: " + "; ".join(f"{r.backend}: {r.message}" for r in problems)[:300]
 
 
 def run_scan(s: Settings, *, manual: bool = False) -> Report:
@@ -77,7 +76,7 @@ def run_scan(s: Settings, *, manual: bool = False) -> Report:
         t0 = time.monotonic()
         if not sc.available():
             reason = sc.unavailable_reason()
-            results.append(ScanResult(sc.name, UNAVAILABLE, [], reason, log=f"Not run: {reason}"))
+            results.append(ScanResult(sc.name, ERROR, [], f"not available: {reason}", log=f"Not run: {reason}"))
             continue
         if s.update_sources_before_scan:
             try:

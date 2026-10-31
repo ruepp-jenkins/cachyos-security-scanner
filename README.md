@@ -24,8 +24,8 @@ release into an empty directory and run `makepkg -si`.
 ## Backends (both AUR scanners enabled by default, toggle in Settings)
 | Backend | Source | Notes |
 |---|---|---|
-| aur-malware-check | https://github.com/lenucksi/aur-malware-check | Blocklist/IOC check of installed AUR packages. Community tool, not endorsed by Arch. Needs Python 3.14+. Cloned and kept up to date automatically (`git clone`/`git pull --ff-only`); a corrupt or diverged checkout is deleted and re-cloned. |
-| aur-scan | https://github.com/KiefStudioMA/ks-aur-scanner (AUR: `aur-scanner`) | Static analysis of installed AUR packages. Uses the `aur-scan` on PATH; otherwise cloned and built with `cargo` automatically (needs `git` + `cargo`). |
+| aur-malware-check | https://github.com/lenucksi/aur-malware-check | Blocklist/IOC check of installed AUR packages. Community tool, not endorsed by Arch. Needs Python 3.14+. Cloned and kept up to date automatically (`git clone`/`git pull --ff-only`); a corrupt or diverged checkout is deleted and re-cloned. Needs Python 3.14+ (checked; a clear error otherwise). |
+| aur-scan | https://github.com/KiefStudioMA/ks-aur-scanner (AUR: `aur-scanner`) | Static analysis of installed AUR packages. Uses the `aur-scan` on PATH; otherwise cloned and built with `cargo build --release -p aur-scanner-cli` automatically and rebuilt after upstream changes (upstream ships no binaries; the package depends on `rust`, `clang`, `pkgconf`, `openssl` for this). A failed build is reported as an error with the build output in the history. |
 | Built-in blocklist | set `CACHY_SEC_BLOCKLIST_URL` (https, one package per line) | Off by default (no public list exists yet). Independent fallback; inactive without a URL. |
 | ClamAV (`clamdscan`) | https://www.clamav.net | Binary scans run **only on request** from the tray menu: a terminal window opens with the live `clamdscan --fdpass --multiscan -i` output and stays open until you press Enter. Needs the `clamav` package and a running daemon (`sudo systemctl enable --now clamav-daemon`). Settings can set up a weekly systemd user timer. |
 
@@ -52,8 +52,8 @@ app waits up to 60 s for the system tray.
 
 ## Scan history
 Tray menu → "Scan history…" lists every scan, with **one entry per scanner** (start time, scanner, trigger, status, summary); selecting one shows its
-full log, including the raw output of each scanner. A scanner that is enabled but cannot run (e.g. `cargo` missing for aur-scan) gets an entry with status
-`unavailable` and the reason. Automatic scans that were skipped (e.g. gaming mode) are recorded too. Binary scans are logged from the terminal window (`*-binaries.log`). Files live in
+full log, including the raw output of each scanner. A scanner that is enabled but cannot be set up or run gets an entry with status `error` and the reason
+(and the scan is reported as incomplete, tray red). Automatic scans that were skipped (e.g. gaming mode) are recorded too. Binary scans are logged from the terminal window (`*-binaries.log`). Files live in
 `~/.local/share/cachy-security-scanner/history/` as plain JSON/text; the number kept is set in Settings
 (default 200, oldest are pruned).
 

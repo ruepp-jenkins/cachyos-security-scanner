@@ -71,6 +71,8 @@ class AdapterTest(unittest.TestCase):
 
     def test_exit_codes(self):
         sc = amc.AurMalwareCheck()
+        mock.patch.object(sc, "_command", return_value=["x"]).start()
+        self.addCleanup(mock.patch.stopall)
         with mock.patch.object(sc, "_cwd_cmd", return_value=(2, '{"compromised": ["bad"]}')):
             r = sc.scan()
             self.assertEqual((r.status, r.findings[0].package), (CRITICAL, "bad"))
@@ -89,6 +91,29 @@ class AdapterTest(unittest.TestCase):
             self.assertEqual(len(r.findings), 1)
         with mock.patch("cachy_sec.scanners.aur_scan.run", return_value=(127, "nope")):
             self.assertFalse(AurScan().scan().ok)
+
+    def test_aur_scan_build_failure_is_reported_with_log(self):
+        sc = AurScan()
+        with mock.patch.object(AurScan, "_binary", return_value=None), \
+             mock.patch.object(AurScan, "update", autospec=True, side_effect=lambda self: (setattr(self, "_build_log", "error: linker `cc` not found"), setattr(self, "_prepared", True))) as up:
+            r = sc.scan()
+            sc.scan()
+        self.assertEqual(r.status, "error")
+        self.assertIn("linker `cc` not found", r.message)
+        self.assertIn("linker", r.log)
+        self.assertEqual(up.call_count, 1)  # a failed build is not retried within the same scan
+
+    def test_amc_python_version_check(self):
+        sc = amc.AurMalwareCheck()
+        with mock.patch("cachy_sec.scanners.aur_malware_check.which", side_effect=lambda n: "/usr/bin/python3" if n == "python3" else None), \
+             mock.patch("cachy_sec.scanners.aur_malware_check.run", return_value=(0, "3 12\n")):
+            self.assertIsNone(amc._python())
+            self.assertFalse(sc.available())
+            self.assertIn("Python 3.14+", sc.unavailable_reason())
+        with mock.patch("cachy_sec.scanners.aur_malware_check.which", side_effect=lambda n: "/usr/bin/python3" if n in ("python3", "git") else None), \
+             mock.patch("cachy_sec.scanners.aur_malware_check.run", return_value=(0, "3 14\n")):
+            self.assertEqual(amc._python(), "/usr/bin/python3")
+            self.assertTrue(sc.available())
 
     def test_builtin_list(self):
         self.assertEqual(builtin_list.parse_list("# c\nfoo\n\n bar \n"), {"foo", "bar"})
@@ -118,7 +143,8 @@ class ReportTest(unittest.TestCase):
              mock.patch("cachy_sec.gaming.gaming_active", return_value=False):
             r = engine.run_scan(Settings(update_sources_before_scan=False), manual=True)
         self.assertEqual([x.backend for x in r.results], ["gone", "fine"])
-        self.assertEqual(r.results[0].status, "unavailable")
+        self.assertEqual(r.results[0].status, "error")
+        self.assertIn("not available: not installed", r.results[0].message)
 
     def test_run_scan_skips_missing_and_survives_errors(self):
         class Boom:
@@ -154,10 +180,9 @@ class IconsTest(unittest.TestCase):
         self.assertEqual(engine.Report([ScanResult("a", CLEAN)]).kind, "good")
         self.assertEqual(engine.Report([ScanResult("a", CRITICAL, [Finding(CRITICAL, "x", "s")])]).kind, "bad")
         self.assertEqual(engine.Report([ScanResult("a", "error")]).kind, "bad")
-        self.assertEqual(engine.Report([ScanResult("a", "unavailable")]).kind, "bad")
-        mixed = engine.Report([ScanResult("a", CLEAN), ScanResult("b", "unavailable", [], "x")])
-        self.assertEqual(mixed.kind, "good")  # one scanner not runnable must not turn the tray red
-        self.assertIn("not run: b", mixed.summary())
+        mixed = engine.Report([ScanResult("a", CLEAN), ScanResult("b", "error", [], "x")])
+        self.assertEqual(mixed.kind, "bad")  # an enabled scanner that cannot run is an error, not silence
+        self.assertIn("Scan incomplete: b: x", mixed.summary())
         self.assertEqual(engine.Report([], skipped="gaming mode active").kind, "info")
 
 
@@ -215,12 +240,12 @@ class HistoryTest(unittest.TestCase):
         import time
         from cachy_sec import history
         rep = engine.Report([ScanResult("aur_malware_check", CLEAN, log="ok output"),
-                             ScanResult("aur_scan", "unavailable", [], "needs cargo", log="Not run: needs cargo")])
+                             ScanResult("aur_scan", "error", [], "needs cargo", log="Not run: needs cargo")])
         paths = history.record(rep, "interval", time.time(), 2)
         self.assertEqual(len(paths), 2)
         by = {e.kind: e for e in history.list_entries()}
         self.assertEqual(by["aur_malware_check"].status, CLEAN)
-        self.assertEqual(by["aur_scan"].status, "unavailable")
+        self.assertEqual(by["aur_scan"].status, "error")
         self.assertIn("Not run: needs cargo", by["aur_scan"].log_text())
         self.assertNotIn("ok output", by["aur_scan"].log_text())
 

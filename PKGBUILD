@@ -6,10 +6,10 @@ pkgdesc='Tray app that runs AUR malware checkers in the background and notifies 
 url='https://github.com/ruepp-jenkins/cachyos-security-scanner'
 arch=('any')
 license=('GPL-3.0-or-later')
-depends=('python' 'git' 'openssh' 'pyside6' 'libnotify' 'pacman')
+depends=('python' 'git' 'openssh' 'pyside6' 'libnotify' 'pacman'
+         'rust' 'clang' 'pkgconf' 'openssl')  # rust/clang/pkgconf/openssl: the app builds aur-scan itself
 makedepends=('git' 'python-build' 'python-installer' 'python-setuptools' 'python-wheel')
-optdepends=('rust: build aur-scan automatically if the aur-scanner package is not installed'
-            'aur-scanner: PKGBUILD/installed AUR package analysis (aur-scan)'
+optdepends=('aur-scanner: prebuilt aur-scan from the AUR; used instead of building it'
             'clamav: on-request binary scans via clamdscan (clamd must be running)')
 source=("$pkgname::git+$url.git#tag=v$pkgver")
 sha256sums=('SKIP')  # git source pinned to a release tag

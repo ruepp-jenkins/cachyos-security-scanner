@@ -1,6 +1,6 @@
 # Maintainer: ruepp-jenkins <https://github.com/ruepp-jenkins>
 pkgname=cachy-security-scanner
-pkgver=0.0.4
+pkgver=0.0.0  # stamped from the release tag by scripts/set-version.sh
 pkgrel=1
 pkgdesc='Tray app that runs AUR malware checkers in the background and notifies on findings'
 url='https://github.com/ruepp-jenkins/cachyos-security-scanner'
@@ -16,6 +16,7 @@ sha256sums=('SKIP')  # git source pinned to a release tag
 
 build() {
   cd "$srcdir/$pkgname"
+  sh scripts/set-version.sh "$pkgver"  # the tag is the only source of the version
   python -m build --wheel --no-isolation --outdir "$srcdir/dist"
 }
 

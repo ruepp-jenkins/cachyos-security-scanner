@@ -322,7 +322,7 @@ class UpdaterTest(unittest.TestCase):
         self.assertEqual(updater.parse_version("v1.2.3"), (1, 2, 3))
         self.assertIsNone(updater.parse_version("1.2-evil"))
         self.assertTrue(updater.is_newer("99.0.0"))
-        self.assertFalse(updater.is_newer("0.0.1"))
+        self.assertFalse(updater.is_newer("0.0.0"))
 
     def test_latest_release_picks_newest_complete_incl_prerelease(self):
         def rel(tag, names, **kw):

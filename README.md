@@ -65,8 +65,9 @@ Release flow for maintainers:
 1. One-time: `ssh-keygen -t ed25519 -f release_key`; put the public key line into `SIGNER_PUBKEY`; check
    repo `GITHUB_REPO` (already set to `ruepp-jenkins/cachyos-security-scanner`) in `src/cachy_sec/updater.py`; store the private key as the
    repository secret `RELEASE_SIGNING_KEY`.
-2. Bump `__version__` (`src/cachy_sec/__init__.py`) and `version` (`pyproject.toml`).
-3. Create a GitHub release tagged `vX.Y.Z`. `.github/workflows/release.yml` tests, builds
+2. Nothing to bump in the code: the version comes from the release tag. The workflow stamps it into
+   `__init__.py`, `pyproject.toml` and `PKGBUILD` via `scripts/set-version.sh` (the files in git stay at `0.0.0`).
+3. Create a GitHub release tagged `vX.Y.Z`. `.github/workflows/release.yml` stamps the version, tests, builds
    `cachy-security-scanner-X.Y.Z.tar.gz`, `SHA256SUMS` and `SHA256SUMS.sig` and attaches them.
 
 Client side: downloads only from github.com / githubusercontent.com over HTTPS, verifies the SSH signature

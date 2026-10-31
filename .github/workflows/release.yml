@@ -12,13 +12,8 @@ jobs:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with: { python-version: "3.12" }
-      - name: Check tag matches package version
-        run: |
-          ver="${GITHUB_REF_NAME#v}"
-          grep -q "__version__ = \"$ver\"" src/cachy_sec/__init__.py || { echo "tag $GITHUB_REF_NAME != __version__"; exit 1; }
-          grep -q "^version = \"$ver\"" pyproject.toml || { echo "tag != pyproject version"; exit 1; }
-          grep -q "^pkgver=$ver\$" PKGBUILD || { echo "tag != PKGBUILD pkgver"; exit 1; }
-          echo "VERSION=$ver" >> "$GITHUB_ENV"
+      - name: Stamp version from the release tag
+        run: echo "VERSION=$(scripts/set-version.sh "$GITHUB_REF_NAME")" >> "$GITHUB_ENV"
       - run: python -m unittest discover -s tests
       - name: Build update bundle
         run: |
@@ -49,6 +44,7 @@ jobs:
       - uses: actions/checkout@v7
       - name: Build package
         run: |
+          scripts/set-version.sh "$GITHUB_REF_NAME"
           useradd -m builder
           mkdir -p /tmp/out && chown builder /tmp/out
           cp PKGBUILD /tmp/out/ && cd /tmp/out

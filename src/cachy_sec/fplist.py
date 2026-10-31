@@ -42,7 +42,6 @@ class Entry:
     author: str = ""
     reported: str = ""  # ISO date the false positive was reported
     description: str = ""  # optional longer explanation
-    reference: str = ""
 
 
 def validate(data: object) -> list[Entry]:
@@ -57,7 +56,7 @@ def validate(data: object) -> list[Entry]:
         if not isinstance(e, dict):
             raise ValueError(f"{where}: not an object")
         pkg, vers, codes, reason = e.get("package"), e.get("versions"), e.get("codes"), e.get("reason")
-        ref, author, reported, desc = e.get("reference", ""), e.get("author"), e.get("reported"), e.get("description", "")
+        author, reported, desc = e.get("author"), e.get("reported"), e.get("description", "")
         if not isinstance(pkg, str) or not _PKG.match(pkg):
             raise ValueError(f"{where}: invalid package")
         where = f"entry {i} ({pkg})"
@@ -78,9 +77,7 @@ def validate(data: object) -> list[Entry]:
             raise ValueError(f"{where}: reported must be an ISO date like 2026-10-31") from None
         if not isinstance(desc, str) or len(desc) > 2000:
             raise ValueError(f"{where}: description must be text of at most 2000 characters")
-        if not isinstance(ref, str) or (ref and not ref.startswith("https://")):
-            raise ValueError(f"{where}: reference must be an https URL")
-        out.append(Entry(pkg, list(vers), list(codes), reason, author.strip(), reported, desc, ref))
+        out.append(Entry(pkg, list(vers), list(codes), reason, author.strip(), reported, desc))
     return out
 
 

@@ -259,7 +259,7 @@ class FalsePositiveListTest(unittest.TestCase):
         self.assertEqual(fplist.validate(_fp_entry())[0].description, "")  # description is optional
         for bad in (_fp_entry(author=""), _fp_entry(reported="31.10.2026"), _fp_entry(reported="2026-13-01"),
                     _fp_entry(versions=["*"]), _fp_entry(versions=[]), _fp_entry(codes=["deep-001"]),
-                    _fp_entry(codes=["*"]), _fp_entry(reason="short"), _fp_entry(reference="http://x"),
+                    _fp_entry(codes=["*"]), _fp_entry(reason="short"),
                     _fp_entry(package="Bad Name"), {"schema": 2, "entries": []}, []):
             with self.assertRaises(ValueError, msg=str(bad)):
                 fplist.validate(bad)

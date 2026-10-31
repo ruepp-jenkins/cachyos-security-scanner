@@ -27,8 +27,7 @@ Please check the package yourself first. A maintainer reviews every entry.
   "author": "your GitHub name (required)",
   "reported": "2026-10-31",
   "reason": "What triggers it and why it is harmless (10-500 characters, shown in the scan log).",
-  "description": "Optional longer explanation (up to 2000 characters).",
-  "reference": "https://… (optional, https only)"
+  "description": "Optional longer explanation (up to 2000 characters)."
 }
 ```
 
@@ -36,5 +35,5 @@ Rules (checked by `python -m cachy_sec.fplist validate lists/false-positives_aur
 - `versions` are the full installed versions (`epoch:pkgver-pkgrel`); shell-style globs such as `1:12.*` are allowed
   but must contain a digit. Prefer exact versions: a new version should be reviewed again.
 - `codes` are explicit rule codes (no wildcards).
-- `author` and `reported` (ISO date) are required for every entry; `description` and `reference` are optional.
+- `author` and `reported` (ISO date) are required for every entry; `description` is optional.
 - One reason per entry, written for other users to understand.

@@ -8,8 +8,7 @@
       "author": "MyUncleSam",
       "reported": "2026-10-31",
       "reason": "unzip in the PKGBUILD (extracting translations) plus 'bash -c' in the shipped wrapper script are combined across files into a decode-and-execute finding. Nothing is decoded and executed; the wrapper only starts the program.",
-      "description": "Seen with aur-scan 2.2.0 on CachyOS. The PKGBUILD only runs 'unzip' on the translation archive in prepare(); heidisql.install only prints notes; the wrapper 'heidisql' ends with '/bin/bash -c \"exec -a $0 $EXEC $ARGS\" \"$0\"'. The rule matches 'unzip' (decode) in one file and 'bash -c' (execute) in another.",
-      "reference": "https://github.com/ruepp-jenkins/cachyos-security-scanner/tree/master/lists"
+      "description": "Seen with aur-scan 2.2.0 on CachyOS. The PKGBUILD only runs 'unzip' on the translation archive in prepare(); heidisql.install only prints notes; the wrapper 'heidisql' ends with '/bin/bash -c \"exec -a $0 $EXEC $ARGS\" \"$0\"'. The rule matches 'unzip' (decode) in one file and 'bash -c' (execute) in another."
     }
   ]
 }

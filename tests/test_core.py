@@ -180,6 +180,20 @@ class HistoryTest(unittest.TestCase):
         self.assertEqual(st["20260101T000001-binaries.log"], CRITICAL)
         self.assertEqual(st["20260101T000002-binaries.log"], CLEAN)
 
+    def test_listing_sees_growing_log_and_new_files(self):
+        from cachy_sec import history
+        d = history.history_dir()
+        d.mkdir(parents=True)
+        f = d / "20260101T000001-binaries.log"
+        f.write_text("scanning...\n")
+        self.assertEqual(history.list_entries()[0].status, "unknown")  # still running
+        f.write_text("scanning...\nResult: no threats found.\n")
+        self.assertEqual(history.list_entries()[0].status, CLEAN)  # cache must not hide the change
+        (d / "20260102T000001-binaries.log").write_text("x")
+        self.assertEqual([e.path.name for e in history.list_entries()][0], "20260102T000001-binaries.log")
+        f.unlink()
+        self.assertEqual(len(history.list_entries()), 1)
+
     def test_corrupt_file_does_not_break_listing(self):
         from cachy_sec import history
         d = history.history_dir()

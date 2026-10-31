@@ -113,27 +113,46 @@ def _stamp_to_display(name: str) -> str:
         return name
 
 
+_cache: dict[tuple[str, int, int], Entry] = {}  # (path, mtime_ns, size) -> parsed entry; keeps polling cheap
+
+
 def list_entries() -> list[Entry]:
-    """Newest first."""
+    """Newest first. Unchanged files are served from a cache so the viewer can poll often."""
     d = history_dir()
     entries: list[Entry] = []
     try:
         files = sorted(d.iterdir(), reverse=True)
     except OSError:
         return []
+    live: set[tuple[str, int, int]] = set()
     for p in files:
-        if p.suffix == ".json":
-            try:
-                data = json.loads(_read(p))
-                entries.append(Entry(p, data.get("started", _stamp_to_display(p.name)), data.get("kind", "packages"),
-                                     data.get("trigger", ""), data.get("status", UNKNOWN), data.get("summary", ""),
-                                     float(data.get("duration_s", 0))))
-            except (ValueError, TypeError):
-                entries.append(Entry(p, _stamp_to_display(p.name), "packages", "", UNKNOWN, "(unreadable)"))
-        elif p.suffix == ".log":
-            status, summary = _binary_status(_read(p))
-            entries.append(Entry(p, _stamp_to_display(p.name), "binaries", "manual", status, summary))
+        if p.suffix not in (".json", ".log"):
+            continue
+        try:
+            st = p.stat()
+        except OSError:
+            continue
+        key = (str(p), st.st_mtime_ns, st.st_size)
+        live.add(key)
+        if key not in _cache:
+            _cache[key] = _parse(p)
+        entries.append(_cache[key])
+    for k in [k for k in _cache if k not in live]:
+        del _cache[k]
     return entries
+
+
+def _parse(p: Path) -> Entry:
+    if p.suffix == ".json":
+        try:
+            data = json.loads(_read(p))
+            return Entry(p, data.get("started", _stamp_to_display(p.name)), data.get("kind", "packages"),
+                         data.get("trigger", ""), data.get("status", UNKNOWN), data.get("summary", ""),
+                         float(data.get("duration_s", 0)))
+        except (ValueError, TypeError):
+            return Entry(p, _stamp_to_display(p.name), "packages", "", UNKNOWN, "(unreadable)")
+    status, summary = _binary_status(_read(p))
+    return Entry(p, _stamp_to_display(p.name), "binaries", "manual", status, summary)
 
 
 def prune(keep: int) -> None:

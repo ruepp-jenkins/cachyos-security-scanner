@@ -81,11 +81,11 @@ list in Settings (default `SCAN-001`) is separate and applies to every package a
 ## Community lists
 Two lists live in [`lists/`](lists/) and are published signed on the rolling `lists` release (a workflow validates, stamps and signs them on every change; the app verifies the signature against its embedded key and shows in Settings when each list was published). **Blocklist** (`blocklist_aur.json`, on by default): known malicious AUR packages. **False positives** (below, opt-in).
 
-## Community false-positive list (aur-scan, opt-in)
+## Community false-positive list (aur-scan)
 Heuristic scanners cry wolf. The project keeps a list of **known false positives per software version** in
 [`lists/false-positives_aur-scan.json`](lists/false-positives_aur-scan.json); each entry records package, versions, rule codes,
 author, report date, a reason and optionally a description. Tick *"Use the community false-positive list"* under the
-aur-scan settings to let the app hide exactly those findings (it is **off by default**: you decide whether to trust the
+aur-scan settings to let the app hide exactly those findings (it is **on by default** while aur-scan is enabled; untick it if you do not trust the
 list). The list only hides; every hidden finding is noted in the scan log with its reason, author and date. It is
 published signed on the rolling `lists` release and verified against the app's embedded key; without a valid
 signature nothing is hidden. To report one, use the issue template *Report an aur-scan false positive* or open a pull

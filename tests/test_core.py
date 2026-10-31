@@ -20,6 +20,7 @@ class SettingsTest(unittest.TestCase):
         s = Settings()
         self.assertTrue(s.use_aur_malware_check)
         self.assertFalse(s.use_aur_scan)  # heuristic, opt-in
+        self.assertTrue(s.use_false_positive_list)  # on by default (only effective while aur-scan is on)
         self.assertTrue(s.use_community_blocklist)  # on by default
         self.assertEqual(s.ignored_findings, ["SCAN-001"])
 
@@ -303,7 +304,7 @@ class FalsePositiveListTest(unittest.TestCase):
             p.start()
         self.addCleanup(mock.patch.stopall)
         off = AurScan(use_fp_list=False).scan()
-        self.assertEqual(off.status, WARNING)  # opt-in: not used unless the checkbox is on
+        self.assertEqual(off.status, WARNING)  # not used when the checkbox is off
         self.assertIn("community false-positive list: off", off.log)  # the log says why nothing was hidden
         self.assertIn("scanned PKGBUILD version / installed version: heidisql 1:12.22-1 / 1:12.22-1", off.log)
         self.assertIn("heidisql 1:12.22-1:", off.findings[0].title)

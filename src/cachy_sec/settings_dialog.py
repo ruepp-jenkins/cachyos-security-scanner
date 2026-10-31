@@ -54,8 +54,8 @@ class SettingsDialog(QDialog):
         self.b_fp = QCheckBox("Community false-positive list")
         self.b_fp.setChecked(s.use_false_positive_list)
         self.b_fp.setToolTip("Signed list of known false positives for specific software versions, maintained in the project's\n"
-                             "GitHub repository. It only hides the listed findings for the listed versions. Off by default:\n"
-                             "enable it only if you trust the list. Every hidden finding is noted in the scan log.")
+                             "GitHub repository. It only hides the listed findings for the listed versions. On by default;\n"
+                             "untick it if you do not trust the list. Every hidden finding is noted in the scan log.")
         self.fp_status = QLabel(fplist.status())
         self.fp_status.setEnabled(False)  # greyed hint text
         fp_col = QVBoxLayout()

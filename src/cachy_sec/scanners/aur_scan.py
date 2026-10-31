@@ -130,7 +130,7 @@ class AurScan(Scanner):
 
     def __init__(self, ignore: list[str] | None = None, use_fp_list: bool = False) -> None:
         self._ignore = frozenset(ignore or [])
-        self._use_fp = use_fp_list  # opt-in: signed community false-positive list from the project's GitHub
+        self._use_fp = use_fp_list  # signed community false-positive list from the project's GitHub (switchable in the settings)
         self._fp_checked = False
         self._fp_status = ""
         self._prepared = False

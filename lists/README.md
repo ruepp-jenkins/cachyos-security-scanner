@@ -2,7 +2,7 @@
 
 This folder holds lists maintained by the community, named `<topic>_<scanner>.json`. Currently:
 
-- `false-positives_aur-scan.json`: false positives of aur-scan (opt-in in the app).
+- `false-positives_aur-scan.json`: false positives of aur-scan (on by default in the app, can be switched off).
 - `blocklist_aur.json`: known malicious AUR packages (on by default in the app).
 
 ## False positives (aur-scan)

@@ -1,7 +1,7 @@
 """Community false-positive list for aur-scan, maintained in the project's GitHub repository.
 
 The list says "package P at version V (glob allowed) is known to trigger rule C without being malicious".
-It is opt-in (the user decides whether to trust it), fetched only from this project's GitHub release
+It is on by default but can be switched off in the settings (the user decides whether to trust it), fetched only from this project's GitHub release
 `lists`, signed with the release key (separate signature namespace) and only ever *hides* the listed
 combinations; it cannot add findings or run anything.
 

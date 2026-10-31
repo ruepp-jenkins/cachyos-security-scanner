@@ -37,6 +37,9 @@ class AurScan(Scanner):
     def available(self) -> bool:
         return self._binary() is not None or (which("git") is not None and which("cargo") is not None)
 
+    def unavailable_reason(self) -> str:
+        return "aur-scan not found in PATH and it cannot be built here (needs both git and cargo, or install the 'aur-scanner' package)"
+
     def update(self) -> None:
         if which("aur-scan"):
             return  # package-managed

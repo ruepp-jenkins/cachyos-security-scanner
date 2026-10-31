@@ -71,23 +71,48 @@ def _result_dict(r: ScanResult) -> dict:
                          for f in r.findings]}
 
 
-def record(report, trigger: str, started: float, duration_s: float, keep: int = 200) -> Path | None:
-    """Persist a package-scan report. Never raises: history must not break scanning."""
-    status = SKIPPED if report.skipped else report.status
-    data = {"started": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(started)), "kind": "packages",
-            "trigger": trigger, "status": status, "summary": report.summary(), "duration_s": round(duration_s, 1),
-            "results": [_result_dict(r) for r in report.results]}
+def _result_summary(r: ScanResult) -> str:
+    if r.status == CLEAN:
+        return "No threats found"
+    if r.findings:
+        n = len(r.findings)
+        return f"{n} finding{'s' if n != 1 else ''}"
+    return (r.message or r.status).splitlines()[0][:200] if (r.message or r.status) else r.status
+
+
+def _write(d: Path, name: str, data: dict) -> Path:
+    p = d / name
+    tmp = p.with_suffix(".tmp")
+    tmp.write_text(json.dumps(data, indent=1))
+    tmp.replace(p)
+    return p
+
+
+def record(report, trigger: str, started: float, duration_s: float, keep: int = 200) -> list[Path]:
+    """Persist a package scan: one entry per scanner (plus one for a skipped scan).
+
+    Never raises: history must not break scanning.
+    """
+    when = time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(started))
+    stamp = time.strftime("%Y%m%dT%H%M%S", time.localtime(started))
+    base = {"started": when, "trigger": trigger}
+    paths: list[Path] = []
     try:
         d = history_dir()
         d.mkdir(parents=True, exist_ok=True)
-        p = d / f"{time.strftime('%Y%m%dT%H%M%S', time.localtime(started))}-packages.json"
-        tmp = p.with_suffix(".tmp")
-        tmp.write_text(json.dumps(data, indent=1))
-        tmp.replace(p)
+        if report.skipped:
+            paths.append(_write(d, f"{stamp}-skipped.json", {**base, "kind": "packages", "status": SKIPPED,
+                                                              "summary": report.summary(),
+                                                              "duration_s": round(duration_s, 1), "results": []}))
+        for r in report.results:
+            paths.append(_write(d, f"{stamp}-{r.backend}.json", {**base, "kind": r.backend, "status": r.status,
+                                                                 "summary": _result_summary(r),
+                                                                 "duration_s": round(r.duration_s, 1),
+                                                                 "results": [_result_dict(r)]}))
         prune(keep)
-        return p
     except OSError:
-        return None
+        pass
+    return paths
 
 
 def new_binary_log_path() -> Path:

@@ -1,12 +1,13 @@
 """Orchestration: pick backends, honour skip rules, run scans, summarise. No Qt in here."""
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass
 
 from . import gaming
 from .scanners.aur_malware_check import AurMalwareCheck
 from .scanners.aur_scan import AurScan
-from .scanners.base import CLEAN, CRITICAL, ERROR, Finding, ScanResult, Scanner, worst
+from .scanners.base import CLEAN, CRITICAL, ERROR, UNAVAILABLE, USABLE, Finding, ScanResult, Scanner, worst
 from .scanners.builtin_list import BuiltinList
 from .settings import Settings
 
@@ -42,10 +43,10 @@ class Report:
 
     @property
     def kind(self) -> str:
-        """Notification/icon class: "bad" (findings or every scanner failed), "info" (skipped), else "good"."""
+        """Notification/icon class: "bad" (findings, or no scanner could run), "info" (skipped), else "good"."""
         if self.skipped:
             return "info"
-        if self.findings or not self.results or all(r.status == ERROR for r in self.results):
+        if self.findings or not any(r.status in USABLE for r in self.results):
             return "bad"
         return "good"
 
@@ -53,15 +54,18 @@ class Report:
         if self.skipped:
             return f"Scan skipped: {self.skipped}"
         if not self.results:
-            return "No scanner available. Install one in Settings."
+            return "No AUR scanner enabled. Enable one in Settings."
         if self.findings:
             n = len(self.findings)
             return f"{n} finding{'s' if n != 1 else ''} – review before using the affected software"
-        errs = [r for r in self.results if r.status == ERROR]
-        if errs and len(errs) == len(self.results):
-            return "Scan failed: " + "; ".join(f"{r.backend}: {r.message}" for r in errs)[:300]
-        ok = ", ".join(r.backend for r in self.results if r.status == CLEAN)
-        return f"No threats found ({ok})" + (f"; {len(errs)} scanner(s) had errors" if errs else "")
+        ran = [r for r in self.results if r.status in USABLE]
+        problems = [r for r in self.results if r.status not in USABLE]
+        if not ran:
+            return "Scan failed: " + "; ".join(f"{r.backend}: {r.message}" for r in problems)[:300]
+        text = "No threats found (" + ", ".join(r.backend for r in ran) + ")"
+        if problems:
+            text += "; not run: " + ", ".join(f"{r.backend} ({r.status})" for r in problems)
+        return text
 
 
 def run_scan(s: Settings, *, manual: bool = False) -> Report:
@@ -69,8 +73,11 @@ def run_scan(s: Settings, *, manual: bool = False) -> Report:
     if reason:
         return Report([], skipped=reason)
     results: list[ScanResult] = []
-    for sc in enabled_scanners(s):
+    for sc in enabled_scanners(s):  # every enabled scanner gets its own result, even when it cannot run
+        t0 = time.monotonic()
         if not sc.available():
+            reason = sc.unavailable_reason()
+            results.append(ScanResult(sc.name, UNAVAILABLE, [], reason, log=f"Not run: {reason}"))
             continue
         if s.update_sources_before_scan:
             try:
@@ -78,9 +85,11 @@ def run_scan(s: Settings, *, manual: bool = False) -> Report:
             except Exception:  # noqa: BLE001 - a failed update must never block the scan
                 pass
         try:
-            results.append(sc.scan())
+            r = sc.scan()
         except Exception as e:  # noqa: BLE001
-            results.append(ScanResult(sc.name, ERROR, [], str(e)))
+            r = ScanResult(sc.name, ERROR, [], str(e), log=f"Scanner crashed: {e}")
+        r.duration_s = time.monotonic() - t0
+        results.append(r)
     return Report(results)
 
 

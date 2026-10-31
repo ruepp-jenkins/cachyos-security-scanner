@@ -19,6 +19,18 @@ class SettingsTest(unittest.TestCase):
     def test_defaults_enable_both_aur_scanners(self):
         s = Settings()
         self.assertTrue(s.use_aur_malware_check and s.use_aur_scan)
+        self.assertFalse(s.use_builtin_list)
+
+    def test_old_settings_file_migrates_builtin_list_off(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "s.json"
+            p.write_text(json.dumps({"use_builtin_list": True, "use_aur_scan": False}))
+            s = Settings.load(p)
+            self.assertFalse(s.use_builtin_list)
+            self.assertFalse(s.use_aur_scan)  # other choices are kept
+            s.use_builtin_list = True
+            s.save(p)
+            self.assertTrue(Settings.load(p).use_builtin_list)  # a deliberate opt-in after migration sticks
 
     def test_roundtrip_and_clamping(self):
         with tempfile.TemporaryDirectory() as d:
@@ -92,6 +104,22 @@ class ReportTest(unittest.TestCase):
         self.assertIn("No threats found", engine.Report([ScanResult("a", CLEAN)]).summary())
         self.assertIn("skipped", engine.Report([], skipped="gaming mode active").summary())
 
+    def test_every_enabled_scanner_gets_a_result(self):
+        class Gone:
+            name = "gone"
+            def available(self): return False
+            def unavailable_reason(self): return "not installed"
+        class Fine:
+            name = "fine"
+            def available(self): return True
+            def update(self): pass
+            def scan(self): return ScanResult("fine", CLEAN)
+        with mock.patch.object(engine, "enabled_scanners", return_value=[Gone(), Fine()]), \
+             mock.patch("cachy_sec.gaming.gaming_active", return_value=False):
+            r = engine.run_scan(Settings(update_sources_before_scan=False), manual=True)
+        self.assertEqual([x.backend for x in r.results], ["gone", "fine"])
+        self.assertEqual(r.results[0].status, "unavailable")
+
     def test_run_scan_skips_missing_and_survives_errors(self):
         class Boom:
             name = "boom"
@@ -126,6 +154,10 @@ class IconsTest(unittest.TestCase):
         self.assertEqual(engine.Report([ScanResult("a", CLEAN)]).kind, "good")
         self.assertEqual(engine.Report([ScanResult("a", CRITICAL, [Finding(CRITICAL, "x", "s")])]).kind, "bad")
         self.assertEqual(engine.Report([ScanResult("a", "error")]).kind, "bad")
+        self.assertEqual(engine.Report([ScanResult("a", "unavailable")]).kind, "bad")
+        mixed = engine.Report([ScanResult("a", CLEAN), ScanResult("b", "unavailable", [], "x")])
+        self.assertEqual(mixed.kind, "good")  # one scanner not runnable must not turn the tray red
+        self.assertIn("not run: b", mixed.summary())
         self.assertEqual(engine.Report([], skipped="gaming mode active").kind, "info")
 
 
@@ -171,13 +203,26 @@ class HistoryTest(unittest.TestCase):
         from cachy_sec.scanners.base import Finding
         rep = engine.Report([ScanResult("aur_scan", CRITICAL, [Finding(CRITICAL, "bad-pkg matches", "x", "bad-pkg")],
                                         "msg", log="raw tool output")])
-        p = history.record(rep, "manual", time.time(), 1.234)
+        [p] = history.record(rep, "manual", time.time(), 1.234)
         self.assertTrue(p.exists())
         [e] = history.list_entries()
-        self.assertEqual((e.kind, e.trigger, e.status), ("packages", "manual", CRITICAL))
+        self.assertEqual((e.kind, e.trigger, e.status), ("aur_scan", "manual", CRITICAL))
         txt = e.log_text()
         self.assertIn("raw tool output", txt)
         self.assertIn("bad-pkg matches", txt)
+
+    def test_one_entry_per_scanner_including_unavailable(self):
+        import time
+        from cachy_sec import history
+        rep = engine.Report([ScanResult("aur_malware_check", CLEAN, log="ok output"),
+                             ScanResult("aur_scan", "unavailable", [], "needs cargo", log="Not run: needs cargo")])
+        paths = history.record(rep, "interval", time.time(), 2)
+        self.assertEqual(len(paths), 2)
+        by = {e.kind: e for e in history.list_entries()}
+        self.assertEqual(by["aur_malware_check"].status, CLEAN)
+        self.assertEqual(by["aur_scan"].status, "unavailable")
+        self.assertIn("Not run: needs cargo", by["aur_scan"].log_text())
+        self.assertNotIn("ok output", by["aur_scan"].log_text())
 
     def test_skipped_scan_is_recorded(self):
         import time

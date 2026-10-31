@@ -50,7 +50,7 @@ class SettingsDialog(QDialog):
         bl = QVBoxLayout(back)
         self.b_amc = self._backend(bl, "aur-malware-check (lenucksi)", s.use_aur_malware_check, AurMalwareCheck())
         self.b_scan = self._backend(bl, "aur-scan (ks-aur-scanner)", s.use_aur_scan, AurScan())
-        self.b_list = self._backend(bl, "Built-in blocklist (needs CACHY_SEC_BLOCKLIST_URL)", s.use_builtin_list, BuiltinList())
+        self.b_list = self._backend(bl, "Built-in blocklist (off by default: no public list yet; needs CACHY_SEC_BLOCKLIST_URL)", s.use_builtin_list, BuiltinList())
         bl.addWidget(QLabel("Scanner repositories are cloned and updated automatically before scans."))
         root.addWidget(back)
 
@@ -84,7 +84,7 @@ class SettingsDialog(QDialog):
         self.keep.setRange(10, 5000)
         self.keep.setValue(s.history_keep)
         self.keep.setPrefix("Keep the last ")
-        self.keep.setSuffix(" scans in the history")
+        self.keep.setSuffix(" history entries (one per scanner and scan)")
         root.addWidget(self.keep)
 
         self.confirm_rm = QCheckBox("Ask before removing packages (recommended)")

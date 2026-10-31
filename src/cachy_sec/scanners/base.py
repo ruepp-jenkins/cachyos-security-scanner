@@ -6,7 +6,9 @@ import subprocess
 from dataclasses import dataclass, field
 
 CLEAN, WARNING, CRITICAL, ERROR = "clean", "warning", "critical", "error"
-_RANK = {CLEAN: 0, WARNING: 1, ERROR: 2, CRITICAL: 3}
+UNAVAILABLE = "unavailable"  # enabled in settings but not runnable here (not installed, cannot be fetched)
+USABLE = (CLEAN, WARNING, CRITICAL)  # statuses that mean "the scanner actually ran"
+_RANK = {UNAVAILABLE: 0, CLEAN: 0, WARNING: 1, ERROR: 2, CRITICAL: 3}
 
 
 @dataclass
@@ -24,6 +26,7 @@ class ScanResult:
     findings: list[Finding] = field(default_factory=list)
     message: str = ""
     log: str = ""  # raw tool output, kept for the scan history
+    duration_s: float = 0.0
 
     @property
     def ok(self) -> bool:
@@ -51,6 +54,9 @@ class Scanner:
 
     def available(self) -> bool:
         raise NotImplementedError
+
+    def unavailable_reason(self) -> str:
+        return "not installed"
 
     def update(self) -> None:  # refresh blocklists etc.; failures must not abort the scan
         pass

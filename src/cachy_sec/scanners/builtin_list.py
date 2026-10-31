@@ -33,6 +33,9 @@ class BuiltinList(Scanner):
     def available(self) -> bool:
         return cache_file().exists() or self._url() is not None
 
+    def unavailable_reason(self) -> str:
+        return "no blocklist configured (set CACHY_SEC_BLOCKLIST_URL)"
+
     def update(self) -> None:
         url = self._url()
         if not url or not url.startswith("https://"):

@@ -59,7 +59,7 @@ Restricted Mode (do not "trust" it).
 
 ## Accepting a finding (aur-scan)
 In the "Possible compromise" window every entry (one rule of one package) has its own **Ignore** button, so you can
-tick them off one by one. It accepts that rule for exactly the installed version (`epoch:pkgver-pkgrel`); the re-scan
+tick them off one by one. It accepts that rule for exactly the version of the scanned PKGBUILD (`epoch:pkgver-pkgrel`, read from the `.SRCINFO` next to it in the helper cache, e.g. `~/.cache/yay/<pkg>`; the installed version is used if there is none); the re-scan
 runs once when you close the window. It is stored in
 `~/.config/cachy-security-scanner/ignored_findings.json` and can be revoked in Settings. After the package is
 updated the entry no longer matches, so the finding is reported again if it still applies; a different rule code for

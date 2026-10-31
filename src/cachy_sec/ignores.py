@@ -97,6 +97,29 @@ def rows(findings) -> list[Row]:
     return out
 
 
+def srcinfo_version(directory: Path) -> str:
+    """Version of the package files that were scanned: epoch:pkgver-pkgrel from the .SRCINFO next to the PKGBUILD.
+
+    aur-scan analyses the PKGBUILD in the helper's cache (e.g. ~/.cache/yay/<pkg>), which can be newer or older than
+    what is installed. Ignores and the false-positive list therefore bind to this version. Empty if unreadable.
+    """
+    try:
+        text = (directory / ".SRCINFO").read_text(errors="replace")
+    except OSError:
+        return ""
+    base: dict[str, str] = {}
+    for line in text.splitlines():
+        key, sep, value = line.strip().partition(" = ")
+        if key == "pkgname":
+            break  # the pkgbase block comes first; per-package blocks follow
+        if sep and key in ("pkgver", "pkgrel", "epoch"):
+            base.setdefault(key, value.strip())
+    if not base.get("pkgver") or not base.get("pkgrel"):
+        return ""
+    epoch = base.get("epoch", "")
+    return (f"{epoch}:" if epoch and epoch != "0" else "") + f"{base['pkgver']}-{base['pkgrel']}"
+
+
 def installed_versions() -> dict[str, str]:
     """Foreign (AUR) packages and their full installed version (epoch:pkgver-pkgrel). Empty if pacman fails."""
     code, out = run(["pacman", "-Qm"], 30)

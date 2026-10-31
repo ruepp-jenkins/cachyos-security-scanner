@@ -321,7 +321,7 @@ class FalsePositiveListTest(unittest.TestCase):
         off = AurScan(use_fp_list=False).scan()
         self.assertEqual(off.status, WARNING)  # opt-in: not used unless the checkbox is on
         self.assertIn("community false-positive list: off", off.log)  # the log says why nothing was hidden
-        self.assertIn("installed versions: heidisql 1:12.22-1", off.log)
+        self.assertIn("scanned PKGBUILD version / installed version: heidisql 1:12.22-1 / 1:12.22-1", off.log)
         self.assertIn("heidisql 1:12.22-1:", off.findings[0].title)
         on = AurScan(use_fp_list=True).scan()
         self.assertEqual(on.status, CLEAN)
@@ -349,6 +349,33 @@ class IgnoreTest(unittest.TestCase):
             self.assertEqual(f[0].codes, ["DEEP-001", "DEEP-003"])  # reported again
             f = parse_output(self.SAMPLE, "x", suppress=ignores.matcher({}, entries), versions={})
             self.assertEqual(f[0].codes, ["DEEP-001", "DEEP-003"])  # version unknown: fail open, show it
+
+    def test_srcinfo_version_and_scanned_version_wins_over_installed(self):
+        from cachy_sec import fplist, ignores
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / ".SRCINFO").write_text("pkgbase = heidisql\n\tpkgdesc = x\n\tpkgver = 12.22\n\tpkgrel = 1\n\tepoch = 1\n\n"
+                                              "pkgname = heidisql\n\tpkgver = 99\n")
+            self.assertEqual(ignores.srcinfo_version(Path(d)), "1:12.22-1")
+            (Path(d) / ".SRCINFO").write_text("pkgbase = a\n\tpkgver = 2.0\n\tpkgrel = 3\n\tepoch = 0\n")
+            self.assertEqual(ignores.srcinfo_version(Path(d)), "2.0-3")  # epoch 0 / missing: no prefix
+            (Path(d) / ".SRCINFO").write_text("pkgbase = a\n\tpkgver = 2.0\n")
+            self.assertEqual(ignores.srcinfo_version(Path(d)), "")  # incomplete: fall back to the installed version
+            self.assertEqual(ignores.srcinfo_version(Path(d) / "missing"), "")
+            (Path(d) / ".SRCINFO").write_text("pkgbase = heidisql\n\tpkgver = 12.22\n\tpkgrel = 1\n\tepoch = 1\n")
+            out = f"Scanning: heidisql ISSUES: 1 critical\n    DEEP-001 Decode - {d}/PKGBUILD\n"
+            entries = fplist.validate(_fp_entry())
+            for p in [mock.patch("cachy_sec.scanners.aur_scan.run", return_value=(1, out)),
+                      mock.patch.object(AurScan, "_binary", return_value="/x/aur-scan"),
+                      # the installed version is older than the PKGBUILD in the helper cache
+                      mock.patch("cachy_sec.ignores.installed_versions", return_value={"heidisql": "1:12.21-1"}),
+                      mock.patch("cachy_sec.ignores.load", return_value=[]),
+                      mock.patch("cachy_sec.fplist.load", return_value=entries),
+                      mock.patch("cachy_sec.fplist.refresh", return_value=(True, "ok"))]:
+                p.start()
+            self.addCleanup(mock.patch.stopall)
+            r = AurScan(use_fp_list=True).scan()
+            self.assertEqual(r.status, CLEAN)  # matched on the scanned 1:12.22-1, not the installed 1:12.21-1
+            self.assertIn("heidisql 1:12.22-1 / 1:12.21-1", r.log)
 
     def test_one_row_per_rule_for_the_findings_window(self):
         from cachy_sec import ignores

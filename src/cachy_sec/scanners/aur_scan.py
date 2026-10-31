@@ -26,6 +26,21 @@ def is_ignored(pkg: str, code: str, ignore: set[str]) -> bool:
     return code in ignore or pkg in ignore or f"{pkg}:{code}" in ignore
 
 
+def scanned_dirs(out: str) -> dict[str, Path]:
+    """package -> directory of the files aur-scan reported for it (from the " - /path" part of the issue lines)."""
+    dirs: dict[str, Path] = {}
+    pkg = None
+    for line in out.splitlines():
+        m = _HEADER.match(line)
+        if m:
+            pkg = m.group(1)
+        elif line.startswith("Scanning:"):
+            pkg = None
+        elif pkg and pkg not in dirs and _ISSUE.match(line) and " - /" in line:
+            dirs[pkg] = Path("/" + line.rpartition(" - /")[2]).parent
+    return dirs
+
+
 def recognized(out: str) -> bool:
     return any(ln.startswith("Scanning:") for ln in out.splitlines())
 
@@ -176,7 +191,12 @@ class AurScan(Scanner):
             return ScanResult(self.name, ERROR, [], f"exit {code}: {out[-500:]}", log=out)
         if self._use_fp and not self._fp_checked:
             self._refresh_fp()
-        versions = ignores.installed_versions()
+        installed = ignores.installed_versions()
+        versions = dict(installed)
+        for pkg, d in scanned_dirs(out).items():  # the scanned PKGBUILD's version wins over the installed one
+            v = ignores.srcinfo_version(d)
+            if v:
+                versions[pkg] = v
         user = ignores.matcher(versions)
         entries = fplist.load() if self._use_fp else []
         hits: dict[str, str] = {}
@@ -195,7 +215,9 @@ class AurScan(Scanner):
             out += ("\n\n--- context ---\n"
                     + ("community false-positive list: " + (f"on, {len(entries)} entries ({self._fp_status or 'cache'})"
                                                             if self._use_fp else "off (Settings > aur-scan to enable)") + "\n")
-                    + "installed versions: " + (", ".join(f"{p} {versions.get(p, '?')}" for p in reported) or "-") + "\n")
+                    + "scanned PKGBUILD version / installed version: "
+                    + (", ".join(f"{p} {versions.get(p, '?')} / {installed.get(p, 'not installed')}" for p in reported) or "-")
+                    + "\n")
         if hits:  # transparency: show what the community list hid
             out += "\n\n--- hidden by the community false-positive list ---\n" + "\n".join(
                 f"{k}: {v}" for k, v in hits.items()) + "\n"

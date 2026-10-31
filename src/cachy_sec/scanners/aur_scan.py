@@ -53,7 +53,9 @@ def parse_output(out: str, label: str, ignore: frozenset[str] | set[str] = froze
             what = ", ".join(f"{c} {t}" + (f" ×{n}" if n > 1 else "") for (c, t), n in groups.items())
             detail = "\n".join(f"{c} {t}" + (f"  [{p}]" if p else "") for c, t, p in kept)
             n = len(kept)
-            findings.append(Finding(WARNING, f"{pkg}: {n} issue{'s' if n != 1 else ''} – {what}", label, package=pkg, detail=detail))
+            files = list(dict.fromkeys(p for _, _, p in kept if p))
+            findings.append(Finding(WARNING, f"{pkg}: {n} issue{'s' if n != 1 else ''} – {what}", label, package=pkg,
+                                    detail=detail, files=files))
 
     for line in out.splitlines():
         m = _HEADER.match(line)

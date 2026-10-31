@@ -50,6 +50,13 @@ The app registers itself for login: on start it writes `~/.config/autostart/cach
 package ships the system-wide entry, writes `Hidden=true` over it. If the panel is not ready right after login, the
 app waits up to 60 s for the system tray.
 
+## Inspecting findings
+The "Possible compromise" window has an **Open files…** button for aur-scan findings. It opens the package's
+folder from the scanner's cache (PKGBUILD, install script, wrapper, …) in an editor: the one set under Settings, else the
+first of `codium`, `vscodium`, `code`, `code-oss`, `cursor`, `zed`, `subl`, else the file manager. Several affected
+packages give a menu. The folder is only opened, nothing in it is run; with VSCodium/VS Code keep the folder in
+Restricted Mode (do not "trust" it).
+
 ## Scan history
 Tray menu → "Scan history…" lists every scan, with **one entry per scanner** (start time, scanner, trigger, status, summary); selecting one shows its
 full log, including the raw output of each scanner. A scanner that is enabled but cannot be set up or run gets an entry with status `error` and the reason

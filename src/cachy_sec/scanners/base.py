@@ -17,6 +17,7 @@ class Finding:
     source: str
     package: str | None = None  # set when the finding maps to an installed pacman package
     detail: str = ""  # optional multi-line explanation shown in details views and the history
+    files: list[str] = field(default_factory=list)  # files the finding refers to (absolute paths), for "open files"
 
 @dataclass
 class ScanResult:

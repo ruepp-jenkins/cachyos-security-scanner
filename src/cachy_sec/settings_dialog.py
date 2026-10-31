@@ -5,7 +5,7 @@ import copy
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QIcon
-from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QGroupBox,
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QGroupBox, QLineEdit,
                                QHBoxLayout, QLabel, QMessageBox, QPlainTextEdit, QPushButton, QSpinBox,
                                QVBoxLayout)
 
@@ -76,6 +76,13 @@ class SettingsDialog(QDialog):
         cl.addLayout(row)
         root.addWidget(clam)
 
+        ed = QHBoxLayout()
+        ed.addWidget(QLabel("Editor for \"Open files\" (empty = auto: codium, code, … or file manager):"))
+        self.editor = QLineEdit(s.editor_command)
+        self.editor.setPlaceholderText("e.g. codium")
+        ed.addWidget(self.editor, 1)
+        root.addLayout(ed)
+
         self.autostart = QCheckBox("Start automatically at login")
         self.autostart.setChecked(s.autostart)
         root.addWidget(self.autostart)
@@ -145,6 +152,7 @@ class SettingsDialog(QDialog):
         s.use_builtin_list = self.b_list.isChecked()
         s.ignored_findings = [x.strip() for x in self.ignored.toPlainText().splitlines() if x.strip()]
         s.binary_scan_paths = self._paths()
+        s.editor_command = self.editor.text().strip()
         s.autostart = self.autostart.isChecked()
         s.history_keep = self.keep.value()
         s.auto_update = self.auto_update.isChecked()

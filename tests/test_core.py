@@ -97,6 +97,25 @@ class AdapterTest(unittest.TestCase):
         self.assertIn("[/home/u/.cache/yay/heidisql/PKGBUILD]", f[0].detail)
         self.assertEqual(parse_output("Scanning: a OK\nScanning: b OK\n", "x"), [])
 
+    def test_findings_carry_files_and_opener_finds_dirs(self):
+        from cachy_sec import opener
+        from cachy_sec.scanners.aur_scan import parse_output
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "PKGBUILD").write_text("x")
+            out = f"Scanning: demo ISSUES: 1 critical\n    DEEP-001 Decode-and-execute flow - {d}/PKGBUILD\n"
+            [f] = parse_output(out, "x")
+            self.assertEqual(f.files, [f"{d}/PKGBUILD"])
+            self.assertEqual(opener.finding_dirs([f]), {"demo": Path(d)})
+            f.files = ["/does/not/exist/PKGBUILD", "relative/path"]
+            self.assertEqual(opener.finding_dirs([f]), {})
+            with mock.patch("shutil.which", side_effect=lambda n: "/usr/bin/codium" if n == "codium" else None):
+                self.assertEqual(opener.build_command(Path(d)), ["/usr/bin/codium", d])
+                self.assertIsNone(opener.build_command(Path(d), "nonexistent-editor"))
+            with mock.patch("shutil.which", side_effect=lambda n: f"/usr/bin/{n}" if n in ("kate", "xdg-open") else None):
+                self.assertEqual(opener.build_command(Path(d), "kate --new"), ["kate", "--new", d])
+                self.assertEqual(opener.build_command(Path(d)), ["/usr/bin/xdg-open", d])  # no folder editor: file manager
+            self.assertIsNone(opener.build_command(Path(d) / "missing"))
+
     def test_aur_scan_ignore_list(self):
         from cachy_sec.scanners.aur_scan import parse_output
         sample = "Scanning: heidisql ISSUES: 1 critical\n    DEEP-001 Decode - /p/PKGBUILD\nScanning: rdm ISSUES: 2 critical\n    SCAN-001 Package file could not be analyzed: a.zst - /p/a.zst\n    CRYPTO-003 Wallet - /p/a.zst\n"

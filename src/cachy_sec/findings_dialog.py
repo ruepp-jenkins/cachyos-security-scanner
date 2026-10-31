@@ -4,9 +4,10 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from PySide6.QtGui import QFont, QIcon
-from PySide6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QPlainTextEdit, QPushButton, QVBoxLayout)
+from PySide6.QtWidgets import (QDialog, QHBoxLayout, QLabel, QMenu, QPlainTextEdit, QPushButton, QVBoxLayout)
 
-from . import icons
+from . import icons, opener
+from pathlib import Path
 
 COLLAPSED_SIZE = (640, 200)
 EXPANDED_SIZE = (900, 560)  # roomy enough that file paths and issue lines do not wrap
@@ -21,8 +22,10 @@ def details_text(findings) -> str:
 
 
 class FindingsDialog(QDialog):
-    def __init__(self, summary: str, findings, pkgs: list[str], on_remove: Callable[[list[str]], None]) -> None:
+    def __init__(self, summary: str, findings, pkgs: list[str], on_remove: Callable[[list[str]], None],
+                 editor: str = "") -> None:
         super().__init__()
+        self.editor = editor
         self.setWindowTitle("Possible compromise")
         self.setWindowIcon(QIcon(icons.path(icons.BAD)))
         root = QVBoxLayout(self)
@@ -51,6 +54,20 @@ class FindingsDialog(QDialog):
         self.toggle.toggled.connect(self._toggled)
         row.addWidget(self.toggle)
         row.addStretch()
+        dirs = opener.finding_dirs(findings)
+        if dirs:
+            op = QPushButton("Open files…")
+            op.setToolTip("Open the folder with the scanned files (PKGBUILD, install script, …) in your editor.\n"
+                          "Editors with a restricted mode (VSCodium/VS Code): do not trust the folder.")
+            if len(dirs) == 1:
+                d = next(iter(dirs.values()))
+                op.clicked.connect(lambda: self._open(d))
+            else:
+                menu = QMenu(op)
+                for pkg, d in dirs.items():
+                    menu.addAction(f"{pkg}  ({d})", lambda d=d: self._open(d))
+                op.setMenu(menu)
+            row.addWidget(op)
         if pkgs:
             rm = QPushButton("Remove packages…")
             rm.clicked.connect(lambda: on_remove(pkgs))
@@ -60,6 +77,12 @@ class FindingsDialog(QDialog):
         row.addWidget(close)
         root.addLayout(row)
         self.resize(*COLLAPSED_SIZE)
+
+    def _open(self, directory: Path) -> None:
+        ok, msg = opener.open_directory(directory, self.editor)
+        if not ok:
+            self.details.setVisible(True)
+            self.details.appendPlainText("\n" + msg)
 
     def _toggled(self, on: bool) -> None:
         self.details.setVisible(on)

@@ -209,7 +209,8 @@ class Tray(QObject):
 
     def _offer_removal(self, report: engine.Report) -> None:
         """Non-modal: the dialog never blocks the tray, other scans or update checks."""
-        box = FindingsDialog(report.summary(), report.findings, engine.infected_packages(report), self._remove_clicked)
+        box = FindingsDialog(report.summary(), report.findings, engine.infected_packages(report), self._remove_clicked,
+                             self.settings.editor_command)
         box.setAttribute(Qt.WA_DeleteOnClose)
         self._dialogs.append(box)  # keep a reference while open
         box.destroyed.connect(lambda *_: self._dialogs.remove(box) if box in self._dialogs else None)

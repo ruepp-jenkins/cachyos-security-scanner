@@ -70,7 +70,7 @@ def _stamp() -> str:
 def _result_dict(r: ScanResult) -> dict:
     return {"backend": r.backend, "status": r.status, "message": r.message[-LOG_CAP:], "log": r.log[-LOG_CAP:],
             "findings": [{"severity": f.severity, "title": f.title, "source": f.source, "package": f.package,
-                          "detail": f.detail}
+                          "detail": f.detail, "files": f.files}
                          for f in r.findings]}
 
 

@@ -448,7 +448,8 @@ class UpdaterTest(unittest.TestCase):
             self.assertIsNone(updater.latest_release())
 
     def test_describe_version_and_pending_update(self):
-        self.assertIn("development build", updater.describe_version())  # repo version is 0.0.0
+        with mock.patch.object(updater, "__version__", "0.0.0"):  # the release workflow stamps a real version first
+            self.assertIn("development build", updater.describe_version())
         with mock.patch.object(updater, "__version__", "1.0.0"):
             self.assertEqual(updater.describe_version(), "1.0.0")
             rel, blobs = self._release(version="1.1.0")

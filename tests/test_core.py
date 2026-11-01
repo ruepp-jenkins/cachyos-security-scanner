@@ -1038,5 +1038,20 @@ class StatusIconTests(unittest.TestCase):
         self.assertTrue(Path(icons.for_status("something-new")).is_file())  # unknown values fall back
 
 
+class ReportIconStatusTests(unittest.TestCase):
+    def test_tray_status_distinguishes_warning_critical_error_clean_skipped(self):
+        from cachy_sec import engine
+        from cachy_sec.scanners.base import CLEAN, CRITICAL, ERROR, WARNING, Finding, ScanResult
+        f = lambda sev: [Finding(sev, "t", "s")]
+        R = engine.Report
+        self.assertEqual(R([ScanResult("a", CLEAN)]).icon_status, "clean")
+        self.assertEqual(R([ScanResult("a", WARNING, f(WARNING))]).icon_status, "warning")
+        self.assertEqual(R([ScanResult("a", WARNING, f(WARNING)), ScanResult("b", CRITICAL, f(CRITICAL))]).icon_status, "critical")
+        self.assertEqual(R([ScanResult("a", WARNING, f(WARNING)), ScanResult("b", ERROR)]).icon_status, "warning")
+        self.assertEqual(R([ScanResult("a", CLEAN), ScanResult("b", ERROR)]).icon_status, "error")
+        self.assertEqual(R([]).icon_status, "error")
+        self.assertIsNone(R([], skipped="gaming").icon_status)
+
+
 if __name__ == "__main__":
     unittest.main()

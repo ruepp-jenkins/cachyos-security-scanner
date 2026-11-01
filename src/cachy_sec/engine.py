@@ -56,6 +56,18 @@ class Report:
             return "bad"
         return "good"
 
+    @property
+    def icon_status(self) -> str | None:
+        """History status that represents this report (tray icon); None for a skipped scan, which changes nothing."""
+        if self.skipped:
+            return None
+        if self.findings:
+            crit = any(f.severity == CRITICAL for f in self.findings) or any(r.status == CRITICAL for r in self.results)
+            return "critical" if crit else "warning"
+        if not self.results or any(r.status not in USABLE for r in self.results):
+            return "error"
+        return "clean"
+
     def summary(self) -> str:
         if self.skipped:
             return f"Scan skipped: {self.skipped}"

@@ -278,12 +278,13 @@ class Tray(QObject):
             old.mark_outdated()
         text = report.summary()
         self.tray.setToolTip(f"CachyOS Security Scanner – {text}")
+        st = report.icon_status
+        if st:  # a skipped scan leaves the previous icon, so an earlier finding stays visible
+            self.tray.setIcon(QIcon(icons.for_status(st)))
         if report.findings:
             notify.notify("Security scanner: possible compromise", text, kind="bad", urgent=True)
-            self.tray.setIcon(QIcon(icons.path(icons.BAD)))
             self._offer_removal(report, f"{time.strftime('%H:%M')}, {'manual' if manual else 'automatic'} scan")
         else:
-            self.tray.setIcon(QIcon(icons.path({"good": icons.GOOD, "bad": icons.BAD}.get(report.kind, icons.APP))))
             if manual or self.settings.notify_when_clean or report.kind == "bad":
                 notify.notify("Security scan finished", text, kind=report.kind, urgent=report.kind == "bad")
 

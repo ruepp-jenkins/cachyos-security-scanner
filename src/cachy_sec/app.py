@@ -100,19 +100,16 @@ class Tray(QObject):
         self.menu = QMenu()
         self.act_scan = self.menu.addAction("Check for compromised packages now", lambda: self.scan(manual=True))
         self.act_clam = self.menu.addAction("Scan binaries with ClamAV (clamd)", self.scan_binaries)
-        self.act_last = self.menu.addAction("No scan yet")
-        self.act_last.setEnabled(False)
         self.menu.addAction("Scan history…", self.open_history)
         self.menu.addSeparator()
         self.act_update = self.menu.addAction("Check for app updates", lambda: self.check_update(manual=True))
         self.act_restart = self.menu.addAction("Restart to apply update", self._restart)
         self.act_restart.setVisible(False)
         self.menu.addAction("Settings…", self.open_settings)
-        self.act_version = self.menu.addAction(f"Version {updater.describe_version()}")
-        self.act_version.setEnabled(False)
         self.menu.addAction("Quit", app.quit)
         self.menu.aboutToShow.connect(self._refresh_menu)
         self.tray.setContextMenu(self.menu)
+        self.tray.activated.connect(self._tray_activated)
         self.tray.show()
 
         self.timer = QTimer(self)
@@ -225,6 +222,10 @@ class Tray(QObject):
         else:
             notify.notify("Restart needed", "Please start the app again to use the new version.", kind="info")
 
+    def _tray_activated(self, reason) -> None:
+        if reason == QSystemTrayIcon.Trigger:  # plain left click
+            self.open_history()
+
     def _refresh_menu(self) -> None:
         ok = clamd.available()
         self.act_clam.setEnabled(ok)
@@ -277,7 +278,6 @@ class Tray(QObject):
             old.mark_outdated()
         text = report.summary()
         self.tray.setToolTip(f"CachyOS Security Scanner – {text}")
-        self.act_last.setText(text[:80])
         if report.findings:
             notify.notify("Security scanner: possible compromise", text, kind="bad", urgent=True)
             self.tray.setIcon(QIcon(icons.path(icons.BAD)))

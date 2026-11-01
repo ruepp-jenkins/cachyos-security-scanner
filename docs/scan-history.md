@@ -78,7 +78,7 @@ Plain files in `~/.local/share/cachy-security-scanner/history/`:
 | `<date>T<time>-skipped.json` | a skipped scan |
 | `<date>T<time>-binaries.log` | the output of a ClamAV scan |
 
-You can read, copy or delete them without the app. How many are kept is set by *Keep the last N history entries*
+You can read, copy or delete them without the app. How many are kept is set by *Keep the last … history entries*
 (default 200, one entry per scanner and scan); the oldest are deleted first. See [Settings](settings.md#general).
 
 ## Reading a log

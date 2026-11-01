@@ -4,13 +4,29 @@ from __future__ import annotations
 import subprocess
 
 from PySide6.QtGui import QFont, QIcon
-from PySide6.QtWidgets import (QDialog, QHBoxLayout, QMessageBox, QPlainTextEdit, QPushButton, QSplitter,
-                               QTableWidget, QTableWidgetItem, QVBoxLayout, QAbstractItemView, QHeaderView)
+from PySide6.QtWidgets import (QCheckBox, QDialog, QHBoxLayout, QLineEdit, QMessageBox, QPlainTextEdit, QPushButton,
+                               QSplitter, QTableWidget, QTableWidgetItem, QVBoxLayout, QWidget,
+                               QAbstractItemView, QHeaderView)
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QTimer
 
 from . import history, icons
+
+
+THREAT_STATUSES = ("warning", "critical")
+_PATH_ROLE = Qt.UserRole
+
+
+class _SortItem(QTableWidgetItem):
+    """Item that sorts by an explicit key (used for the status icon column)."""
+
+    def __init__(self, key: int) -> None:
+        super().__init__("")
+        self.key = key
+
+    def __lt__(self, other: QTableWidgetItem) -> bool:  # type: ignore[override]
+        return self.key < getattr(other, "key", 0)
 
 
 class HistoryDialog(QDialog):
@@ -25,17 +41,39 @@ class HistoryDialog(QDialog):
         self._last_sig: list | None = None
         root = QVBoxLayout(self)
         split = QSplitter(Qt.Vertical)
+        top = QWidget()
+        top_l = QVBoxLayout(top)
+        top_l.setContentsMargins(0, 0, 0, 0)
+        bar = QHBoxLayout()
+        self.filter_edit = QLineEdit(placeholderText="Filter: search all columns and the scan details…", clearButtonEnabled=True)
+        self.filter_edit.textChanged.connect(self._refilter)
+        self.only_threats = QCheckBox("Only scans with detected threats")
+        self.only_threats.toggled.connect(self._refilter)
+        bar.addWidget(self.filter_edit, 1)
+        bar.addWidget(self.only_threats)
+        top_l.addLayout(bar)
         self.table = QTableWidget(0, 5)
-        self.table.setHorizontalHeaderLabels(["Started", "Type", "Trigger", "Status", "Summary"])
+        self.table.setHorizontalHeaderLabels(["", "Started", "Type", "Trigger", "Summary"])
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.table.setSelectionMode(QAbstractItemView.SingleSelection)
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.table.horizontalHeader().setSectionResizeMode(4, QHeaderView.Stretch)
+        self.table.verticalHeader().setVisible(False)
+        hdr = self.table.horizontalHeader()
+        for c in range(4):
+            hdr.setSectionResizeMode(c, QHeaderView.ResizeToContents)
+        hdr.setSectionResizeMode(4, QHeaderView.Stretch)
+        self.table.setSortingEnabled(True)
+        self.table.sortByColumn(1, Qt.DescendingOrder)
+        self._icon_good = QIcon(icons.path(icons.GOOD))
+        self._icon_bad = QIcon(icons.path(icons.BAD))
+        self._icon_other = QIcon(icons.path(icons.APP))  # error / skipped / unknown
+        top_l.addWidget(self.table)
         self.table.itemSelectionChanged.connect(self._selection_changed)
         self.log = QPlainTextEdit(readOnly=True)
         mono = QFont("monospace")
         mono.setStyleHint(QFont.Monospace)
         self.log.setFont(mono)
-        split.addWidget(self.table)
+        split.addWidget(top)
         split.addWidget(self.log)
         split.setSizes([250, 350])
         root.addWidget(split)
@@ -60,29 +98,62 @@ class HistoryDialog(QDialog):
         sig = [(e.path, e.status, e.summary) for e in self.entries]
         if sig != self._last_sig:
             self._last_sig = sig
-            self.table.blockSignals(True)
-            self.table.setRowCount(len(self.entries))
-            for i, e in enumerate(self.entries):
-                for c, v in enumerate((e.started, e.kind, e.trigger, e.status, e.summary)):
-                    self.table.setItem(i, c, QTableWidgetItem(v))
-            row = next((i for i, e in enumerate(self.entries) if e.path == self.selected), -1)
-            if row >= 0:
-                self.table.selectRow(row)
-            self.table.blockSignals(False)
-            if row < 0 and self.selected is not None:  # selected scan was pruned/cleared
-                self.selected = None
+            self._fill()
+            if self.selected is not None and not any(e.path == self.selected for e in self.entries):
+                self.selected = None  # selected scan was pruned/cleared
                 self._set_log("")
         if not self.entries:
             self._set_log("No scans recorded yet.")
         elif self.selected is None:
-            self.table.selectRow(0)  # nothing selected yet (first start, or the old selection was removed)
+            if self.table.rowCount():
+                self.table.selectRow(0)  # nothing selected yet (first start, or the old selection was removed)
         else:
             self._update_log()
+
+    def _matches(self, e: history.Entry) -> bool:
+        if self.only_threats.isChecked() and e.status not in THREAT_STATUSES:
+            return False
+        needle = self.filter_edit.text().strip().lower()
+        if not needle:
+            return True
+        hay = " ".join((e.started, e.kind, e.trigger, e.status, e.summary)).lower()
+        return needle in hay or needle in e.log_text().lower()  # full text over the details; speed is not critical
+
+    def _fill(self) -> None:
+        shown = [e for e in self.entries if self._matches(e)]
+        hdr = self.table.horizontalHeader()
+        col, order = hdr.sortIndicatorSection(), hdr.sortIndicatorOrder()
+        self.table.blockSignals(True)
+        self.table.setSortingEnabled(False)
+        self.table.setRowCount(len(shown))
+        for i, e in enumerate(shown):
+            icon = _SortItem({"clean": 0, "warning": 2, "critical": 3}.get(e.status, 1))
+            if e.status == "clean":
+                icon.setIcon(self._icon_good)
+            elif e.status in THREAT_STATUSES:
+                icon.setIcon(self._icon_bad)
+            else:
+                icon.setIcon(self._icon_other)
+            icon.setToolTip(e.status)
+            icon.setData(_PATH_ROLE, str(e.path))
+            self.table.setItem(i, 0, icon)
+            for c, v in enumerate((e.started, e.kind, e.trigger, e.summary), start=1):
+                self.table.setItem(i, c, QTableWidgetItem(v))
+        self.table.setSortingEnabled(True)
+        self.table.sortByColumn(col, order)
+        for i in range(self.table.rowCount()):
+            if self.table.item(i, 0).data(_PATH_ROLE) == (str(self.selected) if self.selected else None):
+                self.table.selectRow(i)
+                break
+        self.table.blockSignals(False)
+
+    def _refilter(self, *_: object) -> None:
+        self._fill()
 
     def _selection_changed(self) -> None:
         rows = self.table.selectionModel().selectedRows()
         if rows:
-            self.selected = self.entries[rows[0].row()].path
+            self.selected = Path(self.table.item(rows[0].row(), 0).data(_PATH_ROLE))
             self._last_text = None  # new entry: show from the top
             self._update_log(reset_scroll=True)
 

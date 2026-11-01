@@ -15,8 +15,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 try:
-    from PySide6.QtCore import QCoreApplication, QEvent, QThreadPool
-    from PySide6.QtWidgets import QApplication, QDialog, QDialogButtonBox, QPushButton
+    from PySide6.QtCore import QCoreApplication, QEvent, QThreadPool, Qt
+    from PySide6.QtWidgets import QAbstractItemView, QApplication, QDialog, QDialogButtonBox, QPushButton
     HAVE_QT = True
 except ImportError:
     HAVE_QT = False
@@ -279,7 +279,22 @@ class GuiTest(unittest.TestCase):
         d.reload()
         self.assertEqual(d.selected, chosen)
         row = d.table.selectionModel().selectedRows()[0].row()
-        self.assertEqual(d.entries[row].path, chosen)
+        self.assertEqual(Path(d.table.item(row, 0).data(Qt.UserRole)), chosen)
+
+    def test_history_viewer_filter_threat_checkbox_and_single_selection(self):
+        from cachy_sec.scanners.base import CRITICAL, Finding
+        history.record(engine.Report([ScanResult("alpha", CLEAN)]), "manual", time.time() - 50, 1)
+        bad = ScanResult("beta", CRITICAL, findings=[Finding(CRITICAL, "evil", "beta", package="superpkg", detail="superpkg")])
+        history.record(engine.Report([bad]), "manual", time.time(), 1)
+        d = self._track(HistoryDialog())
+        self.assertEqual(d.table.rowCount(), 2)
+        self.assertEqual(d.table.selectionMode(), QAbstractItemView.SingleSelection)
+        d.filter_edit.setText("superpkg")  # only present in the scan details
+        self.assertEqual(d.table.rowCount(), 1)
+        d.filter_edit.setText("")
+        d.only_threats.setChecked(True)
+        self.assertEqual(d.table.rowCount(), 1)
+        self.assertEqual(d.table.item(0, 0).toolTip(), "critical")
 
 
 if __name__ == "__main__":

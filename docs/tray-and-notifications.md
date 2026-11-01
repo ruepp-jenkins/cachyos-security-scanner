@@ -15,6 +15,7 @@ The app lives in the system tray. The icon tells you the state of the **last sca
 | ❌ red cross | **error** | an enabled scanner could not run, or no scanner is enabled |
 
 Good to know:
+
 - With several scanners the **worst finding wins**: warning + critical = red; a warning together with a scanner that
   could not run = orange (the finding matters more than the error).
 - A scan that was **skipped** (gaming mode, battery) does *not* change the icon, so an earlier finding stays visible.
@@ -72,6 +73,7 @@ notification of your desktop.
 When something is found, a [findings window](findings-window.md) opens along with the notification.
 
 ### 🖱️ Clicking a notification
+
 Notifications about a **finding, a binary-scan threat or a scan that could not run** are clickable. A click on the
 notification (or on its **Open scan history** button) opens the [scan history](scan-history.md) with the **newest
 matching entry already selected**, so you see the cause at once. Filters in the window are cleared so they cannot hide it.

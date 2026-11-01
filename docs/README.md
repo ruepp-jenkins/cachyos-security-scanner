@@ -31,6 +31,7 @@ flowchart LR
 ## 📚 Help pages
 
 ### Using the app
+
 | Page | What you find there |
 |---|---|
 | 🚀 [Getting started](getting-started.md) | Install, first start, what happens in the first minutes |
@@ -43,6 +44,7 @@ flowchart LR
 | 🔁 [Scanner lifecycle](scanner-lifecycle.md) | Where the scanner tools come from, how they are checked, updated and called |
 
 ### Setting things up
+
 | Page | What you find there |
 |---|---|
 | 🦠 [Set up ClamAV](setup-clamav.md) | Install and test `clamd` for binary scans, step by step |
@@ -50,12 +52,14 @@ flowchart LR
 | 🩹 [Troubleshooting](troubleshooting.md) | Typical problems and how to fix them |
 
 ### For technical readers
+
 | Page | What you find there |
 |---|---|
 | 🔬 [How it works / transparency](how-it-works.md) | Every file it writes, every program it starts, every server it contacts, every privilege it uses |
 | 🏗️ [Maintainer notes](maintainers.md) | Releasing, community-list workflow, update trust model, tests |
 
 ## 🧭 Typical first steps
+
 1. **Install** the package → [Getting started](getting-started.md).
 2. Look at the tray icon. After about a minute the first scan runs; **left-click** the icon to see the
    [scan history](scan-history.md).
@@ -63,6 +67,7 @@ flowchart LR
    [set up ClamAV](setup-clamav.md) for binary scans.
 
 ## ⚠️ Limits you should know
+
 - A clean result is **not a guarantee**. Scanners only know what they know: new attacks can be missed, harmless packages
   can be flagged.
 - You decide what to do with a finding. Read it, open the files, search for the package name before removing anything.

@@ -1,0 +1,23 @@
+# GitHub Pages (Jekyll). The site is built from the repository root; docs/README.md is the help index.
+title: CachyOS Security Scanner
+description: Tray tool for CachyOS / Arch that orchestrates AUR malware scanners and ClamAV
+theme: jekyll-theme-midnight
+markdown: kramdown
+kramdown:
+  input: GFM
+plugins:
+  - jekyll-relative-links   # [text](page.md) links work as on GitHub
+  - jekyll-readme-index     # README.md is the index page of each folder
+relative_links:
+  enabled: true
+  collections: false
+exclude:
+  - CLAUDE.md
+  - PKGBUILD
+  - compose.yml
+  - pyproject.toml
+  - data
+  - scripts
+  - src
+  - tests
+  - .github

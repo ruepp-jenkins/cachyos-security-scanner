@@ -30,6 +30,7 @@ package.
 ## Buttons
 
 ### 📂 Open files
+
 Opens the **folder** with the files the scanner looked at (usually the PKGBUILD folder in your AUR helper's cache) in
 your editor – or in the file manager if no editor is found.
 
@@ -41,6 +42,7 @@ your editor – or in the file manager if no editor is found.
 - Choose your editor with *Editor for "Open files"* in the [settings](settings.md#general) (empty = automatic).
 
 ### ✅ Ignore
+
 Accepts **one entry**: this package, **in this version**, for this rule. It is a deliberate "I looked at it, it is fine".
 
 - The next scan no longer reports exactly that. After an update of the package (new version) it is reported again if it
@@ -50,6 +52,7 @@ Accepts **one entry**: this package, **in this version**, for this rule. It is a
 - After you ignore something, the app rescans so the result is current.
 
 ### 🗑️ Remove packages…
+
 Offered only for **critical** findings that map to an installed package.
 
 1. You click the button; a confirmation lists the packages (unless you switched this off in the settings).

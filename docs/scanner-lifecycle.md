@@ -22,6 +22,7 @@ flowchart TD
 ```
 
 Key rules:
+
 - **Only enabled scanners run.** A disabled scanner is not fetched, not updated and not started.
 - A scanner that **cannot** be prepared or started produces an **error entry** – never silence, never a fake "clean".
 - A failing *update* never blocks the *scan*: if the pull fails, the existing checkout is used when it still works.
@@ -66,6 +67,7 @@ flowchart TD
 | recovery | delete the folder, clone again | – |
 
 Safety details:
+
 - **Deletion is restricted:** the app only ever deletes a folder that sits **directly inside** its own `vendor/` folder. It
   refuses any other path.
 - A **failed clone** never leaves a half-cloned folder behind.
@@ -81,6 +83,7 @@ Safety details:
 ## 🛠️ 3. What "update" additionally does per scanner
 
 ### aur-malware-check
+
 After the pull, the app runs the tool's own refresh of its campaign lists:
 
 ```
@@ -91,6 +94,7 @@ What that command downloads, and from where, is up to the upstream tool – see
 [its repository](https://github.com/lenucksi/aur-malware-check).
 
 ### aur-scan
+
 `aur-scan` has to be compiled. The app builds it **only when needed**: when the checkout changed (a new commit arrived) or
 no built binary exists yet.
 
@@ -107,6 +111,7 @@ cargo build --release --locked -p aur-scanner-cli --manifest-path ~/.local/share
   app's package. See [Requirements](setup-requirements.md#-rust-only-for-aur-scan).
 
 ### Community blocklist and false-positive list
+
 They are not git checkouts. Signed files are downloaded from the `lists` release of this repository, verified with
 `ssh-keygen -Y verify`, and cached in `~/.cache/cachy-security-scanner/`. A scan itself only downloads when no verified
 copy exists at all; the regular refresh happens at app start and hourly (download when older than 6 hours).
@@ -165,6 +170,7 @@ nice -n 19 ionice -c 2 -n 7  aur-scan --no-color system --fail-on high
   mechanism. Hidden findings are listed in the log under *hidden by the community false-positive list*.
 
 ### Community blocklist
+
 No external process except `pacman`:
 
 ```

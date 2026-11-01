@@ -12,11 +12,13 @@ specific software version. The app only uses it if the user ticks **"Use the com
 for aur-scan in the settings. It only hides the listed findings for the listed versions; it cannot add findings.
 
 ## How it reaches the app
+
 On every change to this folder the workflow `false-positives.yml` validates the file, signs it with the release key
 and publishes it on the rolling release `lists`. The app downloads only from there and verifies the
 signature. Hidden findings are noted in the scan log.
 
 ## Report a false positive
+
 Open an issue with the *Report an aur-scan false positive* template, or send a pull request that adds an entry.
 Please check the package yourself first. A maintainer reviews every entry.
 
@@ -33,6 +35,7 @@ Please check the package yourself first. A maintainer reviews every entry.
 ```
 
 Rules (checked by `python -m cachy_sec.signedlist validate lists/*.json` and in CI):
+
 - `versions` are the full installed versions (`epoch:pkgver-pkgrel`); shell-style globs such as `1:12.*` are allowed
   but must contain a digit. Prefer exact versions: a new version should be reviewed again.
 - `codes` are explicit rule codes (no wildcards).
@@ -40,6 +43,7 @@ Rules (checked by `python -m cachy_sec.signedlist validate lists/*.json` and in 
 - One reason per entry, written for other users to understand.
 
 ## Blocklist (`blocklist_aur.json`)
+
 Known malicious or compromised AUR packages. The app matches them against the installed foreign packages (name and version)
 and reports a match as critical; removal still needs the user's confirmation. Only add packages you have checked and
 can explain; a wrong entry alarms every user. Use the issue template *Report a malicious AUR package* or a pull request.

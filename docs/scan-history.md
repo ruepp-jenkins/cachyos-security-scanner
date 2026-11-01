@@ -6,6 +6,7 @@ The scan history is the logbook of the app: every scan, with the result of **eac
 Open it with a **left click on the tray icon** or the menu entry **Scan history…**.
 
 It is the place to look when:
+
 - you want to know what a scan found or why it failed,
 - the tray icon is red/orange and you want the details,
 - you want to check *when* scans ran (for example to correlate them with system load).

@@ -5,6 +5,7 @@ notification when something is found. It only provides the UI and scheduling; de
 external tools. Removal of flagged packages is optional and always needs your click.
 
 ## Which projects do the AUR scans?
+
 This app does not detect anything itself. The AUR scans are done by these independent open-source projects; this app
 only runs them, keeps them up to date and shows their results. All credit for the detection goes to their authors.
 
@@ -19,6 +20,7 @@ These tools are separate programs with their own licenses; this app starts them 
 include their code.
 
 ## How the scanners are installed and kept up to date
+
 You do not install the AUR scanners yourself; the app does it, in your home folder (`~/.local/share/cachy-security-scanner/vendor/`), without root rights.
 
 | Step | What happens |
@@ -34,6 +36,7 @@ Everything runs with low CPU/I/O priority. Details and the exact commands: **[Sc
 Note: the scanners are third-party code that is downloaded from GitHub and run as your user; they are not signature-checked by this app (only the app's own updates and the community lists are). See the trust table in [How it works](docs/how-it-works.md#-trust-and-verification).
 
 ## Screenshots
+
 | | |
 |---|---|
 | **Tray menu**<br>![Tray menu](docs/screenshots/tray-menu.png) | **Notification**<br>![Notification when something is found](docs/screenshots/notification.png) |
@@ -42,6 +45,7 @@ Note: the scanners are third-party code that is downloaded from GitHub and run a
 _Screenshots show version 0.0.6; newer versions differ in details: per-entry Open files / Ignore buttons, a shorter tray menu (no version or last-result lines), left click opens the scan history, and per-status icons in the history and the tray._
 
 ## Install (CachyOS / Arch)
+
 1. Open the [Releases page](https://github.com/ruepp-jenkins/cachyos-security-scanner/releases) and pick the
    newest release.
 2. Under **Assets**, download `cachy-security-scanner.pkg.tar.zst`.
@@ -50,6 +54,7 @@ _Screenshots show version 0.0.6; newer versions differ in details: per-entry Ope
        sudo pacman -U cachy-security-scanner.pkg.tar.zst
 
 pacman pulls in the dependencies (see the `PKGBUILD`).
+
 4. Start "CachyOS Security Scanner" from the application menu.
 
 Later versions update themselves from GitHub Releases. Remove with `sudo pacman -Rns cachy-security-scanner`.
@@ -58,6 +63,7 @@ If a release has no `.pkg.tar.zst` asset, you can build it yourself: download th
 release into an empty directory and run `makepkg -si`.
 
 ## What it does
+
 - Sits in the system tray, scans on a schedule, after package installs/updates and on request, and notifies you when
   something is found. Nothing is removed without your click and confirmation.
 - Runs the scanners above with low priority, keeps them up to date by itself and shows each scanner's result separately in the scan history.
@@ -67,6 +73,7 @@ release into an empty directory and run `makepkg -si`.
 - Updates itself from signed GitHub releases.
 
 ## 📖 Help
+
 The full help starts at **[docs/README.md](docs/README.md)**; the **Help** button in the settings opens it for your version.
 
 | | |
@@ -80,6 +87,7 @@ The full help starts at **[docs/README.md](docs/README.md)**; the **Help** butto
 | 🔬 [How it works (files, network, privileges)](docs/how-it-works.md) | 🏗️ [Maintainer notes](docs/maintainers.md) |
 
 ## License and disclaimer
+
 Released under the [MIT License](LICENSE): everyone may use, copy, modify and distribute it, free of charge. It comes
 **without any warranty and without liability** of the author(s) (see `LICENSE`).
 

@@ -36,12 +36,14 @@ flowchart TB
 All paths follow the XDG standard; the defaults are shown.
 
 ### Configuration – `~/.config/cachy-security-scanner/`
+
 | File | Content |
 |---|---|
 | `settings.json` | all [settings](settings.md); plain JSON, editable while the app is closed |
 | `ignored_findings.json` | entries you accepted with *Ignore* (package + version + rule) |
 
 ### Data – `~/.local/share/cachy-security-scanner/`
+
 | Path | Content |
 |---|---|
 | `history/` | the [scan history](scan-history.md): `*.json` per scanner and scan, `*-binaries.log` |
@@ -51,11 +53,13 @@ All paths follow the XDG standard; the defaults are shown.
 | `binary-last-scan`, `binary-last-success` | timestamps of the last ClamAV scan attempt and the last one that ran to a result (used to schedule the next) |
 
 ### Cache – `~/.cache/cachy-security-scanner/`
+
 | Content | Notes |
 |---|---|
 | the two community lists and their signatures, small status markers | replaced only by a verified download |
 
 ### Other places
+
 | Path | Content |
 |---|---|
 | `$XDG_RUNTIME_DIR/cachy-security-scanner.lock` | single-instance lock (an `flock`; the kernel releases it, no stale lock is possible). Fallback `~/.cache/cachy-security-scanner/instance.lock` |
@@ -63,6 +67,7 @@ All paths follow the XDG standard; the defaults are shown.
 | `~/.config/systemd/user/cachy-sec-clamd.{service,timer}` | **only** if you created the timer in an older version; the app no longer creates it |
 
 ### Installed by the package (root, via pacman)
+
 | Path | Purpose |
 |---|---|
 | `/usr/lib/python*/site-packages/cachy_sec/` and `/usr/bin/cachy-security-scanner` | the program |

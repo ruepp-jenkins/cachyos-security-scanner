@@ -11,7 +11,7 @@ two community lists work.
 |---|---|---|---|---|
 | 1️⃣ | **aur-malware-check** ([lenucksi](https://github.com/lenucksi/aur-malware-check)) | installed AUR packages, pacman log, systemd units, npm/bun caches, known IOC files | packages from **documented attack campaigns** (including the official Arch notice) | ✅ on |
 | 2️⃣ | **aur-scan** ([ks-aur-scanner](https://github.com/KiefStudioMA/ks-aur-scanner)) | the PKGBUILDs and install scripts of installed AUR packages | **suspicious patterns** (heuristics) | ⬜ off |
-| 3️⃣ | **Community blocklist** (this project, [`lists/`](../lists/)) | installed AUR packages, by name and version | **known-bad** packages reported by the community | ✅ on |
+| 3️⃣ | **Community blocklist** (this project, [`lists/`](https://github.com/ruepp-jenkins/cachyos-security-scanner/tree/master/lists)) | installed AUR packages, by name and version | **known-bad** packages reported by the community | ✅ on |
 | 4️⃣ | **ClamAV** ([clamav.net](https://www.clamav.net/)) | binaries in the paths you configure | **known malware signatures** | on request / optional |
 
 Choosing what to run: the app **only runs what is enabled** in the [settings](settings.md#aur-scanners). Each enabled
@@ -29,6 +29,7 @@ scanner gets its own entry in the [history](scan-history.md).
 A good default is to keep 1 and 3 on. Switch 2 on if you want deeper (and noisier) analysis.
 
 ### How the app keeps them up to date
+
 *(Short version – the full procedure with all commands is in [Scanner lifecycle](scanner-lifecycle.md).)*
 
 - The scanner programs are fetched with `git` into `~/.local/share/cachy-security-scanner/vendor/` and updated with
@@ -39,7 +40,7 @@ A good default is to keep 1 and 3 on. Switch 2 on if you want deeper (and noisie
 
 ## 📋 Community lists
 
-Two small lists are maintained in this repository, in [`lists/`](../lists/):
+Two small lists are maintained in this repository, in [`lists/`](https://github.com/ruepp-jenkins/cachyos-security-scanner/tree/master/lists):
 
 | List | File | Effect |
 |---|---|---|
@@ -49,6 +50,7 @@ Two small lists are maintained in this repository, in [`lists/`](../lists/):
 Each entry records **who** reported it, **when**, **why**, and an optional description.
 
 ### Why you can trust them (or not)
+
 - Every list is **signed** by the maintainer. The app verifies the signature on download *and* again every time it loads
   the list; a list that fails the check is ignored (nothing flagged, nothing hidden).
 - A list can only **add a finding** (blocklist) or **hide a specific finding** (false positives). It cannot run anything.
@@ -57,13 +59,15 @@ Each entry records **who** reported it, **when**, **why**, and an optional descr
 - You can switch each list off in the [settings](settings.md#community-lists).
 
 ### When they are downloaded
+
 At app start, then re-checked hourly and downloaded again when older than 6 hours – **never per scan**. The settings
 dialog shows the status of each list and the reason if a download failed.
 
 ### 📣 Reporting a false positive or a malicious package
+
 Open an issue in the repository with the matching form (**False positive** or **Blocklist**):
 [github.com/ruepp-jenkins/cachyos-security-scanner/issues](https://github.com/ruepp-jenkins/cachyos-security-scanner/issues/new/choose).
-Entries are reviewed before they go into a list; the format and rules are in [`lists/README.md`](../lists/README.md).
+Entries are reviewed before they go into a list; the format and rules are in [`lists/README.md`](https://github.com/ruepp-jenkins/cachyos-security-scanner/blob/master/lists/README.md).
 
 ## 🧯 Limits
 

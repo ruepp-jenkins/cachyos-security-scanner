@@ -26,6 +26,9 @@ The *AUR package scans* (the scanners below) run on the triggers you switch on h
 switch on any combination, or none for manual scans only. Manual scans (*Check for compromised packages now*) always work
 and are never skipped. The ClamAV binary scan has its own triggers, see [below](#binary-scan-with-clamav).
 
+The delay, wait and period fields sit on the same line as their checkbox (for example *Scan at start, after [1 min]*); they
+are usable only while the box is ticked. In the table they are listed as separate settings.
+
 | Setting (key) | Default | What it does |
 |---|---|---|
 | **Scan at start** (`scan_on_start`) | on | One scan after the app starts. The app first downloads the [community lists](#community-lists), so the scan already uses current data. |

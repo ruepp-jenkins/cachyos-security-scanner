@@ -2,7 +2,7 @@
 
 Tray app for CachyOS/Arch desktops. It runs in the background, scans on a schedule, and shows a
 notification when something is found. It only provides the UI and scheduling; detection is done by
-external tools. Removal of flagged packages is optional and always needs your click.
+external tools. Removal of flagged packages is optional and always needs your click. Each scanner has its own options in the settings, including validated extra arguments.
 
 ## Which projects do the AUR scans?
 

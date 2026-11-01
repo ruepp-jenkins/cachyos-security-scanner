@@ -40,6 +40,17 @@ scanner off in the [settings](settings.md#aur-scanners).
 
 → [Set up ClamAV](setup-clamav.md#-common-problems). Typical: `clamdscan` missing or `clamd` not running.
 
+### A scan ends with "invalid extra arguments"
+
+The *Extra arguments* of a scanner (*Options…* button) contain something that is not accepted, for example a shell
+character or an option that could remove files. The message names the part. Open the options, fix or clear the field;
+the rules are in [Scanner options](settings.md#extra-arguments). The scan does not run with invalid arguments.
+
+### A binary scan shows as "skipped / cancelled"
+
+A newer trigger (for example another package change) arrived while the scan ran, so the old scan was stopped and a new
+one started. Look at the next entry. See [How it works](how-it-works.md#-runtime-behaviour).
+
 ### Settings seem not to be saved
 
 Make sure you run a current version (very old versions had a bug that prevented saving). The file is

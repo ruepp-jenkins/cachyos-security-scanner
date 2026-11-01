@@ -51,7 +51,7 @@ Scanner **results** have a shield; **system states** have other shapes, so you c
 | 🟠 orange shield | `warning` | scanner | findings of warning level |
 | 🔴 red shield | `critical` | scanner | critical findings |
 | ❌ red cross | `error` | system | the scanner could not run or crashed (message in the log) |
-| ⏭️ grey "next" | `skipped` | system | the scan was skipped (gaming mode, battery) |
+| ⏭️ grey "next" | `skipped` | system | the scan was skipped (gaming mode, battery), or a background ClamAV scan was cancelled because a newer one replaced it |
 | 🟣 purple question mark | `unknown` | system | no result recorded: a binary scan is still running, or its window was closed early |
 
 ### Working with the list

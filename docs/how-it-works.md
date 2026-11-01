@@ -98,7 +98,7 @@ AUR packages; ClamAV reads the files in the paths you configure. See [Scanners](
 
 The lifecycle of the scanners (sources, health check, update, exact invocation, exit codes) has its own page: [Scanner lifecycle](scanner-lifecycle.md).
 
-No shell is ever used (`shell=False`, argument lists); paths are passed as single arguments.
+No shell is ever used (`shell=False`, argument lists); paths are passed as single arguments. The commands below show the defaults; the *Options…* buttons in the settings can add [scanner options](settings.md#scanner-options). Extra arguments typed there are checked first (options only, no shell characters, nothing that removes, moves or writes files) and the options in use are written at the top of the scan log.
 
 | Program | When | Purpose |
 |---|---|---|
@@ -167,6 +167,8 @@ install `aur-scan` from the AUR (`aur-scanner`) so it is built and updated by yo
 - **Timers:** interval scan timer (if on), hourly lists check, daily update check, 10-minute poll for the binary
   interval, 5-second restart poll (only while an update waits), 3-second refresh (only while the history window is open).
   Otherwise the app is idle.
+- **Binary scans** run in the background as one process at a time. A new trigger (package change, start, together with a package scan) **cancels** a running one (SIGTERM to the `clamdscan` client; the history shows it as skipped) and starts a fresh scan, so the newest state is always scanned. There is no minimum time between scans. The interval trigger never cancels, it waits.
+- **Tray icon:** while a package scan or a background binary scan runs, the tray shows the blue app icon; afterwards the colour of the last result returns.
 - **Low priority:** heavy commands are started with `nice`/`ionice` when the setting is on.
 - **Skipped scans:** automatic scans are skipped in gaming mode / on battery (settings). Manual scans never are.
 - **Failure policy:** a scanner that cannot be set up or run produces an **error entry**; the app never reports "all
@@ -175,7 +177,7 @@ install `aur-scan` from the AUR (`aur-scanner`) so it is built and updated by yo
 ## 🧱 What the app deliberately does not do
 
 - No detection of its own, no signature database of its own.
-- No removal, quarantine or killing of anything without your explicit action. ClamAV runs without `--remove`/`--move`.
+- No removal, quarantine or killing of anything without your explicit action. ClamAV runs without `--remove`/`--move`; those and similar options are also refused as extra arguments.
 - No execution of files from a finding; no opening of single files with a default handler.
 - No telemetry, no crash reports, no accounts, no ads.
 - No installation into system folders by itself; updates stay in your home directory.

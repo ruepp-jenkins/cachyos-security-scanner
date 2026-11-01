@@ -30,7 +30,7 @@ PYTHONPATH=src python3 -m cachy_sec.signedlist validate lists/*.json   # what CI
 
 **Signed lists.** `signedlist.py` downloads a JSON list + SSH signature from the `lists` release, verifies it with `ssh-keygen -Y verify` against the key embedded in `updater.SIGNER_PUBKEY` (one namespace per list), and caches it in `~/.cache/cachy-security-scanner/`. `blocklist.py` / `fplist.py` hold list-specific validation and matching. The false-positive list only hides `aur-scan` findings for the exact scanned PKGBUILD version (taken from `.SRCINFO`, see `ignores.py`).
 
-**Scheduling.** Pure functions in `scheduler.py` (testable without Qt) decide delays, gaps and "binary scan due"; `Tray` wires them to timers. Binary-scan timing is persisted in two state files (`binary-last-scan` = last attempt, `binary-last-success`).
+**Scheduling.** Pure functions in `scheduler.py` (testable without Qt) decide delays and "binary scan due" (package scans have a wait but no minimum gap: every change must be scanned); `Tray` wires them to timers. Binary-scan timing is persisted in two state files (`binary-last-scan` = last attempt, `binary-last-success`). Background binary scans are one process at a time: an event trigger cancels the running one (`clamd.cancel_background`) and restarts (`Tray._binary_next`); `Tray._refresh_tray` shows the blue icon while any scan runs.
 
 **Version & updates.** The version in git is always `0.0.0`; the release tag is the source of truth (`scripts/set-version.sh` stamps it in CI). `updater.py` only talks to GitHub hosts, verifies signature + SHA-256, and extracts safely. `updater.docs_url()` builds the Help links from the running version's tag.
 

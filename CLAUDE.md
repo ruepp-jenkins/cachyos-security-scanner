@@ -34,10 +34,20 @@ PYTHONPATH=src python3 -m cachy_sec.signedlist validate lists/*.json   # what CI
 
 **Version & updates.** The version in git is always `0.0.0`; the release tag is the source of truth (`scripts/set-version.sh` stamps it in CI). `updater.py` only talks to GitHub hosts, verifies signature + SHA-256, and extracts safely. `updater.docs_url()` builds the Help links from the running version's tag.
 
+**Notifications & tray.** `notify.py` runs `notify-send`; clickable ones (`--action … --wait`, one helper thread each, max 10) open the history with the matching entry selected (`Tray._click_to`, `SELECTORS`, `HistoryDialog.select_latest`). The tray icon is the colour of the last result (`Report.icon_status`) but the blue app icon while any scan runs (`Tray._refresh_tray`); menu entries use theme icons.
+
+**Options.** Per-scanner choices and validated extra arguments live in `scanopts.py` (specs, command-line builders, denylists) and are edited in `options_dialog.py` (opened by the *Options…* buttons of `settings_dialog.py`); the scanners build their commands from them.
+
+**Website.** The docs are also published with Jekyll/GitHub Pages (`_config.yml`, theme in `_config.yml`, `_includes/head-custom.html` loads Mermaid). Pages always serves `master`; the app's Help links point at the *tag* on GitHub instead.
+
 ## Conventions that are easy to break
 
+- **Keep the documentation in sync with every change.** Whenever behaviour, a setting (key, default, label), a menu entry, a notification, a command the app runs, a file it writes or a default changes, update the matching pages in `docs/` in the same commit: `settings.md` (every setting and its default), `tray-and-notifications.md`, `scan-history.md`, `scanner-lifecycle.md` (commands, exit codes), `how-it-works.md` (files, programs, network, privileges, runtime behaviour), `setup-*.md`, `troubleshooting.md`, plus the root `README.md` and this file when the overview or the architecture changes. Then re-check links/anchors and the table rules below. Do not finish a change without asking: "which help page describes this?"
+- **Security tool, no throttling of checks:** never add a minimum gap or rate limit that can skip scanning a newly installed package (a good scan followed by a bad install must still be scanned). Debounce waits are fine; if a scan is running, queue/replace it instead of dropping the trigger.
+- **Markdown must render in both GitHub and Jekyll (kramdown):** an empty line before every table, list and quote (also directly after a heading); no raw `{{`/`{%`; use ` ```mermaid ` for diagrams; links to files outside `docs/` are absolute GitHub URLs.
+
 - **Language:** all code, UI strings and docs are **English**, even when the conversation is in German.
-- **Every `Settings` field must be documented in `docs/settings.md`** (by its key); `test_every_setting_is_documented` fails otherwise. Bump `Settings.schema` and add a migration in `Settings.load()` when a default changes meaning.
+- **Every `Settings` field must be documented in `docs/settings.md`** (by its key); `test_every_setting_is_documented` fails otherwise. Bump `Settings.schema` and add a migration in `Settings.load()` when a default changes meaning (saved files contain every field, so a new default would otherwise never apply); add a test for the migration.
 - **Qt attribute shadowing:** never name a widget attribute like a Qt member (`accepted`, `scroll`, …); it silently replaces the signal/method. A GUI test guards the dialogs.
 - **Never silence setup problems:** surface them as `ERROR` results/notifications. Only scanners enabled in the settings may run.
 - **Scanner options** (`scanopts.py`, `options_dialog.py`): user-supplied extra arguments must go through `scanopts.parse_extra` (options only, no shell characters, per-scanner denylist incl. anything that removes/moves/writes files). Never pass them to a shell or build commands from them elsewhere.

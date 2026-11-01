@@ -235,11 +235,11 @@ class GuiTest(unittest.TestCase):
         d._ok()
         self.assertEqual(d.result(), 0)  # stays open, nothing accepted
         d.extra.setText("--config-file=/etc/clamav/clamd.conf")
-        d.widgets["binary_multiscan"].setChecked(False)
+        d.widgets["binary_multiscan"].setChecked(True)
         self.assertEqual(d.error.text(), "")
         d._ok()
         r = d.result_settings()
-        self.assertFalse(r.binary_multiscan)
+        self.assertTrue(r.binary_multiscan)
         self.assertEqual(r.binary_extra_args, "--config-file=/etc/clamav/clamd.conf")
         a = OptionsDialog("aur_scan", st.Settings())
         a.widgets["aur_scan_fail_on"].setCurrentText("low")

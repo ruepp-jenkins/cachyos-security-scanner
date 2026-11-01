@@ -141,7 +141,8 @@ CLAMD = Spec(
     "or copied.",
     (
         Opt("binary_multiscan", "bool", "Scan with several threads (--multiscan)",
-            "Faster on multi-core machines, but uses more CPU while it runs."),
+            "Faster on multi-core machines, but uses more CPU while it runs. Off by default so the scan does not\n"
+            "affect the performance of your system."),
         Opt("binary_allmatch", "bool", "Report every match in a file, not only the first (--allmatch)",
             "Continues scanning a file after the first match. Slower, gives more complete reports."),
     ),

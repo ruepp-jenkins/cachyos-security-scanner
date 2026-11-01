@@ -82,7 +82,7 @@ settings, a field for **extra arguments**, and a live preview of the command lin
 
 | Setting (key) | Default | Upstream option | What it does |
 |---|---|---|---|
-| **Scan with several threads** (`binary_multiscan`) | on | `--multiscan` | Faster on multi-core machines, more CPU load while it runs. |
+| **Scan with several threads** (`binary_multiscan`) | **off** | `--multiscan` | Faster on multi-core machines, but the scan then uses several CPU cores at once. Off by default: the scan may take longer, but it should not slow down your system. |
 | **Report every match in a file** (`binary_allmatch`) | off | `--allmatch` | Continues scanning a file after the first match. Slower, more complete. |
 | **Extra arguments** (`binary_extra_args`) | empty | | See [extra arguments](#extra-arguments). `--fdpass` and `--infected` are always set. |
 

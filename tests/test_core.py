@@ -59,6 +59,16 @@ class SchedulerTest(unittest.TestCase):
         self.assertEqual(scheduler.pkg_delay_ms(Settings(pkg_change_delay_seconds=20)), 20_000)
         self.assertFalse(hasattr(Settings(), "pkg_scan_min_gap_minutes"))
 
+    def test_multiscan_is_off_by_default_and_migrated(self):
+        import json, tempfile
+        self.assertFalse(Settings().binary_multiscan)
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "s.json"
+            p.write_text(json.dumps({"schema": 5, "binary_multiscan": True}))
+            self.assertFalse(Settings.load(p).binary_multiscan)
+            p.write_text(json.dumps({"schema": 6, "binary_multiscan": True}))
+            self.assertTrue(Settings.load(p).binary_multiscan)  # chosen after the change: stays
+
     def test_old_package_wait_default_is_migrated(self):
         import json, tempfile
         with tempfile.TemporaryDirectory() as d:
@@ -638,14 +648,14 @@ class ScannerOptionsTest(unittest.TestCase):
         s = Settings()
         self.assertEqual(self.o.amc_args(s), [])
         self.assertEqual(self.o.aur_scan_args(s), ["--fail-on", "high"])
-        self.assertEqual(self.o.clamd_args(s), ["--fdpass", "-i", "--multiscan"])
+        self.assertEqual(self.o.clamd_args(s), ["--fdpass", "-i"])
         s = Settings(amc_check_systemd=True, amc_check_caches=True, amc_all_time=True, amc_extra_args="--verbose",
                      aur_scan_fail_on="low", aur_scan_min_severity="medium", aur_scan_rescan=True, aur_scan_extra_args="-v",
-                     binary_multiscan=False, binary_allmatch=True, binary_extra_args="--config-file=/x")
+                     binary_multiscan=True, binary_allmatch=True, binary_extra_args="--config-file=/x")
         self.assertEqual(self.o.amc_args(s), ["--all-time", "--check-systemd", "--check-npm-cache", "--check-bun-cache",
                                               "--check-yarn-cache", "--check-pnpm-cache", "--verbose"])
         self.assertEqual(self.o.aur_scan_args(s), ["--fail-on", "low", "--severity", "medium", "--rescan", "-v"])
-        self.assertEqual(self.o.clamd_args(s), ["--fdpass", "-i", "--allmatch", "--config-file=/x"])
+        self.assertEqual(self.o.clamd_args(s), ["--fdpass", "-i", "--multiscan", "--allmatch", "--config-file=/x"])
         self.assertIn("Invalid extra arguments", self.o.preview("clamd", Settings(binary_extra_args="--remove")))
         self.assertTrue(self.o.preview("aur_scan", Settings()).startswith("aur-scan --no-color system"))
 
@@ -853,7 +863,7 @@ class ClamdTest(unittest.TestCase):
             self.assertEqual(cmd[:3], ["/usr/bin/konsole", "-e", "bash"])
             self.assertEqual(cmd[-1], d)  # missing paths are dropped
             self.assertIn('clamdscan "${opts[@]}" -- "$@"', cmd[4])
-            self.assertEqual(cmd[5:9], ["clamdscan", "/dev/null", "3", "--fdpass"])  # script args: log, option count, options
+            self.assertEqual(cmd[5:9], ["clamdscan", "/dev/null", "2", "--fdpass"])  # script args: log, option count, options
             with mock.patch("shutil.which", side_effect=lambda n: "/usr/bin/foot" if n == "foot" else None):
                 self.assertEqual(clamd.build_command([d])[:2], ["/usr/bin/foot", "bash"])
 

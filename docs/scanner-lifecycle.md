@@ -183,11 +183,11 @@ finding with the reporter, date, reason and description. No verified list availa
 
 ### ClamAV (binary scan)
 ```
-nice -n 19 ionice -c 2 -n 7  clamdscan --fdpass --multiscan -i -- <existing paths…>
+nice -n 19 ionice -c 2 -n 7  clamdscan --fdpass -i -- <existing paths…>
 ```
 
 - `--fdpass`: the client opens files and hands them to `clamd`, which could not read your home folder otherwise.
-- `--multiscan`: use several threads of the daemon. `-i`: list only infected files.
+- `-i`: list only infected files. `--multiscan` (several threads of the daemon) is off by default, see [scanner options](settings.md#scanner-options).
 - On request it runs inside a terminal window; scheduled scans run in the background (timeout 6 hours).
 - **Exit code → status:** 0 clean · 1 threats found · 2 depends: `clamdscan` also uses 2 when it could not open some files (no permission, a file vanished). If its summary then says `Infected files: 0`, the scan counts as **clean**, with a note how many files were skipped. Exit 2 **without** that summary (for example `clamd` not running) and any other code is an **error**.
 - Nothing is deleted or moved: there is no `--remove` or `--move`.

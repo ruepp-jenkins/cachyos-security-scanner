@@ -144,7 +144,7 @@ def existing_paths(paths: list[str]) -> list[str]:
 def background_command(paths: list[str], low_priority: bool, options: list[str] | None = None) -> list[str]:
     from .base import priority_prefix
 
-    opts = options if options is not None else ["--fdpass", "-i", "--multiscan"]
+    opts = options if options is not None else ["--fdpass", "-i"]
     return (priority_prefix() if low_priority else []) + ["clamdscan", *opts, "--", *paths]
 
 
@@ -264,7 +264,7 @@ def build_command(paths: list[str], log_path: str = "/dev/null", options: list[s
     if not existing:
         return None
     binary, pre = term
-    opts = options if options is not None else ["--fdpass", "-i", "--multiscan"]
+    opts = options if options is not None else ["--fdpass", "-i"]
     return [binary, *pre, "bash", "-c", SCAN_SCRIPT, "clamdscan", log_path, str(len(opts)), *opts, *existing]
 
 

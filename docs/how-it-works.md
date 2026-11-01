@@ -107,7 +107,7 @@ No shell is ever used (`shell=False`, argument lists); paths are passed as singl
 | `python3.x -m aur_check --json` | package scan | `aur-malware-check` |
 | `aur-scan --no-color system --fail-on high` | package scan, `aur-scan` on | `aur-scan` |
 | `pacman -Qm` | package scan, blocklist | list AUR packages |
-| `clamdscan --fdpass --multiscan -i -- <paths>` | binary scan | ClamAV client; terminal on request, background when scheduled |
+| `clamdscan --fdpass -i -- <paths>` | binary scan | ClamAV client; terminal on request, background when scheduled |
 | `nice -n 19`, `ionice -c 2 -n 7` | in front of the heavy commands above | low priority (setting) |
 | `ssh-keygen -Y verify` | updates and lists | signature check |
 | `notify-send` | notifications. For clickable ones (findings, errors) with `--action=… --wait`, which keeps one short-lived helper process per open notification (at most 10) until it is clicked or dismissed | |

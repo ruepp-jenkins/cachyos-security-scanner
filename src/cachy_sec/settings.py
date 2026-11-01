@@ -26,7 +26,7 @@ def config_path() -> Path:
 
 @dataclass
 class Settings:
-    schema: int = 5  # bump when a default changes meaning; see load()
+    schema: int = 6  # bump when a default changes meaning; see load()
     # --- when the AUR package scans run (manual scans are always possible) ---
     scan_on_start: bool = True
     startup_delay_minutes: int = 1  # wait this long after the app started (lets the desktop finish starting)
@@ -58,7 +58,7 @@ class Settings:
     aur_scan_min_severity: str = "all"
     aur_scan_rescan: bool = False
     aur_scan_extra_args: str = ""
-    binary_multiscan: bool = True
+    binary_multiscan: bool = False  # off: slower, but the scan must not load the machine
     binary_allmatch: bool = False
     binary_extra_args: str = ""
     # Binary scan with clamdscan runs only on request from the tray menu.
@@ -111,7 +111,9 @@ class Settings:
                 s.scan_on_start = s.scan_after_pkg_changes = False
         if old < 5 and s.pkg_change_delay_seconds == 30:
             s.pkg_change_delay_seconds = 10  # the old default; the minimum gap between package scans was removed
-        s.schema = 5
+        if old < 6:
+            s.binary_multiscan = False  # the default changed: a scan may take longer but must not affect performance
+        s.schema = 6
         s.validate()
         return s
 

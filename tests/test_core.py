@@ -1109,6 +1109,14 @@ class BinaryBackgroundTests(unittest.TestCase):
             for p in history.history_dir().iterdir():
                 p.unlink()
 
+    def test_history_shows_the_trigger_of_a_scheduled_binary_scan(self):
+        from cachy_sec import history
+        from cachy_sec.scanners import clamd
+        cp = mock.Mock(returncode=0, stdout="", stderr="")
+        with mock.patch("cachy_sec.scanners.clamd.available", return_value=True), mock.patch("subprocess.run", return_value=cp):
+            clamd.run_background([self.tmp.name], True, "package change")
+        self.assertEqual(history.list_entries()[0].trigger, "package change")
+
     def test_low_priority_prefix_and_last_scan_marker(self):
         from cachy_sec.scanners import clamd
         self.assertIsNone(clamd.seconds_since_last_scan())

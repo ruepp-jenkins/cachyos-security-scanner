@@ -10,7 +10,7 @@ depends=('python' 'git' 'openssh' 'pyside6' 'libnotify' 'pacman'
          'rust' 'clang' 'pkgconf' 'openssl')  # rust/clang/pkgconf/openssl: the app builds aur-scan itself
 makedepends=('git' 'python-build' 'python-installer' 'python-setuptools' 'python-wheel')
 optdepends=('aur-scanner: prebuilt aur-scan from the AUR; used instead of building it'
-            'clamav: on-request binary scans via clamdscan (clamd must be running)')
+            'clamav: binary scans via clamdscan, on request or scheduled (clamd must be running)')
 source=("$pkgname::git+$url.git#tag=v$pkgver")
 sha256sums=('SKIP')  # git source pinned to a release tag
 

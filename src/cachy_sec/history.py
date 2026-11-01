@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -181,8 +182,10 @@ def _parse(p: Path) -> Entry:
                          float(data.get("duration_s", 0)))
         except (ValueError, TypeError):
             return Entry(p, _stamp_to_display(p.name), "packages", "", UNKNOWN, "(unreadable)")
-    status, summary = _binary_status(_read(p))
-    return Entry(p, _stamp_to_display(p.name), "binaries", "manual", status, summary)
+    text = _read(p)
+    status, summary = _binary_status(text)
+    m = re.search(r"\[trigger: ([^\]\n]+)\]", text[:300])  # scheduled scans name their trigger; terminal scans are manual
+    return Entry(p, _stamp_to_display(p.name), "binaries", m.group(1) if m else "manual", status, summary)
 
 
 def prune(keep: int) -> None:

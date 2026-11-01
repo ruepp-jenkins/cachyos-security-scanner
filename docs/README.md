@@ -1,7 +1,7 @@
 # 🛡️ CachyOS Security Scanner – Help
 
 Welcome! This is the help for the **CachyOS Security Scanner**, a small tray tool for CachyOS / Arch desktops that
-watches your system for **compromised AUR packages** and (on request) **malware in binaries**.
+watches your system for **compromised AUR packages** and (optionally) **malware in binaries**.
 
 > **The most important thing first:** the app does **not detect anything itself**. It is the *user interface and
 > scheduler* around independent, open-source scanners. It starts them, keeps them up to date, collects their results and

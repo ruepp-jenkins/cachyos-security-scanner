@@ -87,7 +87,7 @@ def background_command(paths: list[str], low_priority: bool) -> list[str]:
     return (priority_prefix() if low_priority else []) + ["clamdscan", "--fdpass", "--multiscan", "-i", "--", *paths]
 
 
-def run_background(paths: list[str], low_priority: bool = True) -> tuple[str, str]:
+def run_background(paths: list[str], low_priority: bool = True, trigger: str = "scheduled") -> tuple[str, str]:
     """Scan without a terminal and write the log to the history. Returns (state, message) with state
     'clean', 'threats', 'error' or 'unavailable'. Blocking: call it from a worker thread. Never raises."""
     from .. import history
@@ -100,7 +100,7 @@ def run_background(paths: list[str], low_priority: bool = True) -> tuple[str, st
     mark_scan()
     try:
         log = history.new_binary_log_path()
-        log.write_text(f"clamdscan: scanning {len(existing)} path(s) via clamd ({time.strftime('%F %T')}), scheduled scan\n\n")
+        log.write_text(f"clamdscan: scanning {len(existing)} path(s) via clamd ({time.strftime('%F %T')}) [trigger: {trigger}]\n\n")
     except OSError:
         log = None
 

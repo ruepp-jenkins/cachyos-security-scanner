@@ -12,7 +12,7 @@ only runs them, keeps them up to date and shows their results. All credit for th
 |---|---|---|---|
 | **aur-malware-check** | [lenucksi/aur-malware-check](https://github.com/lenucksi/aur-malware-check) | Checks installed AUR packages (and IOC files, pacman log, caches) against lists of packages compromised in known attack campaigns. | GPL-3.0 |
 | **ks-aur-scanner** (`aur-scan`) | [KiefStudioMA/ks-aur-scanner](https://github.com/KiefStudioMA/ks-aur-scanner) | Heuristic analysis of the PKGBUILDs and install scripts of installed AUR packages (off by default). | GPL-3.0-or-later |
-| **ClamAV** (binary scan on request) | [Cisco-Talos/clamav](https://github.com/Cisco-Talos/clamav) · [clamav.net](https://www.clamav.net/) | Antivirus engine (`clamdscan` / `clamd`) for scanning installed binaries. | GPL-2.0 |
+| **ClamAV** (binary scan, on request or scheduled) | [Cisco-Talos/clamav](https://github.com/Cisco-Talos/clamav) · [clamav.net](https://www.clamav.net/) | Antivirus engine (`clamdscan` / `clamd`) for scanning installed binaries. | GPL-2.0 |
 
 The two [community lists](lists/) (blocklist, false positives) are maintained in this repository.
 These tools are separate programs with their own licenses; this app starts them as external processes and does not
@@ -39,7 +39,7 @@ Note: the scanners are third-party code that is downloaded from GitHub and run a
 | **Tray menu**<br>![Tray menu](docs/screenshots/tray-menu.png) | **Notification**<br>![Notification when something is found](docs/screenshots/notification.png) |
 | **Findings window**<br>![Findings window](docs/screenshots/findings.png) | **With details**<br>![Findings window with details](docs/screenshots/findings-details.png) |
 
-_Screenshots show version 0.0.6; newer versions differ in details (for example per-entry Open files / Ignore buttons)._
+_Screenshots show version 0.0.6; newer versions differ in details: per-entry Open files / Ignore buttons, a shorter tray menu (no version or last-result lines), left click opens the scan history, and per-status icons in the history and the tray._
 
 ## Install (CachyOS / Arch)
 1. Open the [Releases page](https://github.com/ruepp-jenkins/cachyos-security-scanner/releases) and pick the

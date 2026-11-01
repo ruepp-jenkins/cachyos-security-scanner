@@ -201,7 +201,7 @@ class Tray(QObject):
             return
         self.binary_busy = True
         paths, low = list(s.binary_scan_paths), s.binary_low_priority
-        self.pool.start(_Job(lambda: clamd.run_background(paths, low), self.bin_done,
+        self.pool.start(_Job(lambda: clamd.run_background(paths, low, trigger), self.bin_done,
                              lambda e: ("error", f"internal error: {e}")))
 
     def _binary_finished(self, state: str, msg: str) -> None:

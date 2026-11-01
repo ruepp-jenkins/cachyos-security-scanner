@@ -267,6 +267,22 @@ class GuiTest(unittest.TestCase):
             self.assertEqual(started, ["package change"])
             QThreadPool.globalInstance().waitForDone(3000)
 
+    def test_tray_shows_the_scanning_icon_while_any_scan_runs(self):
+        tray = self._tray()
+        tray._idle_tip = "CachyOS Security Scanner – all clear"
+        tray._refresh_tray()
+        self.assertEqual(tray.tray.toolTip(), "CachyOS Security Scanner – all clear")
+        tray.busy = True
+        tray._refresh_tray()
+        self.assertIn("scanning", tray.tray.toolTip())
+        tray.busy = False
+        tray.binary_busy = True
+        tray._refresh_tray()
+        self.assertIn("binary scan running", tray.tray.toolTip())
+        tray.binary_busy = False
+        tray._refresh_tray()
+        self.assertEqual(tray.tray.toolTip(), "CachyOS Security Scanner – all clear")
+
     def test_dialogs_do_not_shadow_qt_attributes(self):
         finding = Finding(WARNING, "t", "s", package="p", version="1-1", rules=[("X-1", "title", 1)])
         dialogs = [self._track(SettingsDialog(st.Settings())), self._track(HistoryDialog()), self._track(OptionsDialog("clamd", st.Settings())),

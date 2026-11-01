@@ -115,6 +115,8 @@ class Tray(QObject):
         app.setWindowIcon(QIcon(icons.path(icons.APP)))
         self.tray = QSystemTrayIcon(QIcon(icons.path(icons.APP)), app)
         self.tray.setToolTip("CachyOS Security Scanner")
+        self._result_icon = icons.path(icons.APP)  # icon of the last result; shown while no scan runs
+        self._idle_tip = "CachyOS Security Scanner"
         self.menu = QMenu()
         def entry(text, slot, theme):  # theme icons follow the desktop style; a missing one just leaves no icon
             act = self.menu.addAction(QIcon.fromTheme(theme), text)
@@ -225,9 +227,19 @@ class Tray(QObject):
                 clamd.cancel_background()  # if it cannot be cancelled (just ending), the new one starts when it ends
             return
         self.binary_busy = True
+        self._refresh_tray()
         paths, low = list(s.binary_scan_paths), s.binary_low_priority
         self.pool.start(_Job(lambda: clamd.run_background(paths, low, trigger, self.settings), self.bin_done,
                              lambda e: ("error", f"internal error: {e}")))
+
+    def _refresh_tray(self) -> None:
+        """While any scan runs the tray shows the blue app icon (with the magnifier); otherwise the last result."""
+        if self.busy or self.binary_busy:
+            self.tray.setIcon(QIcon(icons.path(icons.APP)))
+            self.tray.setToolTip("CachyOS Security Scanner – scanning…" if self.busy else "CachyOS Security Scanner – binary scan running…")
+        else:
+            self.tray.setIcon(QIcon(self._result_icon))
+            self.tray.setToolTip(self._idle_tip)
 
     def _binary_finished(self, state: str, msg: str) -> None:
         self.binary_busy = False
@@ -236,8 +248,10 @@ class Tray(QObject):
             if state != "cancelled":  # it was finishing anyway; still report what it found
                 self._report_binary(state, msg)
             self.auto_binary_scan(nxt[0], manual=nxt[1])
+            self._refresh_tray()  # the new scan may not have started (skip rules)
             return
         self._report_binary(state, msg)
+        self._refresh_tray()
 
     def _report_binary(self, state: str, msg: str) -> None:
         if state == "cancelled":
@@ -245,8 +259,8 @@ class Tray(QObject):
         if state in ("clean", "threats"):
             self._last_binary_error = ""
         if state == "threats":
-            self.tray.setIcon(QIcon(icons.for_status("critical")))
-            self.tray.setToolTip(f"CachyOS Security Scanner – {msg}")
+            self._result_icon = icons.for_status("critical")
+            self._idle_tip = f"CachyOS Security Scanner – {msg}"
             notify.notify("Binary scan: threats found", msg, kind="bad", urgent=True, on_click=self._click_to("binary-threat"))
         elif state in ("error", "unavailable"):
             if msg != self._last_binary_error:  # the same failure is reported once, not at every retry
@@ -372,7 +386,7 @@ class Tray(QObject):
                 self.rescan_pending = True  # packages changed mid-scan: scan again afterwards instead of dropping it
             return
         self.busy = True
-        self.tray.setToolTip("Scanning…")
+        self._refresh_tray()
         self._reload_settings()
         s = self.settings
 
@@ -408,11 +422,12 @@ class Tray(QObject):
         for old in list(self._findings_dialogs):
             old.mark_outdated()
         text = report.summary()
-        self.tray.setToolTip(f"CachyOS Security Scanner – {text}")
+        self._idle_tip = f"CachyOS Security Scanner – {text}"
         st = report.icon_status
         if st:  # a skipped scan leaves the previous icon, so an earlier finding stays visible
-            self.tray.setIcon(QIcon(icons.for_status(st)))
+            self._result_icon = icons.for_status(st)
             self.act_history.setIcon(QIcon(icons.for_status(st)))  # the menu shows the last result, too
+        self._refresh_tray()
         if report.findings:
             notify.notify("Security scanner: possible compromise", text, kind="bad", urgent=True, on_click=self._click_to("threat"))
             self._offer_removal(report, f"{time.strftime('%H:%M')}, {'manual' if manual else 'automatic'} scan")

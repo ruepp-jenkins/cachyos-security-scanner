@@ -8,7 +8,7 @@ The app lives in the system tray. The icon tells you the state of the **last sca
 
 | Icon | State | Meaning |
 |---|---|---|
-| 🛡️ blue | no result yet | the app just started and has not scanned yet |
+| 🛡️ blue (magnifier) | no result yet, **or a scan is running** | the app just started and has not scanned yet. It also shows whenever at least one scan is running (package scan or background binary scan) and returns to the result colour when the last scan has finished; the tooltip then says *scanning…* |
 | 🟢 green shield | **clean** | all enabled scanners ran and found nothing |
 | 🟠 orange shield | **warning** | at least one finding of warning level, none critical |
 | 🔴 red shield | **critical** | at least one critical finding (for example a package from the blocklist) |

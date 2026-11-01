@@ -116,16 +116,21 @@ class Tray(QObject):
         self.tray = QSystemTrayIcon(QIcon(icons.path(icons.APP)), app)
         self.tray.setToolTip("CachyOS Security Scanner")
         self.menu = QMenu()
-        self.act_scan = self.menu.addAction("Check for compromised packages now", lambda: self.scan(manual=True))
-        self.act_clam = self.menu.addAction("Scan binaries with ClamAV (clamd)", self.scan_binaries)
-        self.menu.addAction("Scan history…", self.open_history)
+        def entry(text, slot, theme):  # theme icons follow the desktop style; a missing one just leaves no icon
+            act = self.menu.addAction(QIcon.fromTheme(theme), text)
+            act.triggered.connect(lambda _checked=False: slot())
+            return act
+
+        self.act_scan = entry("Check for compromised packages now", lambda: self.scan(manual=True), "system-search")
+        self.act_clam = entry("Scan binaries with ClamAV (clamd)", self.scan_binaries, "security-medium")
+        self.act_history = entry("Scan history…", self.open_history, "document-open-recent")
         self.menu.addSeparator()
-        self.act_update = self.menu.addAction("Check for app updates", lambda: self.check_update(manual=True))
-        self.act_restart = self.menu.addAction("Restart to apply update", self._restart)
+        self.act_update = entry("Check for app updates", lambda: self.check_update(manual=True), "view-refresh")
+        self.act_restart = entry("Restart to apply update", self._restart, "system-reboot")
         self.act_restart.setVisible(False)
-        self.menu.addAction("Settings…", self.open_settings)
-        self.menu.addAction("Help", self.open_help)
-        self.menu.addAction("Quit", app.quit)
+        entry("Settings…", self.open_settings, "configure")
+        entry("Help", self.open_help, "help-contents")
+        entry("Quit", app.quit, "application-exit")
         self.menu.aboutToShow.connect(self._refresh_menu)
         self.tray.setContextMenu(self.menu)
         self.tray.activated.connect(self._tray_activated)
@@ -394,6 +399,7 @@ class Tray(QObject):
         st = report.icon_status
         if st:  # a skipped scan leaves the previous icon, so an earlier finding stays visible
             self.tray.setIcon(QIcon(icons.for_status(st)))
+            self.act_history.setIcon(QIcon(icons.for_status(st)))  # the menu shows the last result, too
         if report.findings:
             notify.notify("Security scanner: possible compromise", text, kind="bad", urgent=True, on_click=self._click_to("threat"))
             self._offer_removal(report, f"{time.strftime('%H:%M')}, {'manual' if manual else 'automatic'} scan")

@@ -30,6 +30,8 @@ Good to know:
 
 ## The menu
 
+Every entry has an icon from your desktop's icon theme (so it matches the rest of your desktop). **Scan history…** shows the shield of the last scan result instead.
+
 ```
 Check for compromised packages now
 Scan binaries with ClamAV (clamd)

@@ -1028,5 +1028,15 @@ class UpdaterTest(unittest.TestCase):
                 updater.install(rel, self.pub)
 
 
+class StatusIconTests(unittest.TestCase):
+    def test_every_history_status_has_its_own_icon_file(self):
+        from pathlib import Path
+        from cachy_sec import icons
+        self.assertEqual(len(set(icons.FOR_STATUS.values())), len(icons.FOR_STATUS))
+        for status in icons.FOR_STATUS:
+            self.assertTrue(Path(icons.for_status(status)).is_file(), status)
+        self.assertTrue(Path(icons.for_status("something-new")).is_file())  # unknown values fall back
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -64,9 +64,7 @@ class HistoryDialog(QDialog):
         hdr.setSectionResizeMode(4, QHeaderView.Stretch)
         self.table.setSortingEnabled(True)
         self.table.sortByColumn(1, Qt.DescendingOrder)
-        self._icon_good = QIcon(icons.path(icons.GOOD))
-        self._icon_bad = QIcon(icons.path(icons.BAD))
-        self._icon_other = QIcon(icons.path(icons.APP))  # error / skipped / unknown
+        self._icons: dict[str, QIcon] = {}
         top_l.addWidget(self.table)
         self.table.itemSelectionChanged.connect(self._selection_changed)
         self.log = QPlainTextEdit(readOnly=True)
@@ -127,13 +125,8 @@ class HistoryDialog(QDialog):
         self.table.setSortingEnabled(False)
         self.table.setRowCount(len(shown))
         for i, e in enumerate(shown):
-            icon = _SortItem({"clean": 0, "warning": 2, "critical": 3}.get(e.status, 1))
-            if e.status == "clean":
-                icon.setIcon(self._icon_good)
-            elif e.status in THREAT_STATUSES:
-                icon.setIcon(self._icon_bad)
-            else:
-                icon.setIcon(self._icon_other)
+            icon = _SortItem(icons.STATUS_RANK.get(e.status, 1))
+            icon.setIcon(self._status_icon(e.status))
             icon.setToolTip(e.status)
             icon.setData(_PATH_ROLE, str(e.path))
             self.table.setItem(i, 0, icon)
@@ -146,6 +139,11 @@ class HistoryDialog(QDialog):
                 self.table.selectRow(i)
                 break
         self.table.blockSignals(False)
+
+    def _status_icon(self, status: str) -> QIcon:
+        if status not in self._icons:
+            self._icons[status] = QIcon(icons.for_status(status))
+        return self._icons[status]
 
     def _refilter(self, *_: object) -> None:
         self._fill()

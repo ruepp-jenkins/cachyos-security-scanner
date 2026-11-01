@@ -49,31 +49,50 @@ TERMINALS: list[tuple[str, list[str]]] = [
 ]
 
 
-def _state_file() -> Path:
+def _state_file(name: str = "binary-last-scan") -> Path:
     from .. import history
 
-    return history.history_dir().parent / "binary-last-scan"
+    return history.history_dir().parent / name
 
 
-def mark_scan() -> None:
-    """Remember that a binary scan started now (scheduling relies on it; never raises)."""
+def _write_time(name: str) -> None:
     try:
-        f = _state_file()
+        f = _state_file(name)
         f.parent.mkdir(parents=True, exist_ok=True)
         f.write_text(str(time.time()))
     except OSError:
         pass
 
 
-def last_scan_time() -> float | None:
+def mark_scan() -> None:
+    """Remember that a binary scan was attempted now (never raises)."""
+    _write_time("binary-last-scan")
+
+
+def mark_success() -> None:
+    """Remember that a binary scan ran to a result (clean or threats). A failed attempt does not count."""
+    _write_time("binary-last-success")
+
+
+def _read_time(name: str) -> float | None:
     try:
-        return float(_state_file().read_text().strip())
+        return float(_state_file(name).read_text().strip())
     except (OSError, ValueError):
         return None
 
 
+def last_scan_time() -> float | None:
+    return _read_time("binary-last-scan")
+
+
 def seconds_since_last_scan() -> float | None:
+    """Since the last attempt (successful or not)."""
     t = last_scan_time()
+    return None if t is None else max(0.0, time.time() - t)
+
+
+def seconds_since_last_success() -> float | None:
+    t = _read_time("binary-last-success")
     return None if t is None else max(0.0, time.time() - t)
 
 
@@ -122,9 +141,11 @@ def run_background(paths: list[str], low_priority: bool = True, trigger: str = "
         rc, out = 127, str(e)
     if rc == 0:
         finish(out + "\nResult: no threats found.\n")
+        mark_success()
         return "clean", "No threats found"
     if rc == 1:
         finish(out + "\nResult: THREATS FOUND (listed above). Nothing was removed.\n")
+        mark_success()
         return "threats", "Threats found – see the scan history"
     finish(out + f"\nResult: scan failed (exit {rc}). Is clamd running?\n  sudo systemctl enable --now clamav-daemon\n")
     return "error", f"Scan failed (exit {rc}). Is clamd running?"
@@ -166,10 +187,11 @@ def launch(paths: list[str]) -> tuple[bool, str]:
     cmd = build_command(paths, log)
     if cmd is None:
         return False, "no terminal emulator or none of the configured paths found"
-    mark_scan()
     try:
         subprocess.Popen(cmd, start_new_session=True, stdin=subprocess.DEVNULL,
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     except OSError as e:
         return False, str(e)
+    mark_scan()
+    mark_success()  # the user watches this scan in a terminal and decides what it means
     return True, "started"

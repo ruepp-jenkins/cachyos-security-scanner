@@ -109,7 +109,7 @@ definitions are updated by `clamav-freshclam`).
 | **Scan binaries at start** (`binary_on_start`) | off | A binary scan after the app started (after the *Delay after start*). |
 | **Scan binaries after package installs/updates** (`binary_after_pkg_changes`) | off | A binary scan after package changes, with the same wait as the package scan. Needs the pacman hook. |
 | **Scan binaries together with every AUR package scan** (`binary_with_aur_scans`) | off | Starts a binary scan whenever a package scan has finished (not for skipped scans), whatever triggered it. |
-| **Scan binaries at regular intervals** (`binary_periodic`) | off | A binary scan when *Every* has passed since the last binary scan. The time of the last scan is remembered across restarts (checked every 10 minutes and five minutes after the start), so a weekly scan also happens if you restart often, and it catches up after the computer was off. |
+| **Scan binaries at regular intervals** (`binary_periodic`) | off | A binary scan when *Every* has passed since the last binary scan. The time of the last **successful** scan is remembered across restarts (checked every 10 minutes, the first time shortly after the start delay), so a weekly scan also happens if you restart often, and it catches up after the computer was off. A scan that failed (for example `clamd` not running) does not count: it is retried after an hour, and the same failure is notified only once. |
 | **Every** (`binary_interval_minutes`) | 1 week | Number plus unit (minutes, hours, days or weeks). Allowed: 1 hour to 52 weeks. |
 | **At most one scan per (except interval)** (`binary_min_gap_hours`) | 24 h | Applies to the start, package change and *together with every AUR package scan* triggers, so that a full binary scan does not run after every `pacman -Syu`. 0 = no limit. The interval trigger is not limited by it. |
 | **Run binary scans with low priority** (`binary_low_priority`) | on | Runs the `clamdscan` client with `nice -n 19` and `ionice -c 2 -n 7`. The scanning itself is done by the `clamd` daemon, which has the priority of its own service: set `Nice=` / `IOSchedulingClass=` with `systemctl edit clamav-daemon` to make it gentler as well. |
@@ -141,7 +141,7 @@ The dialog scrolls and never grows taller than your screen; **Save**, **Cancel**
 | Cached community lists | `~/.cache/cachy-security-scanner/` |
 | Autostart entry | `~/.config/autostart/cachy-security-scanner.desktop` |
 | Old ClamAV timer (earlier versions only) | `~/.config/systemd/user/cachy-sec-clamd.{service,timer}` |
-| Time of the last binary scan | `~/.local/share/cachy-security-scanner/binary-last-scan` |
+| Time of the last binary scan attempt / success | `~/.local/share/cachy-security-scanner/binary-last-scan`, `…/binary-last-success` |
 | Single-instance lock | `$XDG_RUNTIME_DIR/cachy-security-scanner.lock` |
 
 Only one instance of the app runs per login session; starting it again just says it is already running.

@@ -87,6 +87,7 @@ class Tray(QObject):
         self.settings = Settings.load()
         self.busy = False
         self.binary_busy = False
+        self._last_binary_error = ""
         self._last_scan_end: float | None = None  # time.monotonic() of the last finished package scan
         self.rescan_pending = False
         self._unsaved = False  # True while the last settings save failed
@@ -131,6 +132,7 @@ class Tray(QObject):
         self.upd_sig = _UpdateSignal()
         self.upd_sig.result.connect(self._update_done)
         self.upd_manual = False
+        self._update_running = False  # one update job at a time: two installs would write the same folder
         self.restart_timer = QTimer(self)
         self.restart_timer.timeout.connect(self._restart_if_idle)
         self.upd_timer = QTimer(self)
@@ -142,7 +144,7 @@ class Tray(QObject):
         self.bin_timer = QTimer(self)  # periodic binary scans: polled, so a weekly interval survives restarts
         self.bin_timer.timeout.connect(self._binary_poll)
         self.bin_timer.start(10 * 60_000)
-        QTimer.singleShot(5 * 60_000, self._binary_poll)
+        QTimer.singleShot((self.settings.startup_delay_minutes + 5) * 60_000, self._binary_poll)  # not before the start scans
         self._apply_settings()
         autostart.apply(self.settings.autostart)
         # Community lists: downloaded at start (the startup scan waits for them), then re-checked hourly and
@@ -186,7 +188,7 @@ class Tray(QObject):
 
     def _binary_poll(self) -> None:
         self._reload_settings()
-        if scheduler.binary_due(self.settings, clamd.seconds_since_last_scan()):
+        if scheduler.binary_due(self.settings, clamd.seconds_since_last_success(), clamd.seconds_since_last_scan()):
             self.auto_binary_scan("interval", periodic=True)
 
     def auto_binary_scan(self, trigger: str, periodic: bool = False) -> None:
@@ -206,12 +208,16 @@ class Tray(QObject):
 
     def _binary_finished(self, state: str, msg: str) -> None:
         self.binary_busy = False
+        if state in ("clean", "threats"):
+            self._last_binary_error = ""
         if state == "threats":
             self.tray.setIcon(QIcon(icons.for_status("critical")))
             self.tray.setToolTip(f"CachyOS Security Scanner – {msg}")
             notify.notify("Binary scan: threats found", msg, kind="bad", urgent=True)
         elif state in ("error", "unavailable"):
-            notify.notify("Binary scan did not run", msg, kind="bad")
+            if msg != self._last_binary_error:  # the same failure is reported once, not at every retry
+                notify.notify("Binary scan did not run", msg, kind="bad")
+            self._last_binary_error = msg
         elif self.settings.notify_when_clean:
             notify.notify("Binary scan finished", msg, kind="good")
 
@@ -227,6 +233,9 @@ class Tray(QObject):
     def check_update(self, manual: bool) -> None:
         if not (manual or self.settings.auto_update):
             return
+        if self._update_running:
+            return
+        self._update_running = True
         self.upd_manual = manual
         # With automatic updates off, a manual check only looks and asks before installing anything.
         self.pool.start(_UpdateJob(self.upd_sig, check_only=not self.settings.auto_update))
@@ -242,6 +251,9 @@ class Tray(QObject):
 
         def answered(result: int) -> None:
             if result == QMessageBox.Yes.value:
+                if self._update_running:
+                    return
+                self._update_running = True
                 self.upd_manual = True
                 self.pool.start(_UpdateJob(self.upd_sig))
 
@@ -249,6 +261,7 @@ class Tray(QObject):
         box.show()
 
     def _update_done(self, state: str, msg: str) -> None:
+        self._update_running = False
         if state == "available":
             self._offer_update(msg)
         elif state == "installed":
@@ -313,7 +326,9 @@ class Tray(QObject):
 
     def _pkg_changed(self, _path: str) -> None:
         if scheduler.anything_after_pkg_change(self.settings):
-            since = None if self._last_scan_end is None else time.monotonic() - self._last_scan_end
+            since = None  # the package-scan gap applies only to package scans, not to binary-after-package-change
+            if scheduler.scan_after_pkg_change(self.settings) and self._last_scan_end is not None:
+                since = time.monotonic() - self._last_scan_end
             self.debounce.start(scheduler.pkg_delay_ms(self.settings, since))  # coalesce multi-step upgrades
         if TRIGGER.exists() and str(TRIGGER) not in self.watcher.files():
             self.watcher.addPath(str(TRIGGER))
@@ -358,7 +373,8 @@ class Tray(QObject):
                 self.auto_binary_scan("with package scan")
         if self.rescan_pending:
             self.rescan_pending = False
-            QTimer.singleShot(2000, lambda: self.scan(manual=False, trigger="package change"))
+            if scheduler.anything_after_pkg_change(self.settings):  # same wait and gap as any package-change scan
+                self.debounce.start(scheduler.pkg_delay_ms(self.settings, 0.0))
         for old in list(self._findings_dialogs):
             old.mark_outdated()
         text = report.summary()

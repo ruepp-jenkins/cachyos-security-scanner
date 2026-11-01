@@ -194,7 +194,7 @@ class SettingsDialog(QDialog):
         cl.addWidget(self.b_last)
         if clamd_schedule.is_enabled():  # leftover of an earlier version: a systemd timer outside this app
             old = QPushButton("Remove the old systemd timer (cachy-sec-clamd)")
-            old.clicked.connect(self._sched_off)
+            old.clicked.connect(lambda: (self._sched_off(), old.hide()))
             cl.addWidget(old)
         root.addWidget(clam)
 

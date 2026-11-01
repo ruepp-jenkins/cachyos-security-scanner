@@ -34,11 +34,17 @@ def pkg_delay_ms(s: Settings, since_last_scan_s: float | None) -> int:
     return max(delay, int(wait * 1000))
 
 
-def binary_due(s: Settings, since_last_binary_s: float | None) -> bool:
-    """Periodic binary scan: due when never run or the interval has passed (survives restarts)."""
+RETRY_AFTER_FAILURE_S = 3600
+
+
+def binary_due(s: Settings, since_success_s: float | None, since_attempt_s: float | None = None) -> bool:
+    """Periodic binary scan: due when no scan ever succeeded or the interval has passed since the last success
+    (survives restarts). A failed attempt is retried only after an hour, not at every poll."""
     if not s.binary_periodic:
         return False
-    return since_last_binary_s is None or since_last_binary_s >= s.binary_interval_minutes * 60
+    if since_attempt_s is not None and since_attempt_s < RETRY_AFTER_FAILURE_S:
+        return False
+    return since_success_s is None or since_success_s >= s.binary_interval_minutes * 60
 
 
 def binary_gap_ok(s: Settings, since_last_binary_s: float | None) -> bool:

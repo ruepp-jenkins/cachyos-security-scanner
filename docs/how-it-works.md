@@ -48,7 +48,7 @@ All paths follow the XDG standard; the defaults are shown.
 | `vendor/aur-malware-check/` | `git clone --depth 1` of the scanner |
 | `vendor/ks-aur-scanner/` | clone of `aur-scan` and its Rust build output (`target/`), only if `aur-scan` is not installed from the AUR |
 | `updates/<version>/` and `updates/current` | a verified downloaded update of the app, see [Updates](updates.md) |
-| `binary-last-scan` | timestamp of the last ClamAV scan (used to schedule the next) |
+| `binary-last-scan`, `binary-last-success` | timestamps of the last ClamAV scan attempt and the last one that ran to a result (used to schedule the next) |
 
 ### Cache – `~/.cache/cachy-security-scanner/`
 | Content | Notes |

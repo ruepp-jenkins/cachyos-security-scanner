@@ -66,6 +66,9 @@ class SchedulerTest(unittest.TestCase):
         self.assertFalse(scheduler.binary_due(s, 3 * 86400))
         self.assertTrue(scheduler.binary_due(s, 8 * 86400))
         self.assertFalse(scheduler.binary_due(Settings(binary_periodic=False), None))
+        self.assertFalse(scheduler.binary_due(s, 8 * 86400, 600))  # failed 10 min ago: retry only after an hour
+        self.assertTrue(scheduler.binary_due(s, None, 7200))
+        self.assertTrue(scheduler.binary_due(s, 8 * 86400, 7200))
         self.assertTrue(scheduler.binary_gap_ok(s, None))
         self.assertFalse(scheduler.binary_gap_ok(s, 3600))
         self.assertTrue(scheduler.binary_gap_ok(s, 25 * 3600))
@@ -1125,6 +1128,14 @@ class BinaryBackgroundTests(unittest.TestCase):
         self.assertIn("clamdscan", cmd)
         self.assertIsNotNone(clamd.seconds_since_last_scan())
         self.assertLess(clamd.seconds_since_last_scan(), 5)
+
+    def test_a_failed_scan_does_not_count_as_success(self):
+        from cachy_sec.scanners import clamd
+        self._run(2)
+        self.assertIsNotNone(clamd.seconds_since_last_scan())
+        self.assertIsNone(clamd.seconds_since_last_success())
+        self._run(0)
+        self.assertIsNotNone(clamd.seconds_since_last_success())
 
     def test_without_existing_paths_nothing_runs(self):
         from cachy_sec.scanners import clamd

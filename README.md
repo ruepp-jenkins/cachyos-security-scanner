@@ -18,6 +18,21 @@ The two [community lists](lists/) (blocklist, false positives) are maintained in
 These tools are separate programs with their own licenses; this app starts them as external processes and does not
 include their code.
 
+## How the scanners are installed and kept up to date
+You do not install the AUR scanners yourself; the app does it, in your home folder (`~/.local/share/cachy-security-scanner/vendor/`), without root rights.
+
+| Step | What happens |
+|---|---|
+| **First scan** | `git clone --depth 1` of **aur-malware-check**. For **aur-scan** (if you enable it) the app clones the repository and builds it once with Rust (`cargo`). If you already installed `aur-scanner` from the AUR, that binary is used instead. |
+| **Before every scan** | `git pull --ff-only` on the checkouts (setting *Update scanner sources before each scan*). `aur-scan` is rebuilt only when its source changed. |
+| **Broken checkout** | detected with `git fsck`, deleted and cloned again automatically. |
+| **Cannot be set up** | (no `git`, no Rust, Python too old, no network) the scan shows an **error** in the history and a ❌ tray icon. It never reports "clean" for a scanner that did not run. |
+| **Community lists** | downloaded as signed files from this repository's releases at start, then hourly checked; verified before use. |
+
+Everything runs with low CPU/I/O priority. Details, requirements and the exact commands: [Scanners and community lists](docs/scanners-and-lists.md), [Requirements](docs/setup-requirements.md), [How it works](docs/how-it-works.md).
+
+Note: the scanners are third-party code that is downloaded from GitHub and run as your user; they are not signature-checked by this app (only the app's own updates and the community lists are). See the trust table in [How it works](docs/how-it-works.md#-trust-and-verification).
+
 ## Screenshots
 | | |
 |---|---|

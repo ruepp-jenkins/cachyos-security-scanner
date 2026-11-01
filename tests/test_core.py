@@ -59,6 +59,17 @@ class SchedulerTest(unittest.TestCase):
         self.assertEqual(scheduler.pkg_delay_ms(Settings(pkg_change_delay_seconds=20)), 20_000)
         self.assertFalse(hasattr(Settings(), "pkg_scan_min_gap_minutes"))
 
+    def test_opt_left_the_default_binary_paths(self):
+        import json, tempfile
+        from cachy_sec import settings as st
+        self.assertNotIn("/opt", Settings().binary_scan_paths)
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "s.json"
+            p.write_text(json.dumps({"schema": 6, "binary_scan_paths": st.OLD_DEFAULT_BINARY_PATHS}))
+            self.assertEqual(Settings.load(p).binary_scan_paths, st.DEFAULT_BINARY_PATHS)
+            p.write_text(json.dumps({"schema": 6, "binary_scan_paths": ["/opt", "/srv"]}))
+            self.assertEqual(Settings.load(p).binary_scan_paths, ["/opt", "/srv"])  # a list the user made stays
+
     def test_multiscan_is_off_by_default_and_migrated(self):
         import json, tempfile
         self.assertFalse(Settings().binary_multiscan)

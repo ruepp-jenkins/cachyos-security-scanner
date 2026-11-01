@@ -13,10 +13,10 @@ WEEK_MINUTES = 7 * 24 * 60
 DEFAULT_BINARY_PATHS = [
     "/usr/bin",
     "/usr/local/bin",
-    "/opt",
     "~/.local/bin",
     "/var/lib/flatpak/exports/bin",
 ]
+OLD_DEFAULT_BINARY_PATHS = ["/usr/bin", "/usr/local/bin", "/opt", "~/.local/bin", "/var/lib/flatpak/exports/bin"]  # until schema 6
 
 
 def config_path() -> Path:
@@ -26,7 +26,7 @@ def config_path() -> Path:
 
 @dataclass
 class Settings:
-    schema: int = 6  # bump when a default changes meaning; see load()
+    schema: int = 7  # bump when a default changes meaning; see load()
     # --- when the AUR package scans run (manual scans are always possible) ---
     scan_on_start: bool = True
     startup_delay_minutes: int = 1  # wait this long after the app started (lets the desktop finish starting)
@@ -113,7 +113,9 @@ class Settings:
             s.pkg_change_delay_seconds = 10  # the old default; the minimum gap between package scans was removed
         if old < 6:
             s.binary_multiscan = False  # the default changed: a scan may take longer but must not affect performance
-        s.schema = 6
+        if old < 7 and s.binary_scan_paths == OLD_DEFAULT_BINARY_PATHS:
+            s.binary_scan_paths = list(DEFAULT_BINARY_PATHS)  # /opt left the defaults (large, little value); own lists stay
+        s.schema = 7
         s.validate()
         return s
 

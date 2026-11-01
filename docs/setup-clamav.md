@@ -93,7 +93,7 @@ file doing its job.
   Automatic scans run **in the background without a window**; the result is in the history, threats raise a notification.
   Details: [Settings](settings.md#binary-scan-with-clamav).
 
-Paths scanned by default: `/usr/bin`, `/usr/local/bin`, `/opt`, `~/.local/bin`, `/var/lib/flatpak/exports/bin`. Add your
+Paths scanned by default: `/usr/bin`, `/usr/local/bin`, `~/.local/bin`, `/var/lib/flatpak/exports/bin`. Add your
 own (one per line); paths that do not exist are skipped.
 
 > 🧱 **The app never deletes anything** it finds with ClamAV. `clamdscan` is started with `-i` (list infected files only)

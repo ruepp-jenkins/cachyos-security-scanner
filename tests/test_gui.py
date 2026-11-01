@@ -321,5 +321,13 @@ class GuiTest(unittest.TestCase):
         self.assertTrue(r.binary_with_aur_scans and r.binary_periodic and not r.binary_low_priority)
         self.assertEqual(r.startup_delay_minutes, 5)
 
+    def test_binary_options_are_disabled_without_clamdscan(self):
+        from unittest import mock as m
+        with m.patch("cachy_sec.settings_dialog.clamd.available", return_value=False):
+            d = self._track(SettingsDialog(st.Settings(binary_on_start=True)))
+        for w in (d.paths, d.b_start, d.b_pkg, d.b_with, d.b_periodic, d.b_interval, d.b_gap, d.b_low):
+            self.assertFalse(w.isEnabled())
+        self.assertTrue(d.result_settings().binary_on_start)  # the saved value survives
+
 if __name__ == "__main__":
     unittest.main()

@@ -112,7 +112,7 @@ definitions are updated by `clamav-freshclam`).
 | **At most one scan per (except interval)** (`binary_min_gap_hours`) | 24 h | Applies to the start, package change and *together with every AUR package scan* triggers, so that a full binary scan does not run after every `pacman -Syu`. 0 = no limit. The interval trigger is not limited by it. |
 | **Run binary scans with low priority** (`binary_low_priority`) | on | Runs the `clamdscan` client with `nice -n 19` and `ionice -c 2 -n 7`. The scanning itself is done by the `clamd` daemon, which has the priority of its own service: set `Nice=` / `IOSchedulingClass=` with `systemctl edit clamav-daemon` to make it gentler as well. |
 
-The dialog also shows when the last binary scan started. If you set up the weekly systemd timer of an earlier version
+Without `clamdscan` the options of this section are greyed out with an install hint (the saved values are kept). The dialog also shows when the last binary scan started. If you set up the weekly systemd timer of an earlier version
 (`cachy-sec-clamd.timer`), a button to remove it appears; the app itself no longer creates it.
 
 ## General

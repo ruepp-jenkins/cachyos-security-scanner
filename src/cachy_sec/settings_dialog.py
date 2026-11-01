@@ -153,7 +153,10 @@ class SettingsDialog(QDialog):
         clam = QGroupBox("Binary scan with ClamAV (clamdscan)")
         cl = QVBoxLayout(clam)
         if not clamd.available():
-            cl.addWidget(QLabel("clamdscan not found (package clamav) – binary scans are disabled."))
+            hint = QLabel("clamdscan not found. Install the package clamav (sudo pacman -S clamav) and start the daemon "
+                          "(sudo systemctl enable --now clamav-daemon) to use binary scans. The options below are disabled until then.")
+            hint.setWordWrap(True)
+            cl.addWidget(hint)
         cl.addWidget(QLabel("Paths to scan, one per line:"))
         self.paths = QPlainTextEdit("\n".join(s.binary_scan_paths))
         self.paths.setMaximumHeight(110)
@@ -180,6 +183,11 @@ class SettingsDialog(QDialog):
         self.b_low = self._cb("Run binary scans with low priority (nice / ionice)", s.binary_low_priority, cf)
         self.b_low.setToolTip("Lowers the priority of the clamdscan client. The scanning itself is done by the clamd daemon,\n"
                               "whose priority is set by its own service (systemctl edit clamav-daemon: Nice=, IOSchedulingClass=).")
+        if not clamd.available():  # keep the saved values, just make them unreachable
+            for w in (self.paths, self.b_start, self.b_pkg, self.b_with, self.b_periodic, self.b_interval, self.b_gap, self.b_low):
+                w.setEnabled(False)
+        else:
+            self.b_interval.setEnabled(s.binary_periodic)
         last = clamd.last_scan_time()
         when_txt = time.strftime("%Y-%m-%d %H:%M", time.localtime(last)) if last else "never"
         self.b_last = QLabel(f"Last binary scan started: {when_txt}. Automatic binary scans skip gaming mode / battery like the others.")

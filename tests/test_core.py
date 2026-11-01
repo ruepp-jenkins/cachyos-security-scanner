@@ -54,11 +54,19 @@ class SchedulerTest(unittest.TestCase):
         self.assertTrue(scheduler.anything_after_pkg_change(Settings(scan_after_pkg_changes=False, binary_after_pkg_changes=True)))
         self.assertFalse(scheduler.anything_after_pkg_change(Settings(scan_after_pkg_changes=False)))
 
-    def test_package_delay_honours_the_minimum_gap(self):
-        s = Settings(pkg_change_delay_seconds=30, pkg_scan_min_gap_minutes=10)
-        self.assertEqual(scheduler.pkg_delay_ms(s, None), 30_000)
-        self.assertEqual(scheduler.pkg_delay_ms(s, 100), (600 - 100) * 1000)  # last scan 100 s ago: wait the rest
-        self.assertEqual(scheduler.pkg_delay_ms(s, 5000), 30_000)
+    def test_package_scans_have_a_short_wait_and_no_minimum_gap(self):
+        self.assertEqual(Settings().pkg_change_delay_seconds, 10)
+        self.assertEqual(scheduler.pkg_delay_ms(Settings(pkg_change_delay_seconds=20)), 20_000)
+        self.assertFalse(hasattr(Settings(), "pkg_scan_min_gap_minutes"))
+
+    def test_old_package_wait_default_is_migrated(self):
+        import json, tempfile
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "s.json"
+            p.write_text(json.dumps({"schema": 4, "pkg_change_delay_seconds": 30, "pkg_scan_min_gap_minutes": 10}))
+            self.assertEqual(Settings.load(p).pkg_change_delay_seconds, 10)
+            p.write_text(json.dumps({"schema": 4, "pkg_change_delay_seconds": 45}))
+            self.assertEqual(Settings.load(p).pkg_change_delay_seconds, 45)  # a value the user chose stays
 
     def test_binary_schedule_decisions(self):
         s = Settings(binary_periodic=True, binary_interval_minutes=7 * 1440, binary_min_gap_hours=24)

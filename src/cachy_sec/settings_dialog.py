@@ -69,31 +69,22 @@ class SettingsDialog(QDialog):
 
         when = QGroupBox("When to scan AUR packages (manual scans always work)")
         f = QFormLayout(when)
-        self.on_start = self._cb("Scan at start", s.scan_on_start, f)
         self.start_delay = QSpinBox()
         self.start_delay.setRange(0, 120)
         self.start_delay.setSuffix(" min")
         self.start_delay.setValue(s.startup_delay_minutes)
         self.start_delay.setToolTip("Wait this long after the app started, so the desktop can finish starting first.")
-        f.addRow("    Delay after start", self.start_delay)
-        self.after_pkg = self._cb("Scan after package installs/updates (needs pacman hook)", s.scan_after_pkg_changes, f)
+        self.on_start = self._cb_with("Scan at start, after", s.scan_on_start, f, self.start_delay)
         self.pkg_delay = QSpinBox()
         self.pkg_delay.setRange(5, 3600)
         self.pkg_delay.setSuffix(" s")
         self.pkg_delay.setValue(s.pkg_change_delay_seconds)
-        self.pkg_delay.setToolTip("Wait this long after the last package change, so a multi-step upgrade gives one scan.")
-        f.addRow("    Wait after the last change", self.pkg_delay)
-        self.pkg_gap = QSpinBox()
-        self.pkg_gap.setRange(0, 24 * 60)
-        self.pkg_gap.setSuffix(" min")
-        self.pkg_gap.setValue(s.pkg_scan_min_gap_minutes)
-        self.pkg_gap.setToolTip("At most one package-change scan per this time, however often you install packages. 0 = no limit.")
-        f.addRow("    At most one scan per", self.pkg_gap)
-        self.periodic = self._cb("Scan at regular intervals", s.scan_periodic, f)
+        self.pkg_delay.setToolTip("Wait this long after the last package change, so a multi-step upgrade gives one scan.\n"
+                                  "Every change is scanned; there is no limit on how often.")
+        self.after_pkg = self._cb_with("Scan after package installs/updates (needs pacman hook), wait",
+                                       s.scan_after_pkg_changes, f, self.pkg_delay)
         self.interval = IntervalEdit(s.interval_minutes, 15, 52 * 7 * 24 * 60)
-        f.addRow("    Every", self.interval)
-        self.periodic.toggled.connect(self.interval.setEnabled)
-        self.interval.setEnabled(s.scan_periodic)
+        self.periodic = self._cb_with("Scan at regular intervals, every", s.scan_periodic, f, self.interval)
         self.update_src = self._cb("Update scanner sources before each scan", s.update_sources_before_scan, f)
         self.gaming = self._cb("Skip automatic scans in gaming mode (gamemode, gamescope, Steam)", s.skip_in_gaming_mode, f)
         self.battery = self._cb("Skip automatic scans on battery", s.skip_on_battery, f)
@@ -167,11 +158,8 @@ class SettingsDialog(QDialog):
         self.b_start = self._cb("Scan binaries at start", s.binary_on_start, cf)
         self.b_pkg = self._cb("Scan binaries after package installs/updates", s.binary_after_pkg_changes, cf)
         self.b_with = self._cb("Scan binaries together with every AUR package scan", s.binary_with_aur_scans, cf)
-        self.b_periodic = self._cb("Scan binaries at regular intervals", s.binary_periodic, cf)
         self.b_interval = IntervalEdit(s.binary_interval_minutes, 60, 52 * 7 * 24 * 60)
-        cf.addRow("    Every", self.b_interval)
-        self.b_periodic.toggled.connect(self.b_interval.setEnabled)
-        self.b_interval.setEnabled(s.binary_periodic)
+        self.b_periodic = self._cb_with("Scan binaries at regular intervals, every", s.binary_periodic, cf, self.b_interval)
         self.b_gap = QSpinBox()
         self.b_gap.setRange(0, 24 * 90)
         self.b_gap.setSuffix(" h")
@@ -261,6 +249,22 @@ class SettingsDialog(QDialog):
         return c
 
     @staticmethod
+    def _cb_with(text: str, val: bool, form: QFormLayout, widget: QWidget) -> QCheckBox:
+        """A checkbox with its value input on the same line; the input is usable only while the box is ticked."""
+        c = QCheckBox(text)
+        c.setChecked(val)
+        row = QWidget()
+        lay = QHBoxLayout(row)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.addWidget(c)
+        lay.addWidget(widget)
+        lay.addStretch()
+        form.addRow(row)
+        c.toggled.connect(widget.setEnabled)
+        widget.setEnabled(val)
+        return c
+
+    @staticmethod
     def _backend(layout: QVBoxLayout, text: str, val: bool, scanner) -> QCheckBox:
         ok = scanner.available()
         c = QCheckBox(text if ok else f"{text} – will be fetched on first scan if possible")
@@ -294,7 +298,6 @@ class SettingsDialog(QDialog):
         s.startup_delay_minutes = self.start_delay.value()
         s.scan_after_pkg_changes = self.after_pkg.isChecked()
         s.pkg_change_delay_seconds = self.pkg_delay.value()
-        s.pkg_scan_min_gap_minutes = self.pkg_gap.value()
         s.scan_periodic = self.periodic.isChecked()
         s.interval_minutes = self.interval.minutes()
         s.binary_on_start = self.b_start.isChecked()

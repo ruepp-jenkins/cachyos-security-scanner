@@ -25,13 +25,10 @@ def anything_after_pkg_change(s: Settings) -> bool:
     return s.scan_after_pkg_changes or s.binary_after_pkg_changes
 
 
-def pkg_delay_ms(s: Settings, since_last_scan_s: float | None) -> int:
-    """Debounce before a package-change scan: the configured delay, stretched to honour the minimum gap."""
-    delay = s.pkg_change_delay_seconds * 1000
-    if since_last_scan_s is None:
-        return delay
-    wait = s.pkg_scan_min_gap_minutes * 60 - since_last_scan_s
-    return max(delay, int(wait * 1000))
+def pkg_delay_ms(s: Settings) -> int:
+    """Debounce before a package-change scan. There is deliberately no minimum gap between package scans: every
+    change must be scanned, or a bad package installed right after a good one would go unnoticed."""
+    return s.pkg_change_delay_seconds * 1000
 
 
 RETRY_AFTER_FAILURE_S = 3600

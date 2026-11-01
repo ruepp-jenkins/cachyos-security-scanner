@@ -55,7 +55,7 @@ Check that the folder is writable and the disk is not full.
 ### The system feels slow during a scan
 
 - Keep *Run scans with low priority* on (default) – also for binary scans.
-- Increase *Delay after start*, lower the scan frequency, raise *At most one scan per…*
+- Increase *Delay after start*, lower the scan frequency, switch off *Scan after package installs/updates* if the load bothers you
   ([Settings](settings.md#when-to-scan)).
 - `aur-scan` compiles Rust code the first time; install the AUR package `aur-scanner` to avoid that.
 - ClamAV: the daemon's own priority is separate → [make it gentler](setup-clamav.md#make-clamav-gentler-optional).
@@ -66,7 +66,7 @@ Check that the folder is writable and the disk is not full.
 
 - Check the hook: `ls -l /var/lib/cachy-security-scanner/trigger` – does the timestamp change after `pacman` runs?
 - No hook when running from source; see [the pacman hook](setup-requirements.md#-the-pacman-hook).
-- There is a wait and a limit (*Wait after the last change*, *At most one scan per*); a scan may be deferred, not lost.
+- There is a short wait (*Wait after the last change*, 10 s by default); a scan is deferred, not lost.
 
 ### Update does not apply
 

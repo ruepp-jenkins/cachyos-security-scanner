@@ -97,7 +97,6 @@ class Tray(QObject):
         self.busy = False
         self.binary_busy = False
         self._last_binary_error = ""
-        self._last_scan_end: float | None = None  # time.monotonic() of the last finished package scan
         self.rescan_pending = False
         self._unsaved = False  # True while the last settings save failed
         self.pending_version, self._restart_waited, self._restart_hinted = "", 0, False
@@ -343,10 +342,7 @@ class Tray(QObject):
 
     def _pkg_changed(self, _path: str) -> None:
         if scheduler.anything_after_pkg_change(self.settings):
-            since = None  # the package-scan gap applies only to package scans, not to binary-after-package-change
-            if scheduler.scan_after_pkg_change(self.settings) and self._last_scan_end is not None:
-                since = time.monotonic() - self._last_scan_end
-            self.debounce.start(scheduler.pkg_delay_ms(self.settings, since))  # coalesce multi-step upgrades
+            self.debounce.start(scheduler.pkg_delay_ms(self.settings))  # coalesce multi-step upgrades
         if TRIGGER.exists() and str(TRIGGER) not in self.watcher.files():
             self.watcher.addPath(str(TRIGGER))
 
@@ -385,13 +381,12 @@ class Tray(QObject):
         self.busy = False
         self.last_report = report
         if not report.skipped:
-            self._last_scan_end = time.monotonic()
             if self.settings.binary_with_aur_scans:
                 self.auto_binary_scan("with package scan")
         if self.rescan_pending:
             self.rescan_pending = False
-            if scheduler.anything_after_pkg_change(self.settings):  # same wait and gap as any package-change scan
-                self.debounce.start(scheduler.pkg_delay_ms(self.settings, 0.0))
+            if scheduler.anything_after_pkg_change(self.settings):  # same wait as any package-change scan
+                self.debounce.start(scheduler.pkg_delay_ms(self.settings))
         for old in list(self._findings_dialogs):
             old.mark_outdated()
         text = report.summary()

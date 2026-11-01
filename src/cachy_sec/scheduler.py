@@ -42,8 +42,3 @@ def binary_due(s: Settings, since_success_s: float | None, since_attempt_s: floa
     if since_attempt_s is not None and since_attempt_s < RETRY_AFTER_FAILURE_S:
         return False
     return since_success_s is None or since_success_s >= s.binary_interval_minutes * 60
-
-
-def binary_gap_ok(s: Settings, since_last_binary_s: float | None) -> bool:
-    """Event-driven binary scans (start, package change, with a package scan) respect the minimum gap."""
-    return since_last_binary_s is None or since_last_binary_s >= s.binary_min_gap_hours * 3600

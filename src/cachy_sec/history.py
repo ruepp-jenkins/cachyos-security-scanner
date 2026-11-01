@@ -133,6 +133,8 @@ def _binary_status(text: str) -> tuple[str, str]:
         return CLEAN, "No threats found" + (f" ({m.group(1)} unreadable file(s) skipped)" if m.group(1) else "")
     if "Result: THREATS FOUND" in text:
         return CRITICAL, "Threats found – see log"
+    if "Result: cancelled" in text:
+        return SKIPPED, "Cancelled – replaced by a newer scan"
     if "Result: scan failed" in text:
         return ERROR, "Scan failed – see log"
     return UNKNOWN, "No result yet (still running, or the window was closed early)"

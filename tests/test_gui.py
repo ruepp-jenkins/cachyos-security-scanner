@@ -248,6 +248,25 @@ class GuiTest(unittest.TestCase):
         a._reset()
         self.assertEqual(a.widgets["aur_scan_fail_on"].currentText(), "high")
 
+    def test_a_newer_trigger_cancels_the_running_binary_scan_and_restarts_it(self):
+        from cachy_sec.scanners import clamd
+        tray = self._tray()
+        started = []
+        with mock.patch.object(clamd, "available", return_value=True), \
+                mock.patch.object(clamd, "cancel_background", return_value=True) as cancel, \
+                mock.patch.object(clamd, "run_background", side_effect=lambda *a: started.append(a[2]) or ("clean", "ok")):
+            tray.binary_busy = True  # a scan is running
+            tray.auto_binary_scan("interval", periodic=True)  # the interval trigger just waits
+            cancel.assert_not_called()
+            tray.auto_binary_scan("package change")  # an event trigger cancels it
+            cancel.assert_called_once()
+            self.assertEqual(tray._binary_next, ("package change", False))
+            tray._binary_finished("cancelled", "cancelled")  # the cancelled scan ends -> the new one starts
+            self.assertTrue(tray.binary_busy)
+            pump(lambda: bool(started))
+            self.assertEqual(started, ["package change"])
+            QThreadPool.globalInstance().waitForDone(3000)
+
     def test_dialogs_do_not_shadow_qt_attributes(self):
         finding = Finding(WARNING, "t", "s", package="p", version="1-1", rules=[("X-1", "title", 1)])
         dialogs = [self._track(SettingsDialog(st.Settings())), self._track(HistoryDialog()), self._track(OptionsDialog("clamd", st.Settings())),
@@ -350,7 +369,7 @@ class GuiTest(unittest.TestCase):
         from unittest import mock as m
         with m.patch("cachy_sec.settings_dialog.clamd.available", return_value=False):
             d = self._track(SettingsDialog(st.Settings(binary_on_start=True)))
-        for w in (d.paths, d.b_start, d.b_pkg, d.b_with, d.b_periodic, d.b_interval, d.b_gap, d.b_low):
+        for w in (d.paths, d.b_start, d.b_pkg, d.b_with, d.b_periodic, d.b_interval, d.b_low):
             self.assertFalse(w.isEnabled())
         self.assertTrue(d.result_settings().binary_on_start)  # the saved value survives
 

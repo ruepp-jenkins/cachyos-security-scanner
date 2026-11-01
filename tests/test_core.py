@@ -69,7 +69,7 @@ class SchedulerTest(unittest.TestCase):
             self.assertEqual(Settings.load(p).pkg_change_delay_seconds, 45)  # a value the user chose stays
 
     def test_binary_schedule_decisions(self):
-        s = Settings(binary_periodic=True, binary_interval_minutes=7 * 1440, binary_min_gap_hours=24)
+        s = Settings(binary_periodic=True, binary_interval_minutes=7 * 1440)
         self.assertTrue(scheduler.binary_due(s, None))
         self.assertFalse(scheduler.binary_due(s, 3 * 86400))
         self.assertTrue(scheduler.binary_due(s, 8 * 86400))
@@ -77,9 +77,6 @@ class SchedulerTest(unittest.TestCase):
         self.assertFalse(scheduler.binary_due(s, 8 * 86400, 600))  # failed 10 min ago: retry only after an hour
         self.assertTrue(scheduler.binary_due(s, None, 7200))
         self.assertTrue(scheduler.binary_due(s, 8 * 86400, 7200))
-        self.assertTrue(scheduler.binary_gap_ok(s, None))
-        self.assertFalse(scheduler.binary_gap_ok(s, 3600))
-        self.assertTrue(scheduler.binary_gap_ok(s, 25 * 3600))
 
     def test_old_mode_setting_is_migrated(self):
         with tempfile.TemporaryDirectory() as d:
@@ -1256,6 +1253,13 @@ class ReportIconStatusTests(unittest.TestCase):
         self.assertIsNone(R([], skipped="gaming").icon_status)
 
 
+def _fake_proc(rc, out=""):
+    p = mock.Mock(returncode=rc)
+    p.communicate.return_value = (out, None)
+    p.poll.return_value = rc
+    return p
+
+
 class BinaryBackgroundTests(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -1268,9 +1272,8 @@ class BinaryBackgroundTests(unittest.TestCase):
 
     def _run(self, rc, out="found: x\n"):
         from cachy_sec.scanners import clamd
-        cp = mock.Mock(returncode=rc, stdout=out, stderr="")
         with mock.patch("cachy_sec.scanners.clamd.available", return_value=True), \
-                mock.patch("subprocess.run", return_value=cp) as run:
+                mock.patch("subprocess.Popen", return_value=_fake_proc(rc, out)) as run:
             return clamd.run_background([self.tmp.name], True), run
 
     def test_results_map_to_states_and_history_status(self):
@@ -1294,8 +1297,8 @@ class BinaryBackgroundTests(unittest.TestCase):
     def test_history_shows_the_trigger_of_a_scheduled_binary_scan(self):
         from cachy_sec import history
         from cachy_sec.scanners import clamd
-        cp = mock.Mock(returncode=0, stdout="", stderr="")
-        with mock.patch("cachy_sec.scanners.clamd.available", return_value=True), mock.patch("subprocess.run", return_value=cp):
+        with mock.patch("cachy_sec.scanners.clamd.available", return_value=True), \
+                mock.patch("subprocess.Popen", return_value=_fake_proc(0, "")):
             clamd.run_background([self.tmp.name], True, "package change")
         self.assertEqual(history.list_entries()[0].trigger, "package change")
 
@@ -1316,9 +1319,30 @@ class BinaryBackgroundTests(unittest.TestCase):
         self._run(0)
         self.assertIsNotNone(clamd.seconds_since_last_success())
 
+    def test_a_running_scan_can_be_cancelled_and_is_not_an_error(self):
+        from cachy_sec import history
+        from cachy_sec.scanners import clamd
+        self.assertFalse(clamd.cancel_background())  # nothing running
+        proc = mock.Mock(returncode=-15)
+        proc.poll.return_value = None  # running
+
+        def communicate(timeout=None):
+            self.assertTrue(clamd.cancel_background())  # a newer trigger arrives while the scan runs
+            proc.terminate.assert_called_once()
+            return "partial output", None
+        proc.communicate.side_effect = communicate
+        with mock.patch("cachy_sec.scanners.clamd.available", return_value=True), mock.patch("subprocess.Popen", return_value=proc):
+            state, msg = clamd.run_background([self.tmp.name], True, "package change")
+        self.assertEqual(state, "cancelled")
+        e = history.list_entries()[0]
+        self.assertEqual(e.status, "skipped")
+        self.assertIn("Cancelled", e.summary)
+        self.assertIsNone(clamd.seconds_since_last_success())  # a cancelled scan is not a successful one
+        self.assertFalse(clamd.background_running())
+
     def test_without_existing_paths_nothing_runs(self):
         from cachy_sec.scanners import clamd
-        with mock.patch("cachy_sec.scanners.clamd.available", return_value=True), mock.patch("subprocess.run") as run:
+        with mock.patch("cachy_sec.scanners.clamd.available", return_value=True), mock.patch("subprocess.Popen") as run:
             self.assertEqual(clamd.run_background(["/nonexistent/x"], True)[0], "unavailable")
             run.assert_not_called()
 

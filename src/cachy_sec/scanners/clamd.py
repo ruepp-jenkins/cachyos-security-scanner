@@ -10,6 +10,7 @@ import os
 import re
 import shutil
 import subprocess
+import threading
 import time
 from pathlib import Path
 
@@ -147,10 +148,58 @@ def background_command(paths: list[str], low_priority: bool, options: list[str] 
     return (priority_prefix() if low_priority else []) + ["clamdscan", *opts, "--", *paths]
 
 
+_lock = threading.Lock()
+_proc: subprocess.Popen | None = None  # the running background scan, if any
+_cancel_requested = False
+
+
+def _execute(cmd: list[str]) -> tuple[int, str, bool]:
+    """Run the scan; returns (exit code, output, cancelled). The process can be stopped with cancel_background()."""
+    global _proc, _cancel_requested
+    try:
+        with _lock:
+            _cancel_requested = False
+            _proc = subprocess.Popen(cmd, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                     text=True, errors="replace")
+            proc = _proc
+        try:
+            out, _ = proc.communicate(timeout=BACKGROUND_TIMEOUT)
+            rc = proc.returncode
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            proc.communicate()
+            rc, out = 124, f"timed out after {BACKGROUND_TIMEOUT}s"
+        with _lock:
+            cancelled = _cancel_requested
+        return rc, out or "", cancelled
+    except OSError as e:
+        return 127, str(e), False
+    finally:
+        with _lock:
+            _proc = None
+
+
+def background_running() -> bool:
+    with _lock:
+        return _proc is not None and _proc.poll() is None
+
+
+def cancel_background() -> bool:
+    """Stop the running background scan (SIGTERM to the clamdscan client; the daemon notices the closed connection).
+    Returns False when none is running. run_background() then returns the state 'cancelled'."""
+    global _cancel_requested
+    with _lock:
+        if _proc is None or _proc.poll() is not None:
+            return False
+        _cancel_requested = True
+        _proc.terminate()
+        return True
+
+
 def run_background(paths: list[str], low_priority: bool = True, trigger: str = "scheduled",
                    settings: Settings | None = None) -> tuple[str, str]:
     """Scan without a terminal and write the log to the history. Returns (state, message) with state
-    'clean', 'threats', 'error' or 'unavailable'. Blocking: call it from a worker thread. Never raises."""
+    'clean', 'threats', 'error', 'cancelled' or 'unavailable'. Blocking: call it from a worker thread. Never raises."""
     from .. import history
 
     if not available():
@@ -177,14 +226,10 @@ def run_background(paths: list[str], low_priority: bool = True, trigger: str = "
             except OSError:
                 pass
 
-    try:
-        p = subprocess.run(background_command(existing, low_priority, options), capture_output=True, text=True,
-                           errors="replace", timeout=BACKGROUND_TIMEOUT, stdin=subprocess.DEVNULL)
-        rc, out = p.returncode, (p.stdout or "") + (p.stderr or "")
-    except subprocess.TimeoutExpired:
-        rc, out = 124, f"timed out after {BACKGROUND_TIMEOUT}s"
-    except OSError as e:
-        rc, out = 127, str(e)
+    rc, out, cancelled = _execute(background_command(existing, low_priority, options))
+    if cancelled:
+        finish(out + "\nResult: cancelled, replaced by a newer scan.\n")
+        return "cancelled", "Scan cancelled: a newer scan was started"
     state, skipped = interpret(rc, out)
     if state == "clean":
         finish(out + f"\nResult: no threats found{_skipped_note(skipped)}.\n")

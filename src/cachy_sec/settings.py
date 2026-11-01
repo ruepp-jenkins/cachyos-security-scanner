@@ -69,7 +69,6 @@ class Settings:
     binary_with_aur_scans: bool = False  # run together with every package scan
     binary_periodic: bool = False
     binary_interval_minutes: int = WEEK_MINUTES
-    binary_min_gap_hours: int = 24  # start / package change / package scan triggers: not more often than this
     binary_low_priority: bool = True  # nice / ionice for the clamdscan client
     notify_when_clean: bool = False
     confirm_before_remove: bool = True
@@ -84,7 +83,6 @@ class Settings:
         self.startup_delay_minutes = max(0, min(int(self.startup_delay_minutes), 120))
         self.pkg_change_delay_seconds = max(5, min(int(self.pkg_change_delay_seconds), 3600))
         self.binary_interval_minutes = max(60, min(int(self.binary_interval_minutes), 52 * WEEK_MINUTES))
-        self.binary_min_gap_hours = max(0, min(int(self.binary_min_gap_hours), 24 * 90))
         severities = ("critical", "high", "medium", "low", "info")
         if self.aur_scan_fail_on not in severities:
             self.aur_scan_fail_on = "high"

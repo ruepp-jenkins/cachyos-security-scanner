@@ -161,20 +161,13 @@ class SettingsDialog(QDialog):
         self.b_with = self._cb("Scan binaries together with every AUR package scan", s.binary_with_aur_scans, cf)
         self.b_interval = IntervalEdit(s.binary_interval_minutes, 60, 52 * 7 * 24 * 60)
         self.b_periodic = self._cb_with("Scan binaries at regular intervals, every", s.binary_periodic, cf, self.b_interval)
-        self.b_gap = QSpinBox()
-        self.b_gap.setRange(0, 24 * 90)
-        self.b_gap.setSuffix(" h")
-        self.b_gap.setValue(s.binary_min_gap_hours)
-        self.b_gap.setToolTip("Applies to the start, package change and package scan triggers, so a binary scan does not run\n"
-                              "after every pacman update. The interval above is not limited by it. 0 = no limit.")
-        cf.addRow("    At most one scan per (except interval)", self.b_gap)
         self.b_low = self._cb("Run binary scans with low priority (nice / ionice)", s.binary_low_priority, cf)
         self.b_low.setToolTip("Lowers the priority of the clamdscan client. The scanning itself is done by the clamd daemon,\n"
                               "whose priority is set by its own service (systemctl edit clamav-daemon: Nice=, IOSchedulingClass=).")
         self.b_options = self._options_button("clamd")
         cf.addRow(self.b_options)
         if not clamd.available():  # keep the saved values, just make them unreachable
-            for w in (self.b_options, self.paths, self.b_start, self.b_pkg, self.b_with, self.b_periodic, self.b_interval, self.b_gap, self.b_low):
+            for w in (self.b_options, self.paths, self.b_start, self.b_pkg, self.b_with, self.b_periodic, self.b_interval, self.b_low):
                 w.setEnabled(False)
         else:
             self.b_interval.setEnabled(s.binary_periodic)
@@ -326,7 +319,6 @@ class SettingsDialog(QDialog):
         s.binary_with_aur_scans = self.b_with.isChecked()
         s.binary_periodic = self.b_periodic.isChecked()
         s.binary_interval_minutes = self.b_interval.minutes()
-        s.binary_min_gap_hours = self.b_gap.value()
         s.binary_low_priority = self.b_low.isChecked()
         s.update_sources_before_scan = self.update_src.isChecked()
         s.skip_in_gaming_mode = self.gaming.isChecked()

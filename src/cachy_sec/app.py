@@ -96,6 +96,7 @@ class Tray(QObject):
         self.settings = Settings.load()
         self.busy = False
         self.binary_busy = False
+        self._binary_next: tuple[str, bool] | None = None  # trigger that arrived while a binary scan ran
         self._last_binary_error = ""
         self.rescan_pending = False
         self._unsaved = False  # True while the last settings save failed
@@ -208,15 +209,20 @@ class Tray(QObject):
             self.auto_binary_scan("interval", periodic=True)
 
     def auto_binary_scan(self, trigger: str, periodic: bool = False, manual: bool = False) -> None:
-        """Scheduled binary scan in the background; the log goes to the history. Respects gaming/battery skips and,
-        for event-driven triggers, the minimum gap between binary scans. `manual`: the user asked for the package scan
-        that triggers this one, so neither the skip rules nor the gap apply."""
+        """Scheduled binary scan in the background; the log goes to the history. Respects the gaming/battery skips
+        (not when `manual`: the user asked for the package scan that triggers this one). There is no limit on how often
+        it runs: a package installed right after a scan must be scanned, too. If a scan is still running, an event
+        trigger (package change, start, with a package scan) cancels it and starts a fresh one; the interval trigger
+        just waits for it."""
         s = self.settings
-        if self.binary_busy or not clamd.available():
+        if not clamd.available():
             return
         if engine.skip_reason(s, manual=manual):
             return
-        if not periodic and not manual and not scheduler.binary_gap_ok(s, clamd.seconds_since_last_scan()):
+        if self.binary_busy:
+            if not periodic:
+                self._binary_next = (trigger, manual)
+                clamd.cancel_background()  # if it cannot be cancelled (just ending), the new one starts when it ends
             return
         self.binary_busy = True
         paths, low = list(s.binary_scan_paths), s.binary_low_priority
@@ -225,6 +231,17 @@ class Tray(QObject):
 
     def _binary_finished(self, state: str, msg: str) -> None:
         self.binary_busy = False
+        nxt, self._binary_next = self._binary_next, None
+        if nxt:  # a newer trigger arrived while this scan ran: its result is outdated, scan again
+            if state != "cancelled":  # it was finishing anyway; still report what it found
+                self._report_binary(state, msg)
+            self.auto_binary_scan(nxt[0], manual=nxt[1])
+            return
+        self._report_binary(state, msg)
+
+    def _report_binary(self, state: str, msg: str) -> None:
+        if state == "cancelled":
+            return
         if state in ("clean", "threats"):
             self._last_binary_error = ""
         if state == "threats":

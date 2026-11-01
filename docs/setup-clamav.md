@@ -83,11 +83,13 @@ file doing its job.
   | Trigger | Good for |
   |---|---|
   | at regular intervals (for example weekly) | the usual "scan everything now and then" |
-  | at start | a scan after each login (combine with the minimum gap) |
+  | at start | a scan after each login |
   | after package installs/updates | catching what a system update brought in |
-  | together with every AUR package scan | maximum coverage, use the minimum gap |
+  | together with every AUR package scan | maximum coverage; expect a full scan after every package scan |
 
-  A *minimum gap* (24 h by default) keeps the event-driven triggers from running a full scan after every `pacman -Syu`.
+  There is **no minimum time between scans**: a package installed right after a scan must be scanned, too. If a new
+  trigger arrives while a scan is still running, the running scan is **cancelled** and a fresh one starts (the history
+  shows the cancelled one as *skipped*). The interval trigger never cancels a running scan; it waits.
   Automatic scans run **in the background without a window**; the result is in the history, threats raise a notification.
   Details: [Settings](settings.md#binary-scan-with-clamav).
 

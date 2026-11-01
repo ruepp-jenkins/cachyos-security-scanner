@@ -207,15 +207,16 @@ class Tray(QObject):
         if scheduler.binary_due(self.settings, clamd.seconds_since_last_success(), clamd.seconds_since_last_scan()):
             self.auto_binary_scan("interval", periodic=True)
 
-    def auto_binary_scan(self, trigger: str, periodic: bool = False) -> None:
+    def auto_binary_scan(self, trigger: str, periodic: bool = False, manual: bool = False) -> None:
         """Scheduled binary scan in the background; the log goes to the history. Respects gaming/battery skips and,
-        for event-driven triggers, the minimum gap between binary scans."""
+        for event-driven triggers, the minimum gap between binary scans. `manual`: the user asked for the package scan
+        that triggers this one, so neither the skip rules nor the gap apply."""
         s = self.settings
         if self.binary_busy or not clamd.available():
             return
-        if engine.skip_reason(s, manual=False):
+        if engine.skip_reason(s, manual=manual):
             return
-        if not periodic and not scheduler.binary_gap_ok(s, clamd.seconds_since_last_scan()):
+        if not periodic and not manual and not scheduler.binary_gap_ok(s, clamd.seconds_since_last_scan()):
             return
         self.binary_busy = True
         paths, low = list(s.binary_scan_paths), s.binary_low_priority
@@ -382,7 +383,7 @@ class Tray(QObject):
         self.last_report = report
         if not report.skipped:
             if self.settings.binary_with_aur_scans:
-                self.auto_binary_scan("with package scan")
+                self.auto_binary_scan("with package scan", manual=manual)
         if self.rescan_pending:
             self.rescan_pending = False
             if scheduler.anything_after_pkg_change(self.settings):  # same wait as any package-change scan

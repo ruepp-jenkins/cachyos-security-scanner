@@ -133,7 +133,7 @@ def _binary_status(text: str) -> tuple[str, str]:
         return CRITICAL, "Threats found – see log"
     if "Result: scan failed" in text:
         return ERROR, "Scan failed – see log"
-    return UNKNOWN, "No result recorded (window closed early?)"
+    return UNKNOWN, "No result yet (still running, or the window was closed early)"
 
 
 def _stamp_to_display(name: str) -> str:

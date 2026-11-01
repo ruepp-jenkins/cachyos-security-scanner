@@ -234,6 +234,21 @@ def discard_overlay() -> None:
     shutil.rmtree(updates_dir(), ignore_errors=True)
 
 
+_ERRORS = (UpdateError, ValueError, KeyError, OSError, tarfile.TarError, subprocess.SubprocessError)
+
+
+def check_available() -> tuple[str, str]:
+    """Look for a newer release without installing it. Returns ('available', version), ('current', msg) or
+    ('error', msg). Never raises."""
+    try:
+        rel = latest_release()
+        if rel is None or not is_newer(rel.version):
+            return "current", f"Up to date ({effective_version()})"
+        return "available", rel.version
+    except _ERRORS as e:
+        return "error", str(e)
+
+
 def check_and_install() -> tuple[str, str]:
     """Returns (state, message); state is 'current', 'installed' or 'error'. Never raises."""
     try:
@@ -242,5 +257,5 @@ def check_and_install() -> tuple[str, str]:
             return "current", f"Up to date ({effective_version()})"
         install(rel)
         return "installed", rel.version
-    except (UpdateError, ValueError, KeyError, OSError, tarfile.TarError, subprocess.SubprocessError) as e:
+    except _ERRORS as e:
         return "error", str(e)

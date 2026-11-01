@@ -117,7 +117,7 @@ class GuiTest(unittest.TestCase):
             QCoreApplication.processEvents()
 
     def test_unticking_a_scanner_is_saved_applied_and_survives_a_restart(self):
-        st.Settings(mode="manual", scan_on_start=False, use_aur_scan=True).save()
+        st.Settings(scan_periodic=False, scan_on_start=False, scan_after_pkg_changes=False, use_aur_scan=True).save()
         tray = self._tray()
         tray.open_settings()
         dlg = tray.settings_dlg
@@ -137,7 +137,7 @@ class GuiTest(unittest.TestCase):
         tray2.settings_dlg.reject()
 
     def test_settings_window_opens_once_and_cancel_saves_nothing(self):
-        st.Settings(mode="manual", scan_on_start=False, use_aur_scan=True).save()
+        st.Settings(scan_periodic=False, scan_on_start=False, scan_after_pkg_changes=False, use_aur_scan=True).save()
         tray = self._tray()
         tray.open_settings()
         first = tray.settings_dlg
@@ -296,6 +296,30 @@ class GuiTest(unittest.TestCase):
         self.assertEqual(d.table.rowCount(), 1)
         self.assertEqual(d.table.item(0, 0).toolTip(), "critical")
 
+
+    def test_interval_edit_round_trips_and_picks_the_largest_exact_unit(self):
+        from cachy_sec.settings_dialog import IntervalEdit
+        for minutes, shown in ((360, (6, "hours")), (7 * 24 * 60, (1, "weeks")), (90, (90, "minutes")), (2 * 1440, (2, "days"))):
+            w = IntervalEdit(minutes, 15, 52 * 7 * 24 * 60)
+            self.assertEqual((w.amount.value(), w.unit.currentText()), shown)
+            self.assertEqual(w.minutes(), minutes)
+            w.deleteLater()
+
+    def test_settings_dialog_saves_the_schedule_options(self):
+        d = self._track(SettingsDialog(st.Settings()))
+        d.periodic.setChecked(True)
+        d.interval.amount.setValue(2)
+        d.interval.unit.setCurrentIndex(d.interval.unit.findText("days"))
+        d.b_with.setChecked(True)
+        d.b_periodic.setChecked(True)
+        d.b_interval.amount.setValue(3)
+        d.b_interval.unit.setCurrentIndex(d.b_interval.unit.findText("days"))
+        d.start_delay.setValue(5)
+        d.b_low.setChecked(False)
+        r = d.result_settings()
+        self.assertEqual((r.interval_minutes, r.binary_interval_minutes), (2880, 4320))
+        self.assertTrue(r.binary_with_aur_scans and r.binary_periodic and not r.binary_low_priority)
+        self.assertEqual(r.startup_delay_minutes, 5)
 
 if __name__ == "__main__":
     unittest.main()

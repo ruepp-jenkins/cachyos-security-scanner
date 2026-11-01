@@ -8,7 +8,7 @@ from pathlib import Path
 
 DEFAULT_IGNORED = ["SCAN-001"]  # aur-scan: "package file could not be analyzed" is an analysis note, not a finding
 
-MODES = ("startup", "interval", "manual")
+WEEK_MINUTES = 7 * 24 * 60
 
 DEFAULT_BINARY_PATHS = [
     "/usr/bin",
@@ -26,11 +26,15 @@ def config_path() -> Path:
 
 @dataclass
 class Settings:
-    schema: int = 3  # bump when a default changes meaning; see load()
-    mode: str = "interval"  # startup | interval | manual
-    interval_minutes: int = 360
+    schema: int = 4  # bump when a default changes meaning; see load()
+    # --- when the AUR package scans run (manual scans are always possible) ---
     scan_on_start: bool = True
+    startup_delay_minutes: int = 1  # wait this long after the app started (lets the desktop finish starting)
     scan_after_pkg_changes: bool = True
+    pkg_change_delay_seconds: int = 30  # merges multi-step upgrades into one scan
+    pkg_scan_min_gap_minutes: int = 10  # at most one package-change scan per this many minutes
+    scan_periodic: bool = True
+    interval_minutes: int = 360
     update_sources_before_scan: bool = True
     skip_in_gaming_mode: bool = True
     skip_on_battery: bool = False
@@ -46,6 +50,14 @@ class Settings:
     ignored_findings: list[str] = field(default_factory=lambda: list(DEFAULT_IGNORED))
     # Binary scan with clamdscan runs only on request from the tray menu.
     binary_scan_paths: list[str] = field(default_factory=lambda: list(DEFAULT_BINARY_PATHS))
+    # Optional automatic binary scans (background, no terminal window; result in the history). All off by default.
+    binary_on_start: bool = False
+    binary_after_pkg_changes: bool = False
+    binary_with_aur_scans: bool = False  # run together with every package scan
+    binary_periodic: bool = False
+    binary_interval_minutes: int = WEEK_MINUTES
+    binary_min_gap_hours: int = 24  # start / package change / package scan triggers: not more often than this
+    binary_low_priority: bool = True  # nice / ionice for the clamdscan client
     notify_when_clean: bool = False
     confirm_before_remove: bool = True
     history_keep: int = 200  # number of scan records to keep
@@ -54,10 +66,13 @@ class Settings:
     auto_update: bool = True  # app updates from GitHub Releases only
 
     def validate(self) -> None:
-        if self.mode not in MODES:
-            self.mode = "interval"
         self.history_keep = max(10, min(int(self.history_keep), 5000))
-        self.interval_minutes = max(15, min(int(self.interval_minutes), 7 * 24 * 60))
+        self.interval_minutes = max(15, min(int(self.interval_minutes), 52 * WEEK_MINUTES))
+        self.startup_delay_minutes = max(0, min(int(self.startup_delay_minutes), 120))
+        self.pkg_change_delay_seconds = max(5, min(int(self.pkg_change_delay_seconds), 3600))
+        self.pkg_scan_min_gap_minutes = max(0, min(int(self.pkg_scan_min_gap_minutes), 24 * 60))
+        self.binary_interval_minutes = max(60, min(int(self.binary_interval_minutes), 52 * WEEK_MINUTES))
+        self.binary_min_gap_hours = max(0, min(int(self.binary_min_gap_hours), 24 * 90))
 
     @classmethod
     def load(cls, path: Path | None = None) -> "Settings":
@@ -71,10 +86,15 @@ class Settings:
             for f in fields(cls):
                 if f.name in data and isinstance(data[f.name], type(getattr(s, f.name))):
                     setattr(s, f.name, data[f.name])
-        old = data.get("schema", 1) if isinstance(data, dict) else 3
+        old = data.get("schema", 1) if isinstance(data, dict) else 4
         if old < 3:
             s.use_aur_scan = False  # became opt-in: heuristic scanner with false positives
-        s.schema = 3
+        if old < 4 and isinstance(data, dict):  # the "mode" setting became independent switches
+            mode = data.get("mode", "interval")
+            s.scan_periodic = mode == "interval"
+            if mode == "manual":
+                s.scan_on_start = s.scan_after_pkg_changes = False
+        s.schema = 4
         s.validate()
         return s
 

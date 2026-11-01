@@ -5,13 +5,42 @@ from .settings import Settings
 
 
 def interval_ms(s: Settings) -> int | None:
-    """Timer period for periodic scans, or None when no periodic scan is wanted."""
-    return s.interval_minutes * 60_000 if s.mode == "interval" else None
+    """Timer period for periodic package scans, or None when none is wanted."""
+    return s.interval_minutes * 60_000 if s.scan_periodic else None
 
 
 def scan_at_startup(s: Settings) -> bool:
-    return s.mode != "manual" and s.scan_on_start
+    return s.scan_on_start
+
+
+def binary_at_startup(s: Settings) -> bool:
+    return s.binary_on_start
 
 
 def scan_after_pkg_change(s: Settings) -> bool:
-    return s.mode != "manual" and s.scan_after_pkg_changes
+    return s.scan_after_pkg_changes
+
+
+def anything_after_pkg_change(s: Settings) -> bool:
+    return s.scan_after_pkg_changes or s.binary_after_pkg_changes
+
+
+def pkg_delay_ms(s: Settings, since_last_scan_s: float | None) -> int:
+    """Debounce before a package-change scan: the configured delay, stretched to honour the minimum gap."""
+    delay = s.pkg_change_delay_seconds * 1000
+    if since_last_scan_s is None:
+        return delay
+    wait = s.pkg_scan_min_gap_minutes * 60 - since_last_scan_s
+    return max(delay, int(wait * 1000))
+
+
+def binary_due(s: Settings, since_last_binary_s: float | None) -> bool:
+    """Periodic binary scan: due when never run or the interval has passed (survives restarts)."""
+    if not s.binary_periodic:
+        return False
+    return since_last_binary_s is None or since_last_binary_s >= s.binary_interval_minutes * 60
+
+
+def binary_gap_ok(s: Settings, since_last_binary_s: float | None) -> bool:
+    """Event-driven binary scans (start, package change, with a package scan) respect the minimum gap."""
+    return since_last_binary_s is None or since_last_binary_s >= s.binary_min_gap_hours * 3600

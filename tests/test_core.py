@@ -46,11 +46,41 @@ class SettingsTest(unittest.TestCase):
 
 
 class SchedulerTest(unittest.TestCase):
-    def test_modes(self):
-        self.assertIsNone(scheduler.interval_ms(Settings(mode="startup")))
-        self.assertEqual(scheduler.interval_ms(Settings(mode="interval", interval_minutes=30)), 1_800_000)
-        self.assertFalse(scheduler.scan_at_startup(Settings(mode="manual")))
-        self.assertTrue(scheduler.scan_at_startup(Settings(mode="startup")))
+    def test_triggers_are_independent(self):
+        self.assertIsNone(scheduler.interval_ms(Settings(scan_periodic=False)))
+        self.assertEqual(scheduler.interval_ms(Settings(scan_periodic=True, interval_minutes=30)), 1_800_000)
+        self.assertFalse(scheduler.scan_at_startup(Settings(scan_on_start=False)))
+        self.assertFalse(scheduler.binary_at_startup(Settings()))  # binary scans are opt-in
+        self.assertTrue(scheduler.anything_after_pkg_change(Settings(scan_after_pkg_changes=False, binary_after_pkg_changes=True)))
+        self.assertFalse(scheduler.anything_after_pkg_change(Settings(scan_after_pkg_changes=False)))
+
+    def test_package_delay_honours_the_minimum_gap(self):
+        s = Settings(pkg_change_delay_seconds=30, pkg_scan_min_gap_minutes=10)
+        self.assertEqual(scheduler.pkg_delay_ms(s, None), 30_000)
+        self.assertEqual(scheduler.pkg_delay_ms(s, 100), (600 - 100) * 1000)  # last scan 100 s ago: wait the rest
+        self.assertEqual(scheduler.pkg_delay_ms(s, 5000), 30_000)
+
+    def test_binary_schedule_decisions(self):
+        s = Settings(binary_periodic=True, binary_interval_minutes=7 * 1440, binary_min_gap_hours=24)
+        self.assertTrue(scheduler.binary_due(s, None))
+        self.assertFalse(scheduler.binary_due(s, 3 * 86400))
+        self.assertTrue(scheduler.binary_due(s, 8 * 86400))
+        self.assertFalse(scheduler.binary_due(Settings(binary_periodic=False), None))
+        self.assertTrue(scheduler.binary_gap_ok(s, None))
+        self.assertFalse(scheduler.binary_gap_ok(s, 3600))
+        self.assertTrue(scheduler.binary_gap_ok(s, 25 * 3600))
+
+    def test_old_mode_setting_is_migrated(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "s.json"
+            p.write_text(json.dumps({"schema": 3, "mode": "manual"}))
+            s = Settings.load(p)
+            self.assertFalse(s.scan_periodic or s.scan_on_start or s.scan_after_pkg_changes)
+            p.write_text(json.dumps({"schema": 3, "mode": "startup"}))
+            s = Settings.load(p)
+            self.assertTrue(s.scan_on_start and s.scan_after_pkg_changes and not s.scan_periodic)
+            p.write_text(json.dumps({"schema": 3, "mode": "interval"}))
+            self.assertTrue(Settings.load(p).scan_periodic)
 
     def test_gaming_skip_only_for_automatic(self):
         with mock.patch("cachy_sec.gaming.gaming_active", return_value=True):
@@ -1051,6 +1081,61 @@ class ReportIconStatusTests(unittest.TestCase):
         self.assertEqual(R([ScanResult("a", CLEAN), ScanResult("b", ERROR)]).icon_status, "error")
         self.assertEqual(R([]).icon_status, "error")
         self.assertIsNone(R([], skipped="gaming").icon_status)
+
+
+class BinaryBackgroundTests(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.env = mock.patch.dict(os.environ, {"XDG_DATA_HOME": self.tmp.name})
+        self.env.start()
+
+    def tearDown(self):
+        self.env.stop()
+        self.tmp.cleanup()
+
+    def _run(self, rc, out="found: x\n"):
+        from cachy_sec.scanners import clamd
+        cp = mock.Mock(returncode=rc, stdout=out, stderr="")
+        with mock.patch("cachy_sec.scanners.clamd.available", return_value=True), \
+                mock.patch("subprocess.run", return_value=cp) as run:
+            return clamd.run_background([self.tmp.name], True), run
+
+    def test_results_map_to_states_and_history_status(self):
+        from cachy_sec import history
+        for rc, state, status in ((0, "clean", "clean"), (1, "threats", "critical"), (2, "error", "error")):
+            (got, _), _run = self._run(rc)
+            self.assertEqual(got, state)
+            self.assertEqual(history.list_entries()[0].status, status)
+            for p in history.history_dir().iterdir():
+                p.unlink()
+
+    def test_low_priority_prefix_and_last_scan_marker(self):
+        from cachy_sec.scanners import clamd
+        self.assertIsNone(clamd.seconds_since_last_scan())
+        _, run = self._run(0)
+        cmd = run.call_args.args[0]
+        self.assertIn("clamdscan", cmd)
+        self.assertIsNotNone(clamd.seconds_since_last_scan())
+        self.assertLess(clamd.seconds_since_last_scan(), 5)
+
+    def test_without_existing_paths_nothing_runs(self):
+        from cachy_sec.scanners import clamd
+        with mock.patch("cachy_sec.scanners.clamd.available", return_value=True), mock.patch("subprocess.run") as run:
+            self.assertEqual(clamd.run_background(["/nonexistent/x"], True)[0], "unavailable")
+            run.assert_not_called()
+
+
+class UpdateCheckOnlyTests(unittest.TestCase):
+    def test_check_available_does_not_install(self):
+        from cachy_sec import updater
+        rel = updater.Release("99.0.0", {})
+        with mock.patch.object(updater, "latest_release", return_value=rel), mock.patch.object(updater, "install") as inst:
+            self.assertEqual(updater.check_available(), ("available", "99.0.0"))
+            inst.assert_not_called()
+        with mock.patch.object(updater, "latest_release", return_value=None):
+            self.assertEqual(updater.check_available()[0], "current")
+        with mock.patch.object(updater, "latest_release", side_effect=updater.UpdateError("offline")):
+            self.assertEqual(updater.check_available(), ("error", "offline"))
 
 
 if __name__ == "__main__":

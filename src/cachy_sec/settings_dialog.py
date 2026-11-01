@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import copy
+import time
 
 from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QDesktopServices, QGuiApplication, QIcon
@@ -20,6 +21,37 @@ from .settings import Settings, config_path
 HELP_URL = f"https://github.com/{updater.GITHUB_REPO}/blob/master/docs/settings.md"
 
 
+UNITS = (("minutes", 1), ("hours", 60), ("days", 24 * 60), ("weeks", 7 * 24 * 60))
+
+
+class IntervalEdit(QWidget):
+    """A number plus a unit (minutes / hours / days / weeks); the value is exposed in minutes."""
+
+    def __init__(self, minutes: int, min_minutes: int, max_minutes: int) -> None:
+        super().__init__()
+        self.min_minutes, self.max_minutes = min_minutes, max_minutes
+        self.amount = QSpinBox()
+        self.amount.setRange(1, 100_000)
+        self.unit = QComboBox()
+        for name, mult in UNITS:
+            self.unit.addItem(name, mult)
+        lay = QHBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.addWidget(self.amount)
+        lay.addWidget(self.unit)
+        lay.addStretch()
+        self.set_minutes(minutes)
+
+    def set_minutes(self, minutes: int) -> None:
+        minutes = max(self.min_minutes, minutes)
+        idx = max((i for i, (_, m) in enumerate(UNITS) if minutes % m == 0), default=0)  # largest unit that fits exactly
+        self.unit.setCurrentIndex(idx)
+        self.amount.setValue(minutes // UNITS[idx][1])
+
+    def minutes(self) -> int:
+        return max(self.min_minutes, min(self.max_minutes, self.amount.value() * self.unit.currentData()))
+
+
 class SettingsDialog(QDialog):
     def __init__(self, s: Settings) -> None:
         super().__init__()
@@ -36,21 +68,33 @@ class SettingsDialog(QDialog):
         outer.addWidget(self.scroll_area, 1)
         root = QVBoxLayout(content)
 
-        when = QGroupBox("When to scan")
+        when = QGroupBox("When to scan AUR packages (manual scans always work)")
         f = QFormLayout(when)
-        self.mode = QComboBox()
-        self.mode.addItem("Only right after start", "startup")
-        self.mode.addItem("At regular intervals", "interval")
-        self.mode.addItem("Manual only", "manual")
-        self.mode.setCurrentIndex(self.mode.findData(s.mode))
-        self.interval = QSpinBox()
-        self.interval.setRange(15, 7 * 24 * 60)
-        self.interval.setSuffix(" min")
-        self.interval.setValue(s.interval_minutes)
-        f.addRow("Mode", self.mode)
-        f.addRow("Interval", self.interval)
         self.on_start = self._cb("Scan at start", s.scan_on_start, f)
+        self.start_delay = QSpinBox()
+        self.start_delay.setRange(0, 120)
+        self.start_delay.setSuffix(" min")
+        self.start_delay.setValue(s.startup_delay_minutes)
+        self.start_delay.setToolTip("Wait this long after the app started, so the desktop can finish starting first.")
+        f.addRow("    Delay after start", self.start_delay)
         self.after_pkg = self._cb("Scan after package installs/updates (needs pacman hook)", s.scan_after_pkg_changes, f)
+        self.pkg_delay = QSpinBox()
+        self.pkg_delay.setRange(5, 3600)
+        self.pkg_delay.setSuffix(" s")
+        self.pkg_delay.setValue(s.pkg_change_delay_seconds)
+        self.pkg_delay.setToolTip("Wait this long after the last package change, so a multi-step upgrade gives one scan.")
+        f.addRow("    Wait after the last change", self.pkg_delay)
+        self.pkg_gap = QSpinBox()
+        self.pkg_gap.setRange(0, 24 * 60)
+        self.pkg_gap.setSuffix(" min")
+        self.pkg_gap.setValue(s.pkg_scan_min_gap_minutes)
+        self.pkg_gap.setToolTip("At most one package-change scan per this time, however often you install packages. 0 = no limit.")
+        f.addRow("    At most one scan per", self.pkg_gap)
+        self.periodic = self._cb("Scan at regular intervals", s.scan_periodic, f)
+        self.interval = IntervalEdit(s.interval_minutes, 15, 52 * 7 * 24 * 60)
+        f.addRow("    Every", self.interval)
+        self.periodic.toggled.connect(self.interval.setEnabled)
+        self.interval.setEnabled(s.scan_periodic)
         self.update_src = self._cb("Update scanner sources before each scan", s.update_sources_before_scan, f)
         self.gaming = self._cb("Skip automatic scans in gaming mode (gamemode, gamescope, Steam)", s.skip_in_gaming_mode, f)
         self.battery = self._cb("Skip automatic scans on battery", s.skip_on_battery, f)
@@ -106,22 +150,45 @@ class SettingsDialog(QDialog):
         bl.addWidget(QLabel("Scanner repositories are cloned and updated automatically before scans."))
         root.addWidget(back)
 
-        clam = QGroupBox("Binary scan with ClamAV (clamdscan, on request from the tray menu)")
+        clam = QGroupBox("Binary scan with ClamAV (clamdscan)")
         cl = QVBoxLayout(clam)
         if not clamd.available():
-            cl.addWidget(QLabel("clamdscan not found (package clamav) – the tray entry stays disabled."))
+            cl.addWidget(QLabel("clamdscan not found (package clamav) – binary scans are disabled."))
         cl.addWidget(QLabel("Paths to scan, one per line:"))
         self.paths = QPlainTextEdit("\n".join(s.binary_scan_paths))
+        self.paths.setMaximumHeight(110)
         cl.addWidget(self.paths)
-        row = QHBoxLayout()
-        en = QPushButton("Set up regular clamd scan (weekly)")
-        dis = QPushButton("Remove regular scan")
-        en.clicked.connect(self._sched_on)
-        dis.clicked.connect(self._sched_off)
-        en.setEnabled(clamd.available())
-        row.addWidget(en)
-        row.addWidget(dis)
-        cl.addLayout(row)
+        cl.addWidget(QLabel("The tray menu starts a scan on request in a terminal window. Optionally it also runs by itself,\n"
+                            "in the background (the result goes to the scan history):"))
+        cf = QFormLayout()
+        cl.addLayout(cf)
+        self.b_start = self._cb("Scan binaries at start", s.binary_on_start, cf)
+        self.b_pkg = self._cb("Scan binaries after package installs/updates", s.binary_after_pkg_changes, cf)
+        self.b_with = self._cb("Scan binaries together with every AUR package scan", s.binary_with_aur_scans, cf)
+        self.b_periodic = self._cb("Scan binaries at regular intervals", s.binary_periodic, cf)
+        self.b_interval = IntervalEdit(s.binary_interval_minutes, 60, 52 * 7 * 24 * 60)
+        cf.addRow("    Every", self.b_interval)
+        self.b_periodic.toggled.connect(self.b_interval.setEnabled)
+        self.b_interval.setEnabled(s.binary_periodic)
+        self.b_gap = QSpinBox()
+        self.b_gap.setRange(0, 24 * 90)
+        self.b_gap.setSuffix(" h")
+        self.b_gap.setValue(s.binary_min_gap_hours)
+        self.b_gap.setToolTip("Applies to the start, package change and package scan triggers, so a binary scan does not run\n"
+                              "after every pacman update. The interval above is not limited by it. 0 = no limit.")
+        cf.addRow("    At most one scan per (except interval)", self.b_gap)
+        self.b_low = self._cb("Run binary scans with low priority (nice / ionice)", s.binary_low_priority, cf)
+        self.b_low.setToolTip("Lowers the priority of the clamdscan client. The scanning itself is done by the clamd daemon,\n"
+                              "whose priority is set by its own service (systemctl edit clamav-daemon: Nice=, IOSchedulingClass=).")
+        last = clamd.last_scan_time()
+        when_txt = time.strftime("%Y-%m-%d %H:%M", time.localtime(last)) if last else "never"
+        self.b_last = QLabel(f"Last binary scan started: {when_txt}. Automatic binary scans skip gaming mode / battery like the others.")
+        self.b_last.setEnabled(False)
+        cl.addWidget(self.b_last)
+        if clamd_schedule.is_enabled():  # leftover of an earlier version: a systemd timer outside this app
+            old = QPushButton("Remove the old systemd timer (cachy-sec-clamd)")
+            old.clicked.connect(self._sched_off)
+            cl.addWidget(old)
         root.addWidget(clam)
 
         ed = QHBoxLayout()
@@ -135,7 +202,8 @@ class SettingsDialog(QDialog):
         self.autostart.setChecked(s.autostart)
         root.addWidget(self.autostart)
 
-        self.auto_update = QCheckBox("Check GitHub Releases for app updates and install them (signed releases only)")
+        self.auto_update = QCheckBox("Check for app updates automatically and install them (signed GitHub releases only)")
+        self.auto_update.setToolTip("Off: no automatic check. The tray entry \"Check for app updates\" still works and asks before it installs.")
         self.auto_update.setChecked(s.auto_update)
         root.addWidget(self.auto_update)
 
@@ -209,20 +277,26 @@ class SettingsDialog(QDialog):
     def _paths(self) -> list[str]:
         return [p.strip() for p in self.paths.toPlainText().splitlines() if p.strip()]
 
-    def _sched_on(self) -> None:
-        ok, out = clamd_schedule.enable(self._paths())
-        QMessageBox.information(self, "Regular clamd scan", "Enabled (systemd user timer)." if ok else out)
-
     def _sched_off(self) -> None:
         ok, out = clamd_schedule.disable()
         QMessageBox.information(self, "Regular clamd scan", "Removed." if ok else out)
 
     def result_settings(self) -> Settings:
         s = self.s
-        s.mode = self.mode.currentData()
-        s.interval_minutes = self.interval.value()
         s.scan_on_start = self.on_start.isChecked()
+        s.startup_delay_minutes = self.start_delay.value()
         s.scan_after_pkg_changes = self.after_pkg.isChecked()
+        s.pkg_change_delay_seconds = self.pkg_delay.value()
+        s.pkg_scan_min_gap_minutes = self.pkg_gap.value()
+        s.scan_periodic = self.periodic.isChecked()
+        s.interval_minutes = self.interval.minutes()
+        s.binary_on_start = self.b_start.isChecked()
+        s.binary_after_pkg_changes = self.b_pkg.isChecked()
+        s.binary_with_aur_scans = self.b_with.isChecked()
+        s.binary_periodic = self.b_periodic.isChecked()
+        s.binary_interval_minutes = self.b_interval.minutes()
+        s.binary_min_gap_hours = self.b_gap.value()
+        s.binary_low_priority = self.b_low.isChecked()
         s.update_sources_before_scan = self.update_src.isChecked()
         s.skip_in_gaming_mode = self.gaming.isChecked()
         s.skip_on_battery = self.battery.isChecked()

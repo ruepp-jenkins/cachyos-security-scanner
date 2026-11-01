@@ -20,19 +20,23 @@ You can edit it by hand while the app is closed; unknown or wrongly typed values
 
 ## When to scan
 
-Only *package scans* (the AUR scanners below) run automatically. The ClamAV binary scan never does; it runs only when you
-start it from the tray menu.
+The *AUR package scans* (the scanners below) run on the triggers you switch on here. They are independent of each other:
+switch on any combination, or none for manual scans only. Manual scans (*Check for compromised packages now*) always work
+and are never skipped. The ClamAV binary scan has its own triggers, see [below](#binary-scan-with-clamav).
 
 | Setting (key) | Default | What it does |
 |---|---|---|
-| **Mode** (`mode`) | At regular intervals | **Only right after start** (`startup`): no timer, scans happen at start (if enabled) and after package changes (if enabled). **At regular intervals** (`interval`): additionally a scan every *Interval*. **Manual only** (`manual`): no automatic scan at all – this also switches off *Scan at start* and *Scan after package installs/updates*. |
-| **Interval** (`interval_minutes`) | 360 min (6 h) | Time between scans in *interval* mode. Allowed: 15 minutes to 7 days. Ignored in the other modes. |
-| **Scan at start** (`scan_on_start`) | on | One scan shortly after the app starts. The app first downloads the [community lists](#community-lists), so the scan already uses current data. Has no effect in *Manual only* mode. |
-| **Scan after package installs/updates** (`scan_after_pkg_changes`) | on | A scan about 30 seconds after `pacman` installed, upgraded or removed packages (the delay merges multi-step upgrades into one scan). Needs the pacman hook that the package installs (`/usr/share/libalpm/hooks/cachy-security-scanner.hook`); it does not exist if you run the app from source. A package change that happens during a running scan triggers one more scan afterwards. Has no effect in *Manual only* mode. |
+| **Scan at start** (`scan_on_start`) | on | One scan after the app starts. The app first downloads the [community lists](#community-lists), so the scan already uses current data. |
+| **Delay after start** (`startup_delay_minutes`) | 1 min | How long to wait after the start (0 to 120 minutes) before the start scans begin. Gives the desktop time to finish starting after login, because scans, `git` updates and builds produce load. |
+| **Scan after package installs/updates** (`scan_after_pkg_changes`) | on | A scan after `pacman` installed, upgraded or removed packages. Needs the pacman hook that the package installs (`/usr/share/libalpm/hooks/cachy-security-scanner.hook`); it does not exist if you run the app from source. A package change that happens during a running scan triggers one more scan afterwards. |
+| **Wait after the last change** (`pkg_change_delay_seconds`) | 30 s | Each package change restarts this wait (5 to 3600 seconds), so a multi-step upgrade results in one scan. |
+| **At most one scan per** (`pkg_scan_min_gap_minutes`) | 10 min | Upper limit for package-change scans: if the last scan finished less than this ago, the next one waits for the rest (0 to 1440 minutes, 0 = no limit). Protects you from scan after scan during a long update session. |
+| **Scan at regular intervals** (`scan_periodic`) | on | A scan every *Every* period, counted from the start of the app. |
+| **Every** (`interval_minutes`) | 6 hours | The period, entered as a number plus unit (minutes, hours, days or weeks). Allowed: 15 minutes to 52 weeks. |
 | **Update scanner sources before each scan** (`update_sources_before_scan`) | on | Before a scan the app updates the scanner programs it manages itself: it runs `git pull` on `aur-malware-check` and, if `aur-scan` is not installed from the AUR, on `ks-aur-scanner` (rebuilding it when the source changed). A broken checkout is deleted and cloned again. This does **not** control the community lists (they have their own schedule) nor the app's own updates. |
 | **Skip automatic scans in gaming mode** (`skip_in_gaming_mode`) | on | Automatic scans are skipped while one of these processes runs: `gamemoded` ([GameMode](https://github.com/FeralInteractive/gamemode)), `gamescope` / `gamescope-wl` / `gamescopereaper` ([gamescope](https://github.com/ValveSoftware/gamescope)), `reaper` / `SteamLaunch` ([Steam](https://store.steampowered.com/)) or `lutris-wrapper` ([Lutris](https://lutris.net/)). The skipped scan is recorded in the history as *skipped*. **Manual scans are never skipped.** |
 | **Skip automatic scans on battery** (`skip_on_battery`) | off | Skips automatic scans while no AC adapter is connected (laptops). Manual scans still run. |
-| **Run scans with low priority** (`low_priority_scans`) | on | Runs the scanners, their `git` updates and the `aur-scan` build with `nice -n 19` (lowest CPU priority) and `ionice -c 2 -n 7` (lowest best-effort I/O priority), so a scan does not slow down your work or a game. Scans may take somewhat longer on a busy machine. If `nice` or `ionice` (util-linux / coreutils) is missing the commands simply run normally. Does not apply to the ClamAV binary scan: `clamdscan` only asks the `clamd` daemon, which runs with the priority of its own service (set `Nice=` / `IOSchedulingClass=` with `systemctl edit clamav-daemon`); the weekly timer created by the app already runs at low priority. |
+| **Run scans with low priority** (`low_priority_scans`) | on | Runs the scanners, their `git` updates and the `aur-scan` build with `nice -n 19` (lowest CPU priority) and `ionice -c 2 -n 7` (lowest best-effort I/O priority), so a scan does not slow down your work or a game. Scans may take somewhat longer on a busy machine. If `nice` or `ionice` (util-linux / coreutils) is missing the commands simply run normally. The ClamAV binary scan has its own switch, see [below](#binary-scan-with-clamav). |
 | **Also notify when nothing was found** (`notify_when_clean`) | off | Automatic scans only notify you about findings or errors. With this on, a clean automatic scan shows a short notification too. Manual scans (*Check for compromised packages now*) always report their result, clean or not. |
 
 ## AUR scanners
@@ -86,16 +90,30 @@ version if there is none.
 
 ## Binary scan with ClamAV
 
-Scans executables on request (tray menu → *Scan binaries with ClamAV (clamd)*) with `clamdscan`, which talks to the ClamAV
-daemon. A terminal window shows the live output and stays open until you press Enter; the output is also saved to the
-[history](#keep-the-last-n-history-entries). The scan never deletes anything. Needs the [`clamav`](https://www.clamav.net/)
-package and a running daemon: `sudo systemctl enable --now clamav-daemon` (virus definitions are updated by `clamav-freshclam`).
+Scans executables with `clamdscan`, which talks to the ClamAV daemon. It never deletes anything. Needs the
+[`clamav`](https://www.clamav.net/) package and a running daemon: `sudo systemctl enable --now clamav-daemon` (virus
+definitions are updated by `clamav-freshclam`).
+
+- **On request** (tray menu → *Scan binaries with ClamAV (clamd)*): a terminal window shows the live output and stays open
+  until you press Enter. The output is also saved to the [history](#keep-the-last-n-history-entries).
+- **Automatically** (the options below, all off by default): the scan runs in the **background** without a window. The
+  same log goes to the history; a notification appears when threats are found or the scan could not run (and, with
+  *Also notify when nothing was found*, when it finished clean). Threats also turn the tray icon red. Automatic binary scans
+  honour *Skip automatic scans in gaming mode / on battery*.
 
 | Setting (key) | Default | What it does |
 |---|---|---|
 | **Paths to scan** (`binary_scan_paths`) | `/usr/bin`, `/usr/local/bin`, `/opt`, `~/.local/bin`, `/var/lib/flatpak/exports/bin` | One path per line; `~` is expanded, paths that do not exist are skipped. These are the usual places where installed applications live. |
-| **Set up regular clamd scan (weekly)** (button) | – | Creates a systemd **user** timer (`cachy-sec-clamd.timer`, weekly, low priority) that runs `clamdscan` over the paths above in the background. Applies **immediately** (no *Save* needed). The result is in the journal: `journalctl --user -u cachy-sec-clamd`. Disabled while `clamdscan` is not installed. |
-| **Remove regular scan** (button) | – | Removes that timer again (immediately). |
+| **Scan binaries at start** (`binary_on_start`) | off | A binary scan after the app started (after the *Delay after start*). |
+| **Scan binaries after package installs/updates** (`binary_after_pkg_changes`) | off | A binary scan after package changes, with the same wait as the package scan. Needs the pacman hook. |
+| **Scan binaries together with every AUR package scan** (`binary_with_aur_scans`) | off | Starts a binary scan whenever a package scan has finished (not for skipped scans), whatever triggered it. |
+| **Scan binaries at regular intervals** (`binary_periodic`) | off | A binary scan when *Every* has passed since the last binary scan. The time of the last scan is remembered across restarts (checked every 10 minutes and five minutes after the start), so a weekly scan also happens if you restart often, and it catches up after the computer was off. |
+| **Every** (`binary_interval_minutes`) | 1 week | Number plus unit (minutes, hours, days or weeks). Allowed: 1 hour to 52 weeks. |
+| **At most one scan per (except interval)** (`binary_min_gap_hours`) | 24 h | Applies to the start, package change and *together with every AUR package scan* triggers, so that a full binary scan does not run after every `pacman -Syu`. 0 = no limit. The interval trigger is not limited by it. |
+| **Run binary scans with low priority** (`binary_low_priority`) | on | Runs the `clamdscan` client with `nice -n 19` and `ionice -c 2 -n 7`. The scanning itself is done by the `clamd` daemon, which has the priority of its own service: set `Nice=` / `IOSchedulingClass=` with `systemctl edit clamav-daemon` to make it gentler as well. |
+
+The dialog also shows when the last binary scan started. If you set up the weekly systemd timer of an earlier version
+(`cachy-sec-clamd.timer`), a button to remove it appears; the app itself no longer creates it.
 
 ## General
 
@@ -103,7 +121,7 @@ package and a running daemon: `sudo systemctl enable --now clamav-daemon` (virus
 |---|---|---|
 | **Editor for "Open files"** (`editor_command`) | empty | Command used by the **Open files** button that every entry of the "Possible compromise" window has, to show the folder with the files behind that entry (PKGBUILD, install script, …). Example: `codium` or `kate --new`. Empty = the first installed of `codium`, `vscodium`, `code`, `code-oss`, `cursor`, `zed`, `subl` ([VSCodium](https://vscodium.com/), [VS Code](https://code.visualstudio.com/), [Zed](https://zed.dev/), …), otherwise your file manager (`xdg-open`). Nothing in the folder is run; with VSCodium/VS Code keep the folder in **Restricted Mode** (do not "trust" it). |
 | **Start automatically at login** (`autostart`) | on | Writes `~/.config/autostart/cachy-security-scanner.desktop` (the app waits up to a minute for the system tray after login). Switching it off removes that file; if the package also ships the system-wide entry `/etc/xdg/autostart/…`, a `Hidden=true` override is written instead. |
-| **Check GitHub Releases for app updates** (`auto_update`) | on | Looks for a newer version of this app on the project's [GitHub Releases](https://github.com/ruepp-jenkins/cachyos-security-scanner/releases) 30 seconds after the start and then daily. Updates are **signed**: the app verifies the signature and checksum and installs only into your home directory (`~/.local/share/cachy-security-scanner/updates/`), never into system folders. It then restarts itself when no scan is running and none of its windows is open (only when started through the `cachy-security-scanner` launcher; otherwise it asks you to restart). While it waits, the tray entry *Restart to apply update* says why (for example *waiting: the window "Scan history" is open*), and after a minute a notification explains it; the entry restarts immediately when clicked. The tray menu has *Check for app updates* for a manual check. Changes to system files (pacman hook, new package dependencies) need a newly installed package. |
+| **Check for app updates automatically and install them** (`auto_update`) | on | Looks for a newer version of this app on the project's [GitHub Releases](https://github.com/ruepp-jenkins/cachyos-security-scanner/releases) 30 seconds after the start and then daily. Updates are **signed**: the app verifies the signature and checksum and installs only into your home directory (`~/.local/share/cachy-security-scanner/updates/`), never into system folders. It then restarts itself when no scan is running and none of its windows is open (only when started through the `cachy-security-scanner` launcher; otherwise it asks you to restart). While it waits, the tray entry *Restart to apply update* says why (for example *waiting: the window "Scan history" is open*), and after a minute a notification explains it; the entry restarts immediately when clicked. **Off**: no automatic check at all. The tray entry *Check for app updates* still works, but then it only looks: if a newer version exists, a window says so and asks *Install it now?* before anything is downloaded. With the setting on, the manual check installs without asking. Changes to system files (pacman hook, new package dependencies) need a newly installed package. |
 | **Keep the last N history entries** (`history_keep`) | 200 | Maximum number of entries in *Scan history…* (10 to 5000). One entry is written **per scanner and scan** (plus binary scan logs), so with two scanners 200 entries are about 100 scans. The oldest are deleted first. Files: `~/.local/share/cachy-security-scanner/history/`. |
 | **Ask before removing packages** (`confirm_before_remove`) | on | After you click *Remove packages…* in the findings window, a confirmation shows the packages before `pkexec pacman -Rns` runs (you are asked for your password by polkit). With this off the removal starts right after the click. The app never removes anything on its own. Only critical findings with a known package offer removal. |
 
@@ -120,16 +138,19 @@ The dialog scrolls and never grows taller than your screen; **Save**, **Cancel**
 | Downloaded app updates | `~/.local/share/cachy-security-scanner/updates/` |
 | Cached community lists | `~/.cache/cachy-security-scanner/` |
 | Autostart entry | `~/.config/autostart/cachy-security-scanner.desktop` |
-| ClamAV timer | `~/.config/systemd/user/cachy-sec-clamd.{service,timer}` |
+| Old ClamAV timer (earlier versions only) | `~/.config/systemd/user/cachy-sec-clamd.{service,timer}` |
+| Time of the last binary scan | `~/.local/share/cachy-security-scanner/binary-last-scan` |
 | Single-instance lock | `$XDG_RUNTIME_DIR/cachy-security-scanner.lock` |
 
 Only one instance of the app runs per login session; starting it again just says it is already running.
 
 ## Recipes
 
-- **Only check when I decide:** *Mode* = *Manual only*. Use the tray menu entries; nothing runs on its own.
+- **Only check when I decide:** switch off *Scan at start*, *Scan after package installs/updates* and *Scan at regular intervals*. Use the tray menu entries; nothing runs on its own.
 - **Quiet while gaming, check otherwise:** keep *Skip automatic scans in gaming mode* on (default); the skipped scans show as *skipped* in the history.
-- **Check after every install, nothing else:** *Mode* = *Only right after start*, *Scan after package installs/updates* on, *Scan at start* off.
+- **Check after every install, nothing else:** *Scan after package installs/updates* on, the other two off.
 - **Get fewer false positives from aur-scan:** keep the community false-positive list on, accept single entries with **Ignore**, and
   add rule codes you never want to see to *findings to ignore*.
 - **Slow or metered connection:** switch off *Update scanner sources before each scan* and the app updates; the lists need only two small downloads every few hours.
+- **Weekly full binary scan without noise:** *Scan binaries at regular intervals* every 1 week; leave the other binary triggers off.
+- **Gentle login:** raise *Delay after start* (for example 5 minutes) so the desktop is up before any scan starts.

@@ -53,6 +53,15 @@ class _UpdateJob(QRunnable):
         self.sig.emit(*(updater.check_available() if self.check_only else updater.check_and_install()))
 
 
+class _ClickSignal(QObject):
+    clicked = Signal(str)  # which history entry to select; emitted from the notification helper thread
+
+
+# What a click on a notification selects in the scan history: (entry kind or None for any, accepted statuses)
+SELECTORS = {"threat": (None, ("warning", "critical")), "error": (None, ("error",)),
+             "binary-threat": ("binaries", ("critical",)), "binary-error": ("binaries", ("error",))}
+
+
 class _BinaryDone(QObject):
     finished = Signal(str, str)
 
@@ -139,6 +148,8 @@ class Tray(QObject):
         self.upd_timer.timeout.connect(lambda: self.check_update(manual=False))
         self.upd_timer.start(24 * 3600 * 1000)
         QTimer.singleShot(30_000, lambda: self.check_update(manual=False))
+        self.click_sig = _ClickSignal()
+        self.click_sig.clicked.connect(lambda target: self.open_history(select=target))
         self.bin_done = _BinaryDone()
         self.bin_done.finished.connect(self._binary_finished)
         self.bin_timer = QTimer(self)  # periodic binary scans: polled, so a weekly interval survives restarts
@@ -213,10 +224,10 @@ class Tray(QObject):
         if state == "threats":
             self.tray.setIcon(QIcon(icons.for_status("critical")))
             self.tray.setToolTip(f"CachyOS Security Scanner – {msg}")
-            notify.notify("Binary scan: threats found", msg, kind="bad", urgent=True)
+            notify.notify("Binary scan: threats found", msg, kind="bad", urgent=True, on_click=self._click_to("binary-threat"))
         elif state in ("error", "unavailable"):
             if msg != self._last_binary_error:  # the same failure is reported once, not at every retry
-                notify.notify("Binary scan did not run", msg, kind="bad")
+                notify.notify("Binary scan did not run", msg, kind="bad", on_click=self._click_to("binary-error"))
             self._last_binary_error = msg
         elif self.settings.notify_when_clean:
             notify.notify("Binary scan finished", msg, kind="good")
@@ -383,11 +394,12 @@ class Tray(QObject):
         if st:  # a skipped scan leaves the previous icon, so an earlier finding stays visible
             self.tray.setIcon(QIcon(icons.for_status(st)))
         if report.findings:
-            notify.notify("Security scanner: possible compromise", text, kind="bad", urgent=True)
+            notify.notify("Security scanner: possible compromise", text, kind="bad", urgent=True, on_click=self._click_to("threat"))
             self._offer_removal(report, f"{time.strftime('%H:%M')}, {'manual' if manual else 'automatic'} scan")
         else:
             if manual or self.settings.notify_when_clean or report.kind == "bad":
-                notify.notify("Security scan finished", text, kind=report.kind, urgent=report.kind == "bad")
+                notify.notify("Security scan finished", text, kind=report.kind, urgent=report.kind == "bad",
+                              on_click=self._click_to("error") if report.kind == "bad" else None)
 
     def _offer_removal(self, report: engine.Report, scan_info: str = "") -> None:
         """Non-modal: the dialog never blocks the tray, other scans or update checks."""
@@ -436,16 +448,24 @@ class Tray(QObject):
         dlg.raise_()
         dlg.activateWindow()
 
-    def open_history(self) -> None:
-        """At most one history window: a second request just brings the existing one to the front."""
+    def _click_to(self, target: str):
+        """Callback for notify(): a click opens the scan history with the newest matching entry selected."""
+        return lambda: self.click_sig.clicked.emit(target)
+
+    def open_history(self, select: str | None = None) -> None:
+        """At most one history window: a second request just brings the existing one to the front.
+
+        select: a key of SELECTORS; the newest matching entry is selected so the cause is visible at once."""
         if self.history_dlg is not None:
             self._focus(self.history_dlg)
-            return
-        dlg = self.history_dlg = HistoryDialog()
-        dlg.setAttribute(Qt.WA_DeleteOnClose)
-        self._track_dialog(dlg)
-        dlg.destroyed.connect(lambda *_: setattr(self, "history_dlg", None))
-        dlg.show()
+        else:
+            dlg = self.history_dlg = HistoryDialog()
+            dlg.setAttribute(Qt.WA_DeleteOnClose)
+            self._track_dialog(dlg)
+            dlg.destroyed.connect(lambda *_: setattr(self, "history_dlg", None))
+            dlg.show()
+        if select in SELECTORS:
+            self.history_dlg.select_latest(*SELECTORS[select])
 
     def open_settings(self) -> None:
         """At most one settings window (non-modal, so the tray stays usable)."""

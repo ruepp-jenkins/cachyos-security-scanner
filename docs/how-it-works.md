@@ -105,7 +105,7 @@ No shell is ever used (`shell=False`, argument lists); paths are passed as singl
 | `clamdscan --fdpass --multiscan -i -- <paths>` | binary scan | ClamAV client; terminal on request, background when scheduled |
 | `nice -n 19`, `ionice -c 2 -n 7` | in front of the heavy commands above | low priority (setting) |
 | `ssh-keygen -Y verify` | updates and lists | signature check |
-| `notify-send` | notifications | |
+| `notify-send` | notifications. For clickable ones (findings, errors) with `--action=… --wait`, which keeps one short-lived helper process per open notification (at most 10) until it is clicked or dismissed | |
 | editor of your choice / `xdg-open` | *Open files*, *Open folder* | **folder path as the only argument**; never a file from a finding |
 | a terminal emulator (`xdg-terminal-exec`, `konsole`, …) | binary scan on request | shows live output |
 | `pkexec pacman -Rns --noconfirm -- <packages>` | *Remove packages…* after your confirmation | the only root action |

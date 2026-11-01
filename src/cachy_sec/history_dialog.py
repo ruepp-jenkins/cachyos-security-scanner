@@ -145,6 +145,27 @@ class HistoryDialog(QDialog):
             self._icons[status] = QIcon(icons.for_status(status))
         return self._icons[status]
 
+    def select_latest(self, kind: str | None, statuses: tuple[str, ...]) -> None:
+        """Select the newest entry of this kind (None = any) with one of these statuses, making sure it is visible."""
+        self.reload()
+        e = next((e for e in self.entries if (kind is None or e.kind == kind) and e.status in statuses), None)
+        if e is None:
+            return
+        self.filter_edit.blockSignals(True)
+        self.only_threats.blockSignals(True)
+        self.filter_edit.clear()
+        self.only_threats.setChecked(False)  # a filter must not hide the entry the user was sent to
+        self.filter_edit.blockSignals(False)
+        self.only_threats.blockSignals(False)
+        self.selected = e.path
+        self._fill()
+        self._last_text = None
+        self._update_log(reset_scroll=True)
+        item = next((self.table.item(i, 0) for i in range(self.table.rowCount())
+                     if self.table.item(i, 0).data(_PATH_ROLE) == str(e.path)), None)
+        if item is not None:
+            self.table.scrollToItem(item)
+
     def _refilter(self, *_: object) -> None:
         self._fill()
 

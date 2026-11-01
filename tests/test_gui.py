@@ -329,5 +329,20 @@ class GuiTest(unittest.TestCase):
             self.assertFalse(w.isEnabled())
         self.assertTrue(d.result_settings().binary_on_start)  # the saved value survives
 
+    def test_select_latest_jumps_to_the_matching_entry_and_clears_filters(self):
+        from cachy_sec.scanners.base import CRITICAL, Finding
+        bad = ScanResult("beta", CRITICAL, findings=[Finding(CRITICAL, "evil", "beta", package="p")])
+        history.record(engine.Report([bad]), "manual", time.time() - 100, 1)
+        history.record(engine.Report([ScanResult("alpha", CLEAN)]), "manual", time.time(), 1)  # newer, clean
+        d = self._track(HistoryDialog())
+        d.filter_edit.setText("zzz-nothing")
+        self.assertEqual(d.table.rowCount(), 0)
+        d.select_latest(None, ("warning", "critical"))
+        self.assertEqual(d.filter_edit.text(), "")
+        sel = d.table.selectionModel().selectedRows()
+        self.assertEqual(len(sel), 1)
+        self.assertEqual(d.table.item(sel[0].row(), 0).toolTip(), "critical")
+        self.assertIn("evil", d.log.toPlainText())
+
 if __name__ == "__main__":
     unittest.main()

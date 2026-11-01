@@ -252,6 +252,41 @@ class IconsTest(unittest.TestCase):
         cmd = r.call_args[0][0]
         self.assertEqual(cmd[cmd.index("-i") + 1].rsplit("/", 1)[1], "status-bad.svg")
 
+    def test_click_on_the_notification_calls_back(self):
+        from cachy_sec import notify
+        hits = []
+        done = mock.Mock(returncode=0, stdout="default\n", stderr="")
+        with mock.patch("subprocess.run", return_value=done) as r:
+            t = notify.notify("t", "b", kind="bad", on_click=lambda: hits.append(1))
+            t.join(5)
+        cmd = r.call_args[0][0]
+        self.assertIn("--wait", cmd)
+        self.assertTrue(any(c.startswith("--action=default=") for c in cmd))
+        self.assertEqual(cmd[-2:], ["t", "b"])  # options come before title and body
+        self.assertEqual(hits, [1])
+
+    def test_dismissed_notification_does_not_call_back(self):
+        from cachy_sec import notify
+        hits = []
+        done = mock.Mock(returncode=0, stdout="\n", stderr="")
+        with mock.patch("subprocess.run", return_value=done):
+            notify.notify("t", "b", on_click=lambda: hits.append(1)).join(5)
+        self.assertEqual(hits, [])
+
+    def test_old_notify_send_falls_back_to_a_plain_notification(self):
+        from cachy_sec import notify
+        calls = []
+
+        def fake(cmd, **kw):
+            calls.append(cmd)
+            if "--wait" in cmd:
+                return mock.Mock(returncode=1, stdout="", stderr="Unknown option --action")
+            return mock.Mock(returncode=0, stdout="", stderr="")
+        with mock.patch("subprocess.run", side_effect=fake):
+            notify.notify("t", "b", on_click=lambda: None).join(5)
+        self.assertEqual(len(calls), 2)
+        self.assertNotIn("--wait", calls[1])
+
     def test_report_kind(self):
         from cachy_sec.scanners.base import Finding
         self.assertEqual(engine.Report([ScanResult("a", CLEAN)]).kind, "good")

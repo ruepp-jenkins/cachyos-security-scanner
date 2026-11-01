@@ -67,6 +67,21 @@ notification of your desktop.
 
 When something is found, a [findings window](findings-window.md) opens along with the notification.
 
+### 🖱️ Clicking a notification
+Notifications about a **finding, a binary-scan threat or a scan that could not run** are clickable. A click on the
+notification (or on its **Open scan history** button) opens the [scan history](scan-history.md) with the **newest
+matching entry already selected**, so you see the cause at once. Filters in the window are cleared so they cannot hide it.
+
+| Notification | Entry that gets selected |
+|---|---|
+| possible compromise | newest entry with status warning or critical |
+| binary scan: threats found | newest binary-scan entry with threats |
+| scan incomplete / binary scan did not run | newest entry with status error |
+
+Limits: a notification can only be clicked while it is still shown – once your desktop has moved it into its history, a
+click may do nothing (the tray icon's left click always works). It needs a `libnotify` with `notify-send --action`
+(current Arch has it); with an older one the notification is shown without the click feature.
+
 ![A notification after a finding (screenshot of version 0.0.6)](screenshots/notification.png)
 
 > 🔕 No notifications at all? You need a notification daemon (KDE Plasma and GNOME have one) and `libnotify`.

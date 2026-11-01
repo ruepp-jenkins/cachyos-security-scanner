@@ -45,7 +45,7 @@ name with Qt members (for example `accepted` or `scroll`): they silently replace
 
 ## Website (GitHub Pages)
 
-The help is also published as a website with Jekyll and the **Midnight** theme. *Settings → Pages* must use the branch
+The help is also published as a website with Jekyll and the **Hacker** theme. *Settings → Pages* must use the branch
 `master` and the folder `/ (root)`.
 
 - `_config.yml` sets the theme and enables `jekyll-relative-links` (so `[x](page.md)` links work on the site as on GitHub).

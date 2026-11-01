@@ -1,7 +1,7 @@
 # GitHub Pages (Jekyll). The site is built from the repository root; docs/README.md is the help index.
 title: CachyOS Security Scanner
 description: Tray tool for CachyOS / Arch that orchestrates AUR malware scanners and ClamAV
-theme: jekyll-theme-midnight
+theme: jekyll-theme-hacker
 markdown: kramdown
 kramdown:
   input: GFM

@@ -128,8 +128,9 @@ def new_binary_log_path() -> Path:
 
 
 def _binary_status(text: str) -> tuple[str, str]:
-    if "Result: no threats found" in text:
-        return CLEAN, "No threats found"
+    m = re.search(r"Result: no threats found(?: \((\d+) file\(s\))?", text)
+    if m:
+        return CLEAN, "No threats found" + (f" ({m.group(1)} unreadable file(s) skipped)" if m.group(1) else "")
     if "Result: THREATS FOUND" in text:
         return CRITICAL, "Threats found – see log"
     if "Result: scan failed" in text:

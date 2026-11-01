@@ -7,6 +7,7 @@ clamd must be running (e.g. `sudo systemctl enable --now clamav-daemon`).
 from __future__ import annotations
 
 import os
+import re
 import shutil
 import subprocess
 import time
@@ -14,18 +15,28 @@ from pathlib import Path
 
 BACKGROUND_TIMEOUT = 6 * 3600
 
+# clamdscan exits 2 when some files could not be opened, even if it scanned the rest and found nothing. That is not a
+# failure: with "Infected files: 0" in its summary the scan is a success and the unreadable files are only reported.
 SCAN_SCRIPT = r'''
 log=$1; shift
+tmp=$(mktemp)
 {
 echo "clamdscan: scanning $# path(s) via clamd ($(date '+%F %T'))"
 echo
 clamdscan --fdpass --multiscan -i -- "$@" 2>&1
-} | tee "$log"
+} | tee "$log" "$tmp"
 rc=${PIPESTATUS[0]}
+skipped=""
+if [ "$rc" = 2 ] && grep -q '^Infected files: 0$' "$tmp"; then
+  n=$(sed -n 's/^Total errors: *//p' "$tmp" | head -n1)
+  rc=0
+  skipped=" ($n file(s) could not be opened and were skipped; everything else was scanned)"
+fi
+rm -f "$tmp"
 {
 echo
 case $rc in
-  0) echo "Result: no threats found." ;;
+  0) echo "Result: no threats found$skipped." ;;
   1) echo "Result: THREATS FOUND (listed above). Nothing was removed." ;;
   *) echo "Result: scan failed (exit $rc). Is clamd running?"
      echo "  sudo systemctl enable --now clamav-daemon" ;;
@@ -47,6 +58,31 @@ TERMINALS: list[tuple[str, list[str]]] = [
     ("wezterm", ["start", "--"]),
     ("xterm", ["-e"]),
 ]
+
+
+_INFECTED = re.compile(r"^Infected files:\s*(\d+)\s*$", re.M)
+_ERRORS = re.compile(r"^Total errors:\s*(\d+)\s*$", re.M)
+
+
+def interpret(rc: int, out: str) -> tuple[str, int]:
+    """Map a clamdscan run to ('clean' | 'threats' | 'error', number of files that could not be opened).
+
+    Exit code 2 does not always mean failure: clamdscan uses it when some files could not be opened (permissions, files
+    that vanished) even though it scanned everything else. If its summary says "Infected files: 0" that is a clean scan.
+    No summary at all (clamd not running, bad configuration) stays an error.
+    """
+    m = _INFECTED.search(out)
+    e = _ERRORS.search(out)
+    skipped = int(e.group(1)) if e else 0
+    if rc == 1 or (m and int(m.group(1)) > 0):
+        return "threats", skipped
+    if rc == 0 or (rc == 2 and m):
+        return "clean", skipped
+    return "error", skipped
+
+
+def _skipped_note(skipped: int) -> str:
+    return f" ({skipped} file(s) could not be opened and were skipped; everything else was scanned)" if skipped else ""
 
 
 def _state_file(name: str = "binary-last-scan") -> Path:
@@ -139,11 +175,12 @@ def run_background(paths: list[str], low_priority: bool = True, trigger: str = "
         rc, out = 124, f"timed out after {BACKGROUND_TIMEOUT}s"
     except OSError as e:
         rc, out = 127, str(e)
-    if rc == 0:
-        finish(out + "\nResult: no threats found.\n")
+    state, skipped = interpret(rc, out)
+    if state == "clean":
+        finish(out + f"\nResult: no threats found{_skipped_note(skipped)}.\n")
         mark_success()
-        return "clean", "No threats found"
-    if rc == 1:
+        return "clean", "No threats found" + (f" ({skipped} unreadable file(s) skipped)" if skipped else "")
+    if state == "threats":
         finish(out + "\nResult: THREATS FOUND (listed above). Nothing was removed.\n")
         mark_success()
         return "threats", "Threats found – see the scan history"

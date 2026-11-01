@@ -126,6 +126,7 @@ Very large files or deeply nested archives may be skipped by default; the app do
 | Tray entry greyed out | `clamdscan` not installed → `sudo pacman -S clamav` |
 | `Can't connect to clamd` / "Is clamd running?" in the log | the daemon is not running → step 3 |
 | `ERROR: Could not lock … database` or daemon stops right after start | no signatures yet → step 2 |
-| `Permission denied` for some files | files that even root-level `clamd` cannot reach, or missing `--fdpass` when you test by hand |
+| `Failed to open file` for a few files, `Total errors: N` | normal: files your user may not read (root-only files, locks, secrets) are skipped. If `Infected files: 0` the scan counts as **clean**, and the history says how many files were skipped. To include them you would have to scan as root, which the app does not do |
+| `Permission denied` when you test by hand | missing `--fdpass` |
 | Scan is slow | normal for large trees; narrow the paths, keep low priority on, or scan less often |
 | High memory use | expected, the signatures are loaded in RAM; stop the daemon when you do not need it: `sudo systemctl stop clamav-daemon` |

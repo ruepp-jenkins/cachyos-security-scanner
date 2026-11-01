@@ -856,6 +856,49 @@ class ClamdScriptTest(unittest.TestCase):
             self.assertIn("Result: THREATS FOUND", text)
 
 
+    def _script_result(self, body: str) -> str:
+        import os, subprocess, stat
+        from cachy_sec.scanners import clamd
+        with tempfile.TemporaryDirectory() as d:
+            fake = Path(d) / "clamdscan"
+            fake.write_text("#!/bin/sh\n" + body)
+            fake.chmod(fake.stat().st_mode | stat.S_IEXEC)
+            log = Path(d) / "scan.log"
+            env = dict(os.environ, PATH=f"{d}:{os.environ['PATH']}")
+            subprocess.run(["bash", "-c", clamd.SCAN_SCRIPT, "clamdscan", str(log), d], env=env,
+                           input=b"\n", capture_output=True, timeout=20)
+            return log.read_text()
+
+    def test_unreadable_files_without_detection_are_not_a_failure(self):
+        text = self._script_result("echo '/usr/bin/x: Failed to open file'\necho 'Infected files: 0'\n"
+                                   "echo 'Total errors: 2'\nexit 2\n")
+        self.assertIn("Result: no threats found (2 file(s) could not be opened", text)
+        self.assertNotIn("scan failed", text)
+
+    def test_exit_2_without_summary_is_still_a_failure(self):
+        text = self._script_result("echo 'ERROR: Could not connect to clamd'\nexit 2\n")
+        self.assertIn("Result: scan failed (exit 2)", text)
+
+
+class ClamdInterpretTest(unittest.TestCase):
+    OUT = "/usr/bin/cupsd: Failed to open file\n\n----------- SCAN SUMMARY -----------\nInfected files: 0\nTotal errors: 16\n"
+
+    def test_exit_codes(self):
+        from cachy_sec.scanners.clamd import interpret
+        self.assertEqual(interpret(2, self.OUT), ("clean", 16))  # the case from the bug report
+        self.assertEqual(interpret(0, "Infected files: 0\n"), ("clean", 0))
+        self.assertEqual(interpret(1, "x: Eicar FOUND\nInfected files: 1\n"), ("threats", 0))
+        self.assertEqual(interpret(2, "x: Eicar FOUND\nInfected files: 1\nTotal errors: 3\n"), ("threats", 3))
+        self.assertEqual(interpret(2, "ERROR: Could not connect to clamd\n")[0], "error")
+        self.assertEqual(interpret(124, "timed out")[0], "error")
+
+    def test_history_summary_mentions_skipped_files(self):
+        from cachy_sec import history
+        st, summary = history._binary_status("Result: no threats found (16 file(s) could not be opened and were skipped).")
+        self.assertEqual(st, CLEAN)
+        self.assertIn("16 unreadable", summary)
+
+
 class AutostartTest(unittest.TestCase):
     def setUp(self):
         import os
@@ -1111,6 +1154,15 @@ class BinaryBackgroundTests(unittest.TestCase):
             self.assertEqual(history.list_entries()[0].status, status)
             for p in history.history_dir().iterdir():
                 p.unlink()
+
+    def test_background_scan_with_unreadable_files_is_clean(self):
+        from cachy_sec import history
+        (state, msg), _ = self._run(2, "/usr/bin/cupsd: Failed to open file\nInfected files: 0\nTotal errors: 16\n")
+        self.assertEqual(state, "clean")
+        self.assertIn("16", msg)
+        e = history.list_entries()[0]
+        self.assertEqual(e.status, "clean")
+        self.assertIn("unreadable", e.summary)
 
     def test_history_shows_the_trigger_of_a_scheduled_binary_scan(self):
         from cachy_sec import history

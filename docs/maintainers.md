@@ -1,5 +1,7 @@
 # Maintainer notes
 
+← [Help overview](README.md)
+
 ## Releasing
 1. **One-time:** create a signing key, `ssh-keygen -t ed25519 -N "" -f release_key`. Put the public key line into
    `SIGNER_PUBKEY` in `src/cachy_sec/updater.py` (and check `GITHUB_REPO` there), and store the private key as the

@@ -1138,5 +1138,15 @@ class UpdateCheckOnlyTests(unittest.TestCase):
             self.assertEqual(updater.check_available(), ("error", "offline"))
 
 
+class DocsUrlTests(unittest.TestCase):
+    def test_help_links_point_at_the_tag_of_the_running_version(self):
+        from cachy_sec import updater
+        with mock.patch.object(updater, "__version__", "1.2.3"):
+            self.assertEqual(updater.docs_url("settings.md"),
+                             "https://github.com/ruepp-jenkins/cachyos-security-scanner/blob/v1.2.3/docs/settings.md")
+        with mock.patch.object(updater, "__version__", "0.0.0"):
+            self.assertIn("/blob/master/docs/README.md", updater.docs_url())
+
+
 if __name__ == "__main__":
     unittest.main()

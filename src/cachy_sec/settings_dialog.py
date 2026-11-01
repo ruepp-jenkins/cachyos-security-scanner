@@ -18,7 +18,6 @@ from .scanners.blocklist import CommunityBlocklist
 from .settings import Settings, config_path
 
 
-HELP_URL = f"https://github.com/{updater.GITHUB_REPO}/blob/master/docs/settings.md"
 
 
 UNITS = (("minutes", 1), ("hours", 60), ("days", 24 * 60), ("weeks", 7 * 24 * 60))
@@ -251,8 +250,8 @@ class SettingsDialog(QDialog):
         self.resize(min(want_w, int(avail.width() * 0.9)), min(want_h, int(avail.height() * 0.85)))
 
     def open_help(self) -> None:
-        """Open the settings reference (docs/settings.md) in the browser."""
-        QDesktopServices.openUrl(QUrl(HELP_URL))
+        """Open the settings reference of the running version (tag) in the browser."""
+        QDesktopServices.openUrl(QUrl(updater.docs_url("settings.md")))  # the page of this version's tag
 
     @staticmethod
     def _cb(text: str, val: bool, form: QFormLayout) -> QCheckBox:

@@ -51,11 +51,17 @@ release into an empty directory and run `makepkg -si`.
 - Two signed community lists (known malicious packages, known false positives) are maintained in [`lists/`](lists/); proposals are welcome.
 - Updates itself from signed GitHub releases.
 
-## Settings
-Every option is described in **[docs/settings.md](docs/settings.md)**; the **Help** button in the settings dialog opens it.
+## 📖 Help
+The full help starts at **[docs/README.md](docs/README.md)**; the **Help** button in the settings opens it for your version.
 
-## For maintainers
-Releasing, the community lists workflow, how updates are verified and how to run the tests: [docs/maintainers.md](docs/maintainers.md).
+| | |
+|---|---|
+| 🚀 [Getting started](docs/getting-started.md) | 🔔 [Tray icon and notifications](docs/tray-and-notifications.md) |
+| 📜 [Scan history](docs/scan-history.md) | 🔎 [Findings window](docs/findings-window.md) |
+| ⚙️ [Settings reference](docs/settings.md) | 🧪 [Scanners and community lists](docs/scanners-and-lists.md) |
+| 🦠 [Set up ClamAV](docs/setup-clamav.md) | 🧰 [Requirements](docs/setup-requirements.md) |
+| 🔄 [Updates](docs/updates.md) | 🩹 [Troubleshooting](docs/troubleshooting.md) |
+| 🔬 [How it works (files, network, privileges)](docs/how-it-works.md) | 🏗️ [Maintainer notes](docs/maintainers.md) |
 
 ## License and disclaimer
 Released under the [MIT License](LICENSE): everyone may use, copy, modify and distribute it, free of charge. It comes

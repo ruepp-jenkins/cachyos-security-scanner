@@ -1,8 +1,10 @@
 # Settings reference
 
+← [Help overview](README.md)
+
 This page describes every option in **Settings…** (tray icon → right click → *Settings…*), what it does, its default, and
 the key used in the settings file. Changes are applied when you click **Save**; **Cancel** discards them. Two buttons act
-immediately instead (*Revoke selected*, and the ClamAV timer buttons), as noted below.
+immediately instead (*Revoke selected* and, if present, *Remove the old systemd timer*), as noted below.
 
 The settings file is `~/.config/cachy-security-scanner/settings.json` (its path is also shown at the bottom of the dialog).
 You can edit it by hand while the app is closed; unknown or wrongly typed values are ignored and replaced by the default.
@@ -42,7 +44,7 @@ and are never skipped. The ClamAV binary scan has its own triggers, see [below](
 ## AUR scanners
 
 The app does not detect anything itself; it runs external tools and shows their results. Each enabled scanner runs on every
-scan and gets **its own entry** in the [history](#keep-the-last-n-history-entries). A scanner that is switched off is never run,
+scan and gets **its own entry** in the [history](#general). A scanner that is switched off is never run,
 cloned, built or downloaded. A scanner that is switched on but cannot run (missing tool, failed build) is reported as an
 **error** and the scan counts as incomplete (red tray icon); the reason is in the history.
 
@@ -95,7 +97,7 @@ Scans executables with `clamdscan`, which talks to the ClamAV daemon. It never d
 definitions are updated by `clamav-freshclam`).
 
 - **On request** (tray menu → *Scan binaries with ClamAV (clamd)*): a terminal window shows the live output and stays open
-  until you press Enter. The output is also saved to the [history](#keep-the-last-n-history-entries).
+  until you press Enter. The output is also saved to the [history](#general).
 - **Automatically** (the options below, all off by default): the scan runs in the **background** without a window. The
   same log goes to the history; a notification appears when threats are found or the scan could not run (and, with
   *Also notify when nothing was found*, when it finished clean). Threats also turn the tray icon red. Automatic binary scans

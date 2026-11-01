@@ -153,6 +153,12 @@ def describe_version() -> str:
     return text
 
 
+def docs_url(page: str = "README.md") -> str:
+    """GitHub page of a help file, for the tag of the running version (master for development builds)."""
+    ref = "master" if __version__ == "0.0.0" else f"v{__version__}"
+    return f"https://github.com/{GITHUB_REPO}/blob/{ref}/docs/{page}"
+
+
 def is_newer(candidate: str) -> bool:
     return (parse_version(candidate) or ()) > (parse_version(effective_version()) or ())
 

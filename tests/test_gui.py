@@ -234,6 +234,7 @@ class GuiTest(unittest.TestCase):
         self.assertNotEqual(d.error.text(), "")
         d._ok()
         self.assertEqual(d.result(), 0)  # stays open, nothing accepted
+        d.paths_edit.setPlainText("/usr/bin\n\n  ~/bin  \n")
         d.extra.setText("--config-file=/etc/clamav/clamd.conf")
         d.widgets["binary_multiscan"].setChecked(True)
         self.assertEqual(d.error.text(), "")
@@ -241,6 +242,9 @@ class GuiTest(unittest.TestCase):
         r = d.result_settings()
         self.assertTrue(r.binary_multiscan)
         self.assertEqual(r.binary_extra_args, "--config-file=/etc/clamav/clamd.conf")
+        self.assertEqual(r.binary_scan_paths, ["/usr/bin", "~/bin"])  # blank lines and spaces dropped
+        d._reset()
+        self.assertEqual(d.paths_edit.toPlainText().splitlines(), st.DEFAULT_BINARY_PATHS)
         a = OptionsDialog("aur_scan", st.Settings())
         a.widgets["aur_scan_fail_on"].setCurrentText("low")
         a._ok()
@@ -385,7 +389,7 @@ class GuiTest(unittest.TestCase):
         from unittest import mock as m
         with m.patch("cachy_sec.settings_dialog.clamd.available", return_value=False):
             d = self._track(SettingsDialog(st.Settings(binary_on_start=True)))
-        for w in (d.paths, d.b_start, d.b_pkg, d.b_with, d.b_periodic, d.b_interval, d.b_low):
+        for w in (d.b_options, d.b_start, d.b_pkg, d.b_with, d.b_periodic, d.b_interval, d.b_low):
             self.assertFalse(w.isEnabled())
         self.assertTrue(d.result_settings().binary_on_start)  # the saved value survives
 

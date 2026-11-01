@@ -94,7 +94,7 @@ file doing its job.
   Details: [Settings](settings.md#binary-scan-with-clamav).
 
 Paths scanned by default: `/usr/bin`, `/usr/local/bin`, `~/.local/bin`, `/var/lib/flatpak/exports/bin`. Add your
-own (one per line); paths that do not exist are skipped.
+own under *Settings → Binary scan → Paths and options…* (one per line); paths that do not exist are skipped.
 
 > 🧱 **The app never deletes anything** it finds with ClamAV. `clamdscan` is started with `-i` (list infected files only)
 > and without any `--remove`/`--move` option.

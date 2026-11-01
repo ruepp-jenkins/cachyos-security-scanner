@@ -5,8 +5,8 @@ import copy
 
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QFontDatabase, QIcon
-from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QLabel, QLineEdit, QPushButton,
-                               QVBoxLayout)
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QLabel, QLineEdit, QPlainTextEdit,
+                               QPushButton, QVBoxLayout)
 
 from . import icons, scanopts
 from .settings import Settings
@@ -26,6 +26,13 @@ class OptionsDialog(QDialog):
         intro = QLabel(self.spec.intro)
         intro.setWordWrap(True)
         lay.addWidget(intro)
+
+        self.paths_edit = None
+        if self.spec.paths_key:
+            lay.addWidget(QLabel("Paths to scan, one per line (missing paths are skipped):"))
+            self.paths_edit = QPlainTextEdit("\n".join(getattr(self.s, self.spec.paths_key)))
+            self.paths_edit.setMaximumHeight(120)
+            lay.addWidget(self.paths_edit)
 
         form = QFormLayout()
         lay.addLayout(form)
@@ -82,6 +89,8 @@ class OptionsDialog(QDialog):
             w = self.widgets[o.key]
             setattr(target, o.key, w.isChecked() if isinstance(w, QCheckBox) else w.currentText())
         setattr(target, self.spec.extra_key, self.extra.text().strip())
+        if self.paths_edit is not None:
+            setattr(target, self.spec.paths_key, [p.strip() for p in self.paths_edit.toPlainText().splitlines() if p.strip()])
 
     def _update(self, *_args) -> None:
         tmp = copy.deepcopy(self.s)
@@ -99,6 +108,8 @@ class OptionsDialog(QDialog):
             v = getattr(self.defaults, o.key)
             w.setChecked(bool(v)) if isinstance(w, QCheckBox) else w.setCurrentText(str(v))
         self.extra.setText("")
+        if self.paths_edit is not None:
+            self.paths_edit.setPlainText("\n".join(getattr(self.defaults, self.spec.paths_key)))
 
     def _ok(self) -> None:
         if self.error.text():

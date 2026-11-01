@@ -148,10 +148,6 @@ class SettingsDialog(QDialog):
                           "(sudo systemctl enable --now clamav-daemon) to use binary scans. The options below are disabled until then.")
             hint.setWordWrap(True)
             cl.addWidget(hint)
-        cl.addWidget(QLabel("Paths to scan, one per line:"))
-        self.paths = QPlainTextEdit("\n".join(s.binary_scan_paths))
-        self.paths.setMaximumHeight(110)
-        cl.addWidget(self.paths)
         cl.addWidget(QLabel("The tray menu starts a scan on request in a terminal window. Optionally it also runs by itself,\n"
                             "in the background (the result goes to the scan history):"))
         cf = QFormLayout()
@@ -167,7 +163,7 @@ class SettingsDialog(QDialog):
         self.b_options = self._options_button("clamd")
         cf.addRow(self.b_options)
         if not clamd.available():  # keep the saved values, just make them unreachable
-            for w in (self.b_options, self.paths, self.b_start, self.b_pkg, self.b_with, self.b_periodic, self.b_interval, self.b_low):
+            for w in (self.b_options, self.b_start, self.b_pkg, self.b_with, self.b_periodic, self.b_interval, self.b_low):
                 w.setEnabled(False)
         else:
             self.b_interval.setEnabled(s.binary_periodic)
@@ -275,8 +271,8 @@ class SettingsDialog(QDialog):
         return c
 
     def _options_button(self, which: str) -> QPushButton:
-        b = QPushButton("Options…")
-        b.setToolTip("Details and extra arguments for this scanner")
+        b = QPushButton("Paths and options…" if which == "clamd" else "Options…")
+        b.setToolTip("The paths to scan, details and extra arguments" if which == "clamd" else "Details and extra arguments for this scanner")
         b.clicked.connect(lambda: self._edit_options(which))
         return b
 
@@ -286,8 +282,9 @@ class SettingsDialog(QDialog):
             new = dlg.result_settings()
             for o in scanopts.SPECS[which].opts:
                 setattr(self.s, o.key, getattr(new, o.key))
-            key = scanopts.SPECS[which].extra_key
-            setattr(self.s, key, getattr(new, key))
+            for key in (scanopts.SPECS[which].extra_key, scanopts.SPECS[which].paths_key):
+                if key:
+                    setattr(self.s, key, getattr(new, key))
 
     def _load_accepted(self) -> None:
         self.accepted_list.clear()
@@ -301,9 +298,6 @@ class SettingsDialog(QDialog):
             e = self._entries[row]
             ignores.remove(e.package, e.version)  # applied immediately, independent of "Save"
             self._load_accepted()
-
-    def _paths(self) -> list[str]:
-        return [p.strip() for p in self.paths.toPlainText().splitlines() if p.strip()]
 
     def _sched_off(self) -> None:
         ok, out = clamd_schedule.disable()
@@ -333,7 +327,6 @@ class SettingsDialog(QDialog):
         s.use_community_blocklist = self.b_list.isChecked()
         s.use_false_positive_list = self.b_fp.isChecked()
         s.ignored_findings = [x.strip() for x in self.ignored.toPlainText().splitlines() if x.strip()]
-        s.binary_scan_paths = self._paths()
         s.editor_command = self.editor.text().strip()
         s.autostart = self.autostart.isChecked()
         s.history_keep = self.keep.value()

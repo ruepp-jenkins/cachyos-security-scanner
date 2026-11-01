@@ -80,6 +80,8 @@ settings, a field for **extra arguments**, and a live preview of the command lin
 
 ### ClamAV (clamdscan)
 
+The **Paths and options…** button in the ClamAV section also holds the list of [paths to scan](#binary-scan-with-clamav).
+
 | Setting (key) | Default | Upstream option | What it does |
 |---|---|---|---|
 | **Scan with several threads** (`binary_multiscan`) | **off** | `--multiscan` | Faster on multi-core machines, but the scan then uses several CPU cores at once. Off by default: the scan may take longer, but it should not slow down your system. |
@@ -153,7 +155,7 @@ definitions are updated by `clamav-freshclam`).
 
 | Setting (key) | Default | What it does |
 |---|---|---|
-| **Paths to scan** (`binary_scan_paths`) | `/usr/bin`, `/usr/local/bin`, `~/.local/bin`, `/var/lib/flatpak/exports/bin` | One path per line; `~` is expanded, paths that do not exist are skipped. These are the usual places for programs installed by pacman, AUR helpers and Flatpak. `/opt` is not scanned by default (large, rarely worth it); add it yourself if you want it. |
+| **Paths to scan** (`binary_scan_paths`, in *Paths and options…*) | `/usr/bin`, `/usr/local/bin`, `~/.local/bin`, `/var/lib/flatpak/exports/bin` | One path per line; `~` is expanded, paths that do not exist are skipped. These are the usual places for programs installed by pacman, AUR helpers and Flatpak. `/opt` is not scanned by default (large, rarely worth it); add it yourself if you want it. |
 | **Scan binaries at start** (`binary_on_start`) | off | A binary scan after the app started (after the *Delay after start*). |
 | **Scan binaries after package installs/updates** (`binary_after_pkg_changes`) | off | A binary scan after package changes, with the same wait as the package scan. Needs the pacman hook. |
 | **Scan binaries together with every AUR package scan** (`binary_with_aur_scans`) | off | Starts a binary scan whenever a package scan has finished (not for skipped scans), whatever triggered it. A binary scan that is still running is cancelled and restarted, so the newest state is always scanned. When **you** start the package scan from the tray menu, the binary scan always follows, even in gaming mode. |

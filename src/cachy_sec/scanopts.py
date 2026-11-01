@@ -97,6 +97,7 @@ class Spec:
     opts: tuple[Opt, ...]
     extra_key: str
     deny: set[str]
+    paths_key: str = ""  # Settings list that is edited as one path per line (ClamAV)
 
 
 AMC = Spec(
@@ -137,8 +138,8 @@ AUR_SCAN = Spec(
 
 CLAMD = Spec(
     "ClamAV (clamdscan) options",
-    "Options of the clamdscan client. --fdpass and --infected are always set by the app; nothing is ever removed, moved\n"
-    "or copied.",
+    "The paths to scan and the options of the clamdscan client. --fdpass and --infected are always set by the app;\n"
+    "nothing is ever removed, moved or copied.",
     (
         Opt("binary_multiscan", "bool", "Scan with several threads (--multiscan)",
             "Faster on multi-core machines, but uses more CPU while it runs. Off by default so the scan does not\n"
@@ -148,6 +149,7 @@ CLAMD = Spec(
     ),
     "binary_extra_args",
     DENY_CLAMD,
+    "binary_scan_paths",
 )
 
 SPECS = {"amc": AMC, "aur_scan": AUR_SCAN, "clamd": CLAMD}

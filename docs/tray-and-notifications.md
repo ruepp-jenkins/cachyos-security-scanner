@@ -38,6 +38,7 @@ Scan history…
 Check for app updates
 Restart to apply update          ← only visible when an update waits
 Settings…
+Help
 Quit
 ```
 
@@ -49,6 +50,7 @@ Quit
 | **Check for app updates** | manual update check. With automatic updates switched off it only *asks* before installing, see [Updates](updates.md) |
 | **Restart to apply update** | restarts the app now to use an installed update. Otherwise it restarts by itself when idle |
 | **Settings…** | opens the [settings](settings.md) (one window at a time) |
+| **Help** | opens this help in your browser, at the page of **your version's tag** on GitHub (the latest `master` for a development build) |
 | **Quit** | stops the app. Nothing keeps running in the background |
 
 ## Notifications

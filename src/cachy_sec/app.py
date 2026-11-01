@@ -4,8 +4,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QFileSystemWatcher, QObject, QRunnable, QThreadPool, QTimer, Signal
-from PySide6.QtGui import QAction, QIcon
+from PySide6.QtCore import Qt, QFileSystemWatcher, QObject, QRunnable, QThreadPool, QTimer, QUrl, Signal
+from PySide6.QtGui import QAction, QDesktopServices, QIcon
 from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 
 import time
@@ -124,6 +124,7 @@ class Tray(QObject):
         self.act_restart = self.menu.addAction("Restart to apply update", self._restart)
         self.act_restart.setVisible(False)
         self.menu.addAction("Settings…", self.open_settings)
+        self.menu.addAction("Help", self.open_help)
         self.menu.addAction("Quit", app.quit)
         self.menu.aboutToShow.connect(self._refresh_menu)
         self.tray.setContextMenu(self.menu)
@@ -466,6 +467,9 @@ class Tray(QObject):
             dlg.show()
         if select in SELECTORS:
             self.history_dlg.select_latest(*SELECTORS[select])
+
+    def open_help(self) -> None:
+        QDesktopServices.openUrl(QUrl(updater.docs_url()))  # help of this version's tag on GitHub
 
     def open_settings(self) -> None:
         """At most one settings window (non-modal, so the tray stays usable)."""

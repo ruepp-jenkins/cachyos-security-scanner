@@ -29,6 +29,8 @@ scanner gets its own entry in the [history](scan-history.md).
 A good default is to keep 1 and 3 on. Switch 2 on if you want deeper (and noisier) analysis.
 
 ### How the app keeps them up to date
+*(Short version – the full procedure with all commands is in [Scanner lifecycle](scanner-lifecycle.md).)*
+
 - The scanner programs are fetched with `git` into `~/.local/share/cachy-security-scanner/vendor/` and updated with
   `git pull` before a scan (setting *Update scanner sources before each scan*).
 - A **broken checkout** is detected (`git fsck`) and deleted and cloned again.

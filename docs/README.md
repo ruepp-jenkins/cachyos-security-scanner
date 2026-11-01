@@ -40,6 +40,7 @@ flowchart LR
 | ⚙️ [Settings reference](settings.md) | Every option, its default and its key in the settings file |
 | 🧪 [Scanners and community lists](scanners-and-lists.md) | Which tool does what, false positives, signed lists |
 | 🔄 [Updates](updates.md) | How the app updates itself and why that is safe |
+| 🔁 [Scanner lifecycle](scanner-lifecycle.md) | Where the scanner tools come from, how they are checked, updated and called |
 
 ### Setting things up
 | Page | What you find there |

@@ -29,7 +29,7 @@ You do not install the AUR scanners yourself; the app does it, in your home fold
 | **Cannot be set up** | (no `git`, no Rust, Python too old, no network) the scan shows an **error** in the history and a ❌ tray icon. It never reports "clean" for a scanner that did not run. |
 | **Community lists** | downloaded as signed files from this repository's releases at start, then hourly checked; verified before use. |
 
-Everything runs with low CPU/I/O priority. Details, requirements and the exact commands: [Scanners and community lists](docs/scanners-and-lists.md), [Requirements](docs/setup-requirements.md), [How it works](docs/how-it-works.md).
+Everything runs with low CPU/I/O priority. Details and the exact commands: **[Scanner lifecycle](docs/scanner-lifecycle.md)**; see also [Scanners and community lists](docs/scanners-and-lists.md), [Requirements](docs/setup-requirements.md), [How it works](docs/how-it-works.md).
 
 Note: the scanners are third-party code that is downloaded from GitHub and run as your user; they are not signature-checked by this app (only the app's own updates and the community lists are). See the trust table in [How it works](docs/how-it-works.md#-trust-and-verification).
 
@@ -75,7 +75,8 @@ The full help starts at **[docs/README.md](docs/README.md)**; the **Help** butto
 | 📜 [Scan history](docs/scan-history.md) | 🔎 [Findings window](docs/findings-window.md) |
 | ⚙️ [Settings reference](docs/settings.md) | 🧪 [Scanners and community lists](docs/scanners-and-lists.md) |
 | 🦠 [Set up ClamAV](docs/setup-clamav.md) | 🧰 [Requirements](docs/setup-requirements.md) |
-| 🔄 [Updates](docs/updates.md) | 🩹 [Troubleshooting](docs/troubleshooting.md) |
+| 🔄 [Updates](docs/updates.md) | 🔁 [Scanner lifecycle](docs/scanner-lifecycle.md) |
+| 🩹 [Troubleshooting](docs/troubleshooting.md) | |
 | 🔬 [How it works (files, network, privileges)](docs/how-it-works.md) | 🏗️ [Maintainer notes](docs/maintainers.md) |
 
 ## License and disclaimer

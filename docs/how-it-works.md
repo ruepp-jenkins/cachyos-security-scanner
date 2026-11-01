@@ -91,6 +91,8 @@ AUR packages; ClamAV reads the files in the paths you configure. See [Scanners](
 
 ## ⚙️ Programs the app starts
 
+The lifecycle of the scanners (sources, health check, update, exact invocation, exit codes) has its own page: [Scanner lifecycle](scanner-lifecycle.md).
+
 No shell is ever used (`shell=False`, argument lists); paths are passed as single arguments.
 
 | Program | When | Purpose |

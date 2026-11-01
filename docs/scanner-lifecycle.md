@@ -119,7 +119,7 @@ copy exists at all; the regular refresh happens at app start and hourly (downloa
 ## ▶️ 4. How the tools are called for a scan
 
 All commands are started **without a shell** (argument lists), inherit your environment, and run in a worker thread so the
-UI stays responsive. Output (stdout and stderr together) is captured and stored in the history.
+UI stays responsive. The commands below show the defaults; the *Options…* buttons in the [settings](settings.md#scanner-options) can add options (validated, see there). The options in use are written at the top of the scan log. Output (stdout and stderr together) is captured and stored in the history.
 
 ### aur-malware-check
 ```

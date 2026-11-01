@@ -13,17 +13,21 @@ import subprocess
 import time
 from pathlib import Path
 
+from .. import scanopts
+from ..settings import Settings
+
 BACKGROUND_TIMEOUT = 6 * 3600
 
 # clamdscan exits 2 when some files could not be opened, even if it scanned the rest and found nothing. That is not a
 # failure: with "Infected files: 0" in its summary the scan is a success and the unreadable files are only reported.
 SCAN_SCRIPT = r'''
-log=$1; shift
+log=$1; nopts=$2; shift 2
+opts=("${@:1:nopts}"); shift "$nopts"
 tmp=$(mktemp)
 {
 echo "clamdscan: scanning $# path(s) via clamd ($(date '+%F %T'))"
 echo
-clamdscan --fdpass --multiscan -i -- "$@" 2>&1
+clamdscan "${opts[@]}" -- "$@" 2>&1
 } | tee "$log" "$tmp"
 rc=${PIPESTATUS[0]}
 skipped=""
@@ -136,13 +140,15 @@ def existing_paths(paths: list[str]) -> list[str]:
     return [os.path.expanduser(p) for p in paths if os.path.exists(os.path.expanduser(p))]
 
 
-def background_command(paths: list[str], low_priority: bool) -> list[str]:
+def background_command(paths: list[str], low_priority: bool, options: list[str] | None = None) -> list[str]:
     from .base import priority_prefix
 
-    return (priority_prefix() if low_priority else []) + ["clamdscan", "--fdpass", "--multiscan", "-i", "--", *paths]
+    opts = options if options is not None else ["--fdpass", "-i", "--multiscan"]
+    return (priority_prefix() if low_priority else []) + ["clamdscan", *opts, "--", *paths]
 
 
-def run_background(paths: list[str], low_priority: bool = True, trigger: str = "scheduled") -> tuple[str, str]:
+def run_background(paths: list[str], low_priority: bool = True, trigger: str = "scheduled",
+                   settings: Settings | None = None) -> tuple[str, str]:
     """Scan without a terminal and write the log to the history. Returns (state, message) with state
     'clean', 'threats', 'error' or 'unavailable'. Blocking: call it from a worker thread. Never raises."""
     from .. import history
@@ -152,6 +158,10 @@ def run_background(paths: list[str], low_priority: bool = True, trigger: str = "
     existing = existing_paths(paths)
     if not existing:
         return "unavailable", "none of the configured paths exist"
+    try:
+        options = scanopts.clamd_args(settings or Settings())
+    except ValueError as e:
+        return "error", f"Invalid extra arguments in the ClamAV options: {e}"
     mark_scan()
     try:
         log = history.new_binary_log_path()
@@ -168,7 +178,7 @@ def run_background(paths: list[str], low_priority: bool = True, trigger: str = "
                 pass
 
     try:
-        p = subprocess.run(background_command(existing, low_priority), capture_output=True, text=True,
+        p = subprocess.run(background_command(existing, low_priority, options), capture_output=True, text=True,
                            errors="replace", timeout=BACKGROUND_TIMEOUT, stdin=subprocess.DEVNULL)
         rc, out = p.returncode, (p.stdout or "") + (p.stderr or "")
     except subprocess.TimeoutExpired:
@@ -200,7 +210,7 @@ def find_terminal() -> tuple[str, list[str]] | None:
     return None
 
 
-def build_command(paths: list[str], log_path: str = "/dev/null") -> list[str] | None:
+def build_command(paths: list[str], log_path: str = "/dev/null", options: list[str] | None = None) -> list[str] | None:
     """Full argv that opens a terminal running the scan, or None if no terminal emulator was found."""
     term = find_terminal()
     if term is None:
@@ -209,19 +219,24 @@ def build_command(paths: list[str], log_path: str = "/dev/null") -> list[str] | 
     if not existing:
         return None
     binary, pre = term
-    return [binary, *pre, "bash", "-c", SCAN_SCRIPT, "clamdscan", log_path, *existing]
+    opts = options if options is not None else ["--fdpass", "-i", "--multiscan"]
+    return [binary, *pre, "bash", "-c", SCAN_SCRIPT, "clamdscan", log_path, str(len(opts)), *opts, *existing]
 
 
-def launch(paths: list[str]) -> tuple[bool, str]:
+def launch(paths: list[str], settings: Settings | None = None) -> tuple[bool, str]:
     if not available():
         return False, "clamdscan not found (install the 'clamav' package)"
+    try:
+        options = scanopts.clamd_args(settings or Settings())
+    except ValueError as e:
+        return False, f"Invalid extra arguments in the ClamAV options: {e}"
     from .. import history
 
     try:
         log = str(history.new_binary_log_path())
     except OSError:
         log = "/dev/null"
-    cmd = build_command(paths, log)
+    cmd = build_command(paths, log, options)
     if cmd is None:
         return False, "no terminal emulator or none of the configured paths found"
     try:

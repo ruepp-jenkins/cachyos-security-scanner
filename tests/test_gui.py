@@ -25,6 +25,7 @@ if HAVE_QT:
     from cachy_sec import app as appmod, engine, history, ignores, notify, settings as st
     from cachy_sec.findings_dialog import FindingsDialog
     from cachy_sec.history_dialog import HistoryDialog
+    from cachy_sec.options_dialog import OptionsDialog
     from cachy_sec.settings_dialog import SettingsDialog
     from cachy_sec.scanners import aur_malware_check, aur_scan, blocklist
     from cachy_sec.scanners.base import CLEAN, WARNING, Finding, ScanResult
@@ -223,9 +224,33 @@ class GuiTest(unittest.TestCase):
         self.assertTrue(url.startswith("https://github.com/ruepp-jenkins/cachyos-security-scanner/"))
         self.assertTrue(url.endswith("/docs/settings.md"))
 
+    def test_scanner_options_dialog_validates_and_returns_the_values(self):
+        for which in ("amc", "aur_scan", "clamd"):
+            d = OptionsDialog(which, st.Settings())
+            self.assertEqual(d.error.text(), "")
+            self.assertTrue(d.preview.text())
+        d = OptionsDialog("clamd", st.Settings())
+        d.extra.setText("--remove")
+        self.assertNotEqual(d.error.text(), "")
+        d._ok()
+        self.assertEqual(d.result(), 0)  # stays open, nothing accepted
+        d.extra.setText("--config-file=/etc/clamav/clamd.conf")
+        d.widgets["binary_multiscan"].setChecked(False)
+        self.assertEqual(d.error.text(), "")
+        d._ok()
+        r = d.result_settings()
+        self.assertFalse(r.binary_multiscan)
+        self.assertEqual(r.binary_extra_args, "--config-file=/etc/clamav/clamd.conf")
+        a = OptionsDialog("aur_scan", st.Settings())
+        a.widgets["aur_scan_fail_on"].setCurrentText("low")
+        a._ok()
+        self.assertEqual(a.result_settings().aur_scan_fail_on, "low")
+        a._reset()
+        self.assertEqual(a.widgets["aur_scan_fail_on"].currentText(), "high")
+
     def test_dialogs_do_not_shadow_qt_attributes(self):
         finding = Finding(WARNING, "t", "s", package="p", version="1-1", rules=[("X-1", "title", 1)])
-        dialogs = [self._track(SettingsDialog(st.Settings())), self._track(HistoryDialog()),
+        dialogs = [self._track(SettingsDialog(st.Settings())), self._track(HistoryDialog()), self._track(OptionsDialog("clamd", st.Settings())),
                    self._track(FindingsDialog("sum", [finding], [], lambda p: None, "", lambda *a: None))]
         for d in dialogs:
             # PySide caches accessed signals in the instance dict; only our own attributes count

@@ -7,11 +7,13 @@ recognisable scan output is treated as "findings"; 126/127/124 are treated as er
 from __future__ import annotations
 
 import re
+import shlex
 import shutil
 from collections.abc import Callable
 from pathlib import Path
 
-from .. import fplist, ignores, vendor
+from .. import fplist, ignores, scanopts, vendor
+from ..settings import Settings
 from .base import CLEAN, ERROR, WARNING, Finding, Scanner, ScanResult, run, which
 
 _ERROR_CODES = {124, 126, 127}
@@ -133,7 +135,8 @@ class AurScan(Scanner):
     name = "aur_scan"
     label = "aur-scan (ks-aur-scanner)"
 
-    def __init__(self, ignore: list[str] | None = None, use_fp_list: bool = False) -> None:
+    def __init__(self, ignore: list[str] | None = None, use_fp_list: bool = False, settings: Settings | None = None) -> None:
+        self._settings = settings or Settings()
         self._ignore = frozenset(ignore or [])
         self._use_fp = use_fp_list  # signed community false-positive list from the project's GitHub (switchable in the settings)
         self._fp_checked = False
@@ -190,7 +193,13 @@ class AurScan(Scanner):
             return ScanResult(self.name, ERROR, [], "aur-scan could not be set up: "
                               + (self._build_log.strip().splitlines() or ["build failed"])[-1][:200],
                               log=self._build_log[-LOG_TAIL:])
-        code, out = run([binary, "--no-color", "system", "--fail-on", "high"], 1800, low_priority=True)
+        try:
+            options = scanopts.aur_scan_args(self._settings)
+        except ValueError as e:
+            return ScanResult(self.name, ERROR, [], f"invalid extra arguments in the options of aur-scan: {e}")
+        code, out = run([binary, "--no-color", "system", *options], 1800, low_priority=True)
+        if options != ["--fail-on", "high"]:
+            out = f"[options: {shlex.join(options)}]\n{out}"
         if code == 0:
             return ScanResult(self.name, CLEAN, log=out)
         if code in _ERROR_CODES:

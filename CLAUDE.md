@@ -40,6 +40,7 @@ PYTHONPATH=src python3 -m cachy_sec.signedlist validate lists/*.json   # what CI
 - **Every `Settings` field must be documented in `docs/settings.md`** (by its key); `test_every_setting_is_documented` fails otherwise. Bump `Settings.schema` and add a migration in `Settings.load()` when a default changes meaning.
 - **Qt attribute shadowing:** never name a widget attribute like a Qt member (`accepted`, `scroll`, …); it silently replaces the signal/method. A GUI test guards the dialogs.
 - **Never silence setup problems:** surface them as `ERROR` results/notifications. Only scanners enabled in the settings may run.
+- **Scanner options** (`scanopts.py`, `options_dialog.py`): user-supplied extra arguments must go through `scanopts.parse_extra` (options only, no shell characters, per-scanner denylist incl. anything that removes/moves/writes files). Never pass them to a shell or build commands from them elsewhere.
 - **Removal is always user-confirmed** (`remove.py`, `pkexec pacman -Rns`); "Open files" opens a *folder* and never executes anything.
 - **Help pages** live in `docs/` (start at `docs/README.md`); keep relative links and anchors valid when editing (GitHub anchors: lowercase, emoji dropped, e.g. `#-the-pacman-hook`). Do not put the EICAR test string or other antivirus test signatures anywhere in the repo.
 - **Privacy:** the maintainer's real name/username must not appear in files or git history (screenshots were redacted).

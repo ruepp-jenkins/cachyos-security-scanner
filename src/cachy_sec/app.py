@@ -219,7 +219,7 @@ class Tray(QObject):
             return
         self.binary_busy = True
         paths, low = list(s.binary_scan_paths), s.binary_low_priority
-        self.pool.start(_Job(lambda: clamd.run_background(paths, low, trigger), self.bin_done,
+        self.pool.start(_Job(lambda: clamd.run_background(paths, low, trigger, self.settings), self.bin_done,
                              lambda e: ("error", f"internal error: {e}")))
 
     def _binary_finished(self, state: str, msg: str) -> None:
@@ -373,7 +373,7 @@ class Tray(QObject):
 
     def scan_binaries(self) -> None:
         """Open a terminal showing the live clamdscan output; everything else is up to the user."""
-        ok, msg = clamd.launch(self.settings.binary_scan_paths)
+        ok, msg = clamd.launch(self.settings.binary_scan_paths, self.settings)
         if not ok:
             notify.notify("Binary scan not started", msg, kind="bad")
 

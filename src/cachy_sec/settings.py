@@ -47,6 +47,20 @@ class Settings:
     use_false_positive_list: bool = True
     # aur-scan results to hide: a rule code (SCAN-001), a package (heidisql) or package:CODE
     ignored_findings: list[str] = field(default_factory=lambda: list(DEFAULT_IGNORED))
+    # Options of the scanners (Settings > "Options…" buttons); see scanopts.py. Extra arguments are validated there.
+    amc_all_time: bool = False
+    amc_check_systemd: bool = False
+    amc_check_ebpf: bool = False
+    amc_check_ioc_files: bool = False
+    amc_check_caches: bool = False
+    amc_extra_args: str = ""
+    aur_scan_fail_on: str = "high"
+    aur_scan_min_severity: str = "all"
+    aur_scan_rescan: bool = False
+    aur_scan_extra_args: str = ""
+    binary_multiscan: bool = True
+    binary_allmatch: bool = False
+    binary_extra_args: str = ""
     # Binary scan with clamdscan runs only on request from the tray menu.
     binary_scan_paths: list[str] = field(default_factory=lambda: list(DEFAULT_BINARY_PATHS))
     # Optional automatic binary scans (background, no terminal window; result in the history). All off by default.
@@ -71,6 +85,11 @@ class Settings:
         self.pkg_change_delay_seconds = max(5, min(int(self.pkg_change_delay_seconds), 3600))
         self.binary_interval_minutes = max(60, min(int(self.binary_interval_minutes), 52 * WEEK_MINUTES))
         self.binary_min_gap_hours = max(0, min(int(self.binary_min_gap_hours), 24 * 90))
+        severities = ("critical", "high", "medium", "low", "info")
+        if self.aur_scan_fail_on not in severities:
+            self.aur_scan_fail_on = "high"
+        if self.aur_scan_min_severity not in ("all",) + severities:
+            self.aur_scan_min_severity = "all"
 
     @classmethod
     def load(cls, path: Path | None = None) -> "Settings":

@@ -598,6 +598,89 @@ class ListRefreshPolicyTest(unittest.TestCase):
             self.assertIn("last download failed (download failed: HTTP Error 404", fplist.status())
 
 
+class ScannerOptionsTest(unittest.TestCase):
+    def setUp(self):
+        from cachy_sec import scanopts
+        self.o = scanopts
+
+    def test_empty_and_plain_options(self):
+        self.assertEqual(self.o.parse_extra("", self.o.DENY_CLAMD), [])
+        self.assertEqual(self.o.parse_extra("--verbose --name=a --limit 5", set()), ["--verbose", "--name=a", "--limit", "5"])
+        self.assertEqual(self.o.parse_extra("-l 'chaos rat=./list.txt'", self.o.DENY_AMC), ["-l", "chaos rat=./list.txt"])
+
+    def test_shell_tricks_are_rejected(self):
+        for bad in ("--verbose && touch /tmp/x", "--verbose; id", "--verbose | cat", "--a `id`", "--a $(id)", "--a $HOME",
+                    "--a > /tmp/x", "--a < /etc/passwd", "--a\nid", "--a=b&c"):
+            with self.assertRaises(ValueError, msg=bad):
+                self.o.parse_extra(bad, set())
+
+    def test_must_be_options(self):
+        for bad in ("rm -rf x", "scan --verbose", "--a b c", "--", "--verbose -- /etc", "-", "--1x", "--a 'unterminated"):
+            with self.assertRaises(ValueError, msg=bad):
+                self.o.parse_extra(bad, set())
+        with self.assertRaises(ValueError):
+            self.o.parse_extra("--" + "a" * 1100, set())
+        with self.assertRaises(ValueError):
+            self.o.parse_extra(" ".join(["--a"] * 41), set())
+
+    def test_denied_options_incl_abbreviations_and_groups(self):
+        d = self.o.DENY_CLAMD
+        for bad in ("--remove", "--remove=yes", "--move=/tmp", "--move /tmp", "--rem", "--copy /x", "-f list", "-vf", "--help",
+                    "--fdpass", "-i", "--file-list=x"):
+            with self.assertRaises(ValueError, msg=bad):
+                self.o.parse_extra(bad, d)
+        self.assertEqual(self.o.parse_extra("--config-file=/etc/clamav/clamd.conf", d), ["--config-file=/etc/clamav/clamd.conf"])
+        for bad in ("--log-file x", "--out f", "--json", "-o f"):
+            with self.assertRaises(ValueError, msg=bad):
+                self.o.parse_extra(bad, self.o.DENY_AMC)
+        for bad in ("--fail-on low", "--no-color", "-q", "--sev low", "--rescan"):
+            with self.assertRaises(ValueError, msg=bad):
+                self.o.parse_extra(bad, self.o.DENY_AUR_SCAN)
+
+    def test_built_arguments(self):
+        s = Settings()
+        self.assertEqual(self.o.amc_args(s), [])
+        self.assertEqual(self.o.aur_scan_args(s), ["--fail-on", "high"])
+        self.assertEqual(self.o.clamd_args(s), ["--fdpass", "-i", "--multiscan"])
+        s = Settings(amc_check_systemd=True, amc_check_caches=True, amc_all_time=True, amc_extra_args="--verbose",
+                     aur_scan_fail_on="low", aur_scan_min_severity="medium", aur_scan_rescan=True, aur_scan_extra_args="-v",
+                     binary_multiscan=False, binary_allmatch=True, binary_extra_args="--config-file=/x")
+        self.assertEqual(self.o.amc_args(s), ["--all-time", "--check-systemd", "--check-npm-cache", "--check-bun-cache",
+                                              "--check-yarn-cache", "--check-pnpm-cache", "--verbose"])
+        self.assertEqual(self.o.aur_scan_args(s), ["--fail-on", "low", "--severity", "medium", "--rescan", "-v"])
+        self.assertEqual(self.o.clamd_args(s), ["--fdpass", "-i", "--allmatch", "--config-file=/x"])
+        self.assertIn("Invalid extra arguments", self.o.preview("clamd", Settings(binary_extra_args="--remove")))
+        self.assertTrue(self.o.preview("aur_scan", Settings()).startswith("aur-scan --no-color system"))
+
+    def test_invalid_saved_value_is_an_error_not_a_scan(self):
+        from cachy_sec.scanners import clamd
+        s = Settings(binary_extra_args="--remove")
+        with tempfile.TemporaryDirectory() as d, mock.patch("cachy_sec.scanners.clamd.available", return_value=True), \
+                mock.patch("subprocess.run") as run:
+            state, msg = clamd.run_background([d], True, "manual", s)
+            self.assertEqual(state, "error")
+            self.assertIn("--remove", msg)
+            run.assert_not_called()
+            ok, msg = clamd.launch([d], s)
+            self.assertFalse(ok)
+
+    def test_choices_are_validated_on_load(self):
+        s = Settings(aur_scan_fail_on="bogus", aur_scan_min_severity="x")
+        s.validate()
+        self.assertEqual((s.aur_scan_fail_on, s.aur_scan_min_severity), ("high", "all"))
+
+    def test_options_reach_the_commands(self):
+        from cachy_sec.scanners import clamd
+        self.assertEqual(clamd.background_command(["/a"], False, ["--fdpass", "-i"]), ["clamdscan", "--fdpass", "-i", "--", "/a"])
+        s = Settings(aur_scan_fail_on="medium")
+        scanner = AurScan([], False, s)
+        with mock.patch.object(AurScan, "_binary", return_value="/bin/aur-scan"), \
+                mock.patch("cachy_sec.scanners.aur_scan.run", return_value=(0, "ok")) as run:
+            scanner._prepared = True
+            scanner.scan()
+        self.assertEqual(run.call_args[0][0], ["/bin/aur-scan", "--no-color", "system", "--fail-on", "medium"])
+
+
 class DocsTest(unittest.TestCase):
     def test_every_setting_is_documented(self):
         """docs/settings.md must mention each settings key, so a new option cannot be forgotten."""
@@ -772,7 +855,8 @@ class ClamdTest(unittest.TestCase):
                 cmd = clamd.build_command([d, "/does/not/exist"])
             self.assertEqual(cmd[:3], ["/usr/bin/konsole", "-e", "bash"])
             self.assertEqual(cmd[-1], d)  # missing paths are dropped
-            self.assertIn("clamdscan --fdpass", cmd[4])
+            self.assertIn('clamdscan "${opts[@]}" -- "$@"', cmd[4])
+            self.assertEqual(cmd[5:9], ["clamdscan", "/dev/null", "3", "--fdpass"])  # script args: log, option count, options
             with mock.patch("shutil.which", side_effect=lambda n: "/usr/bin/foot" if n == "foot" else None):
                 self.assertEqual(clamd.build_command([d])[:2], ["/usr/bin/foot", "bash"])
 

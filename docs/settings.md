@@ -49,9 +49,58 @@ cloned, built or downloaded. A scanner that is switched on but cannot run (missi
 
 | Setting (key) | Default | What it does |
 |---|---|---|
-| **aur-malware-check** (`use_aur_malware_check`) | on | Runs [lenucksi/aur-malware-check](https://github.com/lenucksi/aur-malware-check): compares your installed AUR (foreign) packages, the pacman log, systemd units, npm/bun caches and known IOC files against lists of packages compromised in documented attack campaigns (including the official Arch Linux notice). Only matches **known** bad packages, so it has few false positives but cannot see new attacks. The app clones it into `~/.local/share/cachy-security-scanner/vendor/` and keeps it up to date. Needs `git` and Python 3.14 or newer. |
+| **aur-malware-check** (`use_aur_malware_check`) | on | Runs [lenucksi/aur-malware-check](https://github.com/lenucksi/aur-malware-check): compares your installed AUR (foreign) packages and the pacman log against lists of packages compromised in documented attack campaigns (more places can be checked, see [scanner options](#scanner-options)) (including the official Arch Linux notice). Only matches **known** bad packages, so it has few false positives but cannot see new attacks. The app clones it into `~/.local/share/cachy-security-scanner/vendor/` and keeps it up to date. Needs `git` and Python 3.14 or newer. |
 | **aur-scan (ks-aur-scanner)** (`use_aur_scan`) | **off** | Runs [KiefStudioMA/ks-aur-scanner](https://github.com/KiefStudioMA/ks-aur-scanner) (`aur-scan system`): a **heuristic** analysis of the PKGBUILD and install scripts of your installed AUR packages (142 rules, e.g. "decode and execute" patterns). It can find new kinds of attacks, but it also **produces false positives**, so it is off by default; enable it only if you are willing to judge findings. It uses the `aur-scan` from the AUR package [`aur-scanner`](https://aur.archlinux.org/packages/aur-scanner) if installed; otherwise the app clones the repository and builds it with `cargo` (needs `git`, `rust`, `clang`; the app's own package depends on them). It analyses the PKGBUILDs in your AUR helper's cache (for example `~/.cache/yay/<package>`). |
 | **Community blocklist** (`use_community_blocklist`) | on | Matches your installed AUR packages by name and version against [`lists/blocklist_aur.json`](https://github.com/ruepp-jenkins/cachyos-security-scanner/blob/master/lists/blocklist_aur.json), a list of known malicious or compromised packages maintained in this project. A match is a **critical** finding; the *Remove packages…* button then offers to remove it (after confirmation). Needs no extra software. See [community lists](#community-lists). |
+
+## Scanner options
+
+Each AUR scanner and ClamAV has an **Options…** button next to it. It opens a window with the scanner's most useful
+settings, a field for **extra arguments**, and a live preview of the command line that will be run.
+
+### aur-malware-check
+
+| Setting (key) | Default | Upstream option | What it does |
+|---|---|---|---|
+| **Report infected packages regardless of install date** (`amc_all_time`) | off | `--all-time` | By default only packages installed inside the time window of the campaign are flagged. |
+| **Check for unknown systemd services** (`amc_check_systemd`) | off | `--check-systemd` | Looks for services with `Restart=always` that no package owns. |
+| **Check for eBPF rootkit traces** (`amc_check_ebpf`) | off | `--check-ebpf` | Looks for traces such as `/sys/fs/bpf/hidden_*`. |
+| **Check for known malware files** (`amc_check_ioc_files`) | off | `--check-ioc-files` | Known file paths and their SHA-256 checksums. |
+| **Check the npm, bun, yarn and pnpm caches** (`amc_check_caches`) | off | `--check-npm-cache` … | Looks for malicious JavaScript packages in the package-manager caches. |
+| **Extra arguments** (`amc_extra_args`) | empty | | See [extra arguments](#extra-arguments). |
+
+### aur-scan
+
+| Setting (key) | Default | Upstream option | What it does |
+|---|---|---|---|
+| **Treat findings from this severity up as a detection** (`aur_scan_fail_on`) | high | `--fail-on` | One of `critical`, `high`, `medium`, `low`, `info`. Lower values detect more and produce more false positives. |
+| **Only report findings from this severity up** (`aur_scan_min_severity`) | all | `--severity` | `all` or one of the levels above; findings below it are not reported at all. |
+| **Fetch the PKGBUILDs from the AUR again** (`aur_scan_rescan`) | off | `system --rescan` | Instead of the cache of your AUR helper. Needs network access and takes longer. |
+| **Extra arguments** (`aur_scan_extra_args`) | empty | | See [extra arguments](#extra-arguments). |
+
+### ClamAV (clamdscan)
+
+| Setting (key) | Default | Upstream option | What it does |
+|---|---|---|---|
+| **Scan with several threads** (`binary_multiscan`) | on | `--multiscan` | Faster on multi-core machines, more CPU load while it runs. |
+| **Report every match in a file** (`binary_allmatch`) | off | `--allmatch` | Continues scanning a file after the first match. Slower, more complete. |
+| **Extra arguments** (`binary_extra_args`) | empty | | See [extra arguments](#extra-arguments). `--fdpass` and `--infected` are always set. |
+
+### Extra arguments
+
+You can pass additional options of the scanner. The app **never uses a shell**, and in addition it checks the text
+before accepting it:
+
+- it is split like a shell would split it (quotes are allowed) and every part is checked on its own;
+- shell characters (`;` `&` `|` `<` `>` `` ` `` `$`) and line breaks are rejected, so `--verbose && other-program` is not possible;
+- the first part must be an option (`-x`, `--name`, `--name=value`) – no program name, no sub-command; a plain word is
+  accepted only as the value directly after its option; a bare `--` is rejected;
+- options that would **delete, move, copy or write files**, only print help, or that the app sets itself (for example
+  `--remove`, `--move`, `--log-file`, `--json`, `--fail-on`) are rejected, also in abbreviated form.
+
+If a saved value is invalid (for example you edited the settings file by hand), the scan does **not** run with it: it
+ends with an error entry in the [history](scan-history.md) that names the problem. The options that were used are written
+at the top of the scan log.
 
 ## Community lists
 

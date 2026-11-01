@@ -10,7 +10,8 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, 
                                QHBoxLayout, QLabel, QMessageBox, QPlainTextEdit, QPushButton, QSpinBox,
                                QScrollArea, QVBoxLayout, QWidget)
 
-from . import blocklist, clamd_schedule, fplist, icons, ignores, updater
+from . import blocklist, clamd_schedule, fplist, icons, ignores, scanopts, updater
+from .options_dialog import OptionsDialog
 from .scanners import clamd
 from .scanners.aur_malware_check import AurMalwareCheck
 from .scanners.aur_scan import AurScan
@@ -96,8 +97,8 @@ class SettingsDialog(QDialog):
 
         back = QGroupBox("AUR scanners")
         bl = QVBoxLayout(back)
-        self.b_amc = self._backend(bl, "aur-malware-check (lenucksi)", s.use_aur_malware_check, AurMalwareCheck())
-        self.b_scan = self._backend(bl, "aur-scan (ks-aur-scanner) – heuristic, can produce false positives; only enable if you know what it does", s.use_aur_scan, AurScan())
+        self.b_amc = self._backend(bl, "aur-malware-check (lenucksi)", s.use_aur_malware_check, AurMalwareCheck(), "amc")
+        self.b_scan = self._backend(bl, "aur-scan (ks-aur-scanner) – heuristic, can produce false positives; only enable if you know what it does", s.use_aur_scan, AurScan(), "aur_scan")
         # belongs to aur-scan: indented below it and only usable while aur-scan is enabled
         self.b_fp = QCheckBox("Community false-positive list")
         self.b_fp.setChecked(s.use_false_positive_list)
@@ -170,8 +171,10 @@ class SettingsDialog(QDialog):
         self.b_low = self._cb("Run binary scans with low priority (nice / ionice)", s.binary_low_priority, cf)
         self.b_low.setToolTip("Lowers the priority of the clamdscan client. The scanning itself is done by the clamd daemon,\n"
                               "whose priority is set by its own service (systemctl edit clamav-daemon: Nice=, IOSchedulingClass=).")
+        self.b_options = self._options_button("clamd")
+        cf.addRow(self.b_options)
         if not clamd.available():  # keep the saved values, just make them unreachable
-            for w in (self.paths, self.b_start, self.b_pkg, self.b_with, self.b_periodic, self.b_interval, self.b_gap, self.b_low):
+            for w in (self.b_options, self.paths, self.b_start, self.b_pkg, self.b_with, self.b_periodic, self.b_interval, self.b_gap, self.b_low):
                 w.setEnabled(False)
         else:
             self.b_interval.setEnabled(s.binary_periodic)
@@ -264,13 +267,31 @@ class SettingsDialog(QDialog):
         widget.setEnabled(val)
         return c
 
-    @staticmethod
-    def _backend(layout: QVBoxLayout, text: str, val: bool, scanner) -> QCheckBox:
+    def _backend(self, layout: QVBoxLayout, text: str, val: bool, scanner, options: str | None = None) -> QCheckBox:
         ok = scanner.available()
         c = QCheckBox(text if ok else f"{text} – will be fetched on first scan if possible")
         c.setChecked(val)
-        layout.addWidget(c)
+        row = QHBoxLayout()
+        row.addWidget(c, 1)
+        if options:
+            row.addWidget(self._options_button(options))
+        layout.addLayout(row)
         return c
+
+    def _options_button(self, which: str) -> QPushButton:
+        b = QPushButton("Options…")
+        b.setToolTip("Details and extra arguments for this scanner")
+        b.clicked.connect(lambda: self._edit_options(which))
+        return b
+
+    def _edit_options(self, which: str) -> None:
+        dlg = OptionsDialog(which, self.s, self)
+        if dlg.exec():
+            new = dlg.result_settings()
+            for o in scanopts.SPECS[which].opts:
+                setattr(self.s, o.key, getattr(new, o.key))
+            key = scanopts.SPECS[which].extra_key
+            setattr(self.s, key, getattr(new, key))
 
     def _load_accepted(self) -> None:
         self.accepted_list.clear()

@@ -9,6 +9,15 @@
       "reported": "2026-10-31",
       "reason": "unzip in the PKGBUILD (extracting translations) plus 'bash -c' in the shipped wrapper script are combined across files into a decode-and-execute finding. Nothing is decoded and executed; the wrapper only starts the program.",
       "description": "Seen with aur-scan 2.2.0 on CachyOS. The PKGBUILD only runs 'unzip' on the translation archive in prepare(); heidisql.install only prints notes; the wrapper 'heidisql' ends with '/bin/bash -c \"exec -a $0 $EXEC $ARGS\" \"$0\"'. The rule matches 'unzip' (decode) in one file and 'bash -c' (execute) in another."
+    },
+    {
+      "package": "remote-desktop-manager",
+      "versions": ["2026.3.2.1-1"],
+      "codes": ["CRYPTO-003", "DEEP-003"],
+      "author": "MyUncleSam",
+      "reported": "2026-11-02",
+      "reason": "CRYPTO-003 matches a string inside the shipped binary package that only looks like a Monero/Bitcoin wallet address; DEEP-003 reports Unicode bidirectional control characters in the PKGBUILD. Both were analysed by Claude Sonnet, which found them harmless.",
+      "description": "Seen with aur-scan 2.2.0 on CachyOS. The package is a proprietary application shipped as a prebuilt archive; the 'wallet address' is a long string in the package file, not a payment address used by any code. The bidirectional characters in the PKGBUILD are part of normal text, not hidden code. The review of the package was performed by Claude Sonnet."
     }
   ]
 }

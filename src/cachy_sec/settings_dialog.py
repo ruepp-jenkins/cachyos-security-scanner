@@ -131,7 +131,7 @@ class SettingsDialog(QDialog):
         bl_col.setContentsMargins(24, 0, 0, 0)
         bl_col.addWidget(self.bl_status)
         bl.addLayout(bl_col)
-        self.refresh_btn = QPushButton("Refresh community lists now")
+        self.refresh_btn = QPushButton("Refresh lists")
         self.refresh_btn.setToolTip("Download the community blocklist and the false-positive list again right now,\n"
                                     "instead of waiting for the next automatic check. Only verified lists are accepted.")
         self.refresh_btn.clicked.connect(self._refresh_lists)

@@ -569,6 +569,15 @@ class SingleInstanceTest(unittest.TestCase):
 
 
 class ListRefreshPolicyTest(unittest.TestCase):
+    def test_refresh_all_lists_forces_both_lists_and_survives_errors(self):
+        with mock.patch("cachy_sec.blocklist.refresh", return_value=(True, "updated")) as bl, \
+             mock.patch("cachy_sec.fplist.refresh", side_effect=RuntimeError("boom")) as fp:
+            out = engine.refresh_all_lists()
+        bl.assert_called_once_with(True)
+        fp.assert_called_once_with(True)
+        self.assertEqual(out["community blocklist"], (True, "updated"))
+        self.assertEqual(out["false-positive list"], (False, "boom"))
+
     def test_scans_do_not_download_when_a_list_is_cached(self):
         from cachy_sec.scanners.blocklist import CommunityBlocklist
         loaded = signedlist.Loaded([], "", 0.0)

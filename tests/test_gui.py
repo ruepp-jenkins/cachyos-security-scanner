@@ -369,6 +369,13 @@ class GuiTest(unittest.TestCase):
             self.assertEqual(w.minutes(), minutes)
             w.deleteLater()
 
+    def test_refresh_lists_button_updates_the_status_lines(self):
+        d = self._track(SettingsDialog(st.Settings()))
+        d._lists_refreshed({"community blocklist": (True, "updated"), "false-positive list": (False, "HTTP Error 404")})
+        self.assertTrue(d.refresh_btn.isEnabled())
+        self.assertIn("community blocklist: updated", d.refresh_result.text())
+        self.assertIn("false-positive list: FAILED – HTTP Error 404", d.refresh_result.text())
+
     def test_settings_dialog_saves_the_schedule_options(self):
         d = self._track(SettingsDialog(st.Settings()))
         d.periodic.setChecked(True)

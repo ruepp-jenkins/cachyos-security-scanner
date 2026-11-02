@@ -2,15 +2,16 @@
 from __future__ import annotations
 
 import copy
+import threading
 import time
 
-from PySide6.QtCore import Qt, QUrl
+from PySide6.QtCore import QObject, Qt, QUrl, Signal
 from PySide6.QtGui import QDesktopServices, QGuiApplication, QIcon
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QFormLayout, QGroupBox, QLineEdit, QListWidget,
                                QHBoxLayout, QLabel, QMessageBox, QPlainTextEdit, QPushButton, QSpinBox,
                                QScrollArea, QVBoxLayout, QWidget)
 
-from . import blocklist, clamd_schedule, fplist, icons, ignores, scanopts, updater
+from . import blocklist, clamd_schedule, engine, fplist, icons, ignores, scanopts, updater
 from .options_dialog import OptionsDialog
 from .scanners import clamd
 from .scanners.aur_malware_check import AurMalwareCheck
@@ -19,6 +20,10 @@ from .scanners.blocklist import CommunityBlocklist
 from .settings import Settings, config_path
 
 
+
+
+class _ListsRefreshed(QObject):
+    done = Signal(object)  # {list name: (ok, message)}
 
 
 UNITS = (("minutes", 1), ("hours", 60), ("days", 24 * 60), ("weeks", 7 * 24 * 60))
@@ -126,6 +131,19 @@ class SettingsDialog(QDialog):
         bl_col.setContentsMargins(24, 0, 0, 0)
         bl_col.addWidget(self.bl_status)
         bl.addLayout(bl_col)
+        self.refresh_btn = QPushButton("Refresh community lists now")
+        self.refresh_btn.setToolTip("Download the community blocklist and the false-positive list again right now,\n"
+                                    "instead of waiting for the next automatic check. Only verified lists are accepted.")
+        self.refresh_btn.clicked.connect(self._refresh_lists)
+        self.refresh_result = QLabel("")
+        self.refresh_result.setEnabled(False)
+        self.refresh_result.setWordWrap(True)
+        rf = QHBoxLayout()
+        rf.addWidget(self.refresh_btn)
+        rf.addWidget(self.refresh_result, 1)
+        bl.addLayout(rf)
+        self._refreshed = _ListsRefreshed()
+        self._refreshed.done.connect(self._lists_refreshed)
         bl.addWidget(QLabel("aur-scan: findings to ignore, one per line (rule code like SCAN-001, a package name, or package:CODE):"))
         self.ignored = QPlainTextEdit("\n".join(s.ignored_findings))
         self.ignored.setMaximumHeight(70)
@@ -291,6 +309,19 @@ class SettingsDialog(QDialog):
         self._entries = ignores.load()
         for e in self._entries:
             self.accepted_list.addItem(e.label())
+
+    def _refresh_lists(self) -> None:
+        self.refresh_btn.setEnabled(False)
+        self.refresh_result.setText("Downloading…")
+        signal = self._refreshed.done
+        threading.Thread(target=lambda: signal.emit(engine.refresh_all_lists()), daemon=True).start()
+
+    def _lists_refreshed(self, results: dict) -> None:
+        self.refresh_btn.setEnabled(True)
+        self.fp_status.setText(fplist.status())
+        self.bl_status.setText(blocklist.status())
+        self.refresh_result.setText("; ".join(f"{name}: {msg}" if ok else f"{name}: FAILED – {msg}"
+                                              for name, (ok, msg) in results.items()))
 
     def _revoke(self) -> None:
         row = self.accepted_list.currentRow()

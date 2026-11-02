@@ -126,7 +126,7 @@ The app talks **only to GitHub**. It refuses any other host, including after red
 |---|---|---|
 | `api.github.com/repos/ruepp-jenkins/cachyos-security-scanner/releases` | find the newest release | 30 s after start, then daily (if automatic updates are on), or manual check |
 | `github.com/…/releases/download/vX.Y.Z/…` | update tarball, `SHA256SUMS`, signature | only when a newer version exists |
-| `github.com/…/releases/download/lists/…` | the two community lists and their signatures | at start, hourly check, download when older than 6 h |
+| `github.com/…/releases/download/lists/…` | the two community lists and their signatures | at start, hourly check, download when older than 6 h, and when you press *Refresh community lists now* |
 | `github.com/lenucksi/aur-malware-check.git` | clone / pull of the scanner (done by `git`) | before scans (setting) |
 | `github.com/KiefStudioMA/ks-aur-scanner.git` | clone / pull of `aur-scan` (done by `git`) | before scans, only if `aur-scan` is on and not installed from the AUR |
 

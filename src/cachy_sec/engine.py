@@ -101,6 +101,19 @@ def refresh_lists(s: Settings, force: bool = False) -> dict[str, str]:
     return out
 
 
+def refresh_all_lists() -> dict[str, tuple[bool, str]]:
+    """Download both community lists right now (the settings dialog's button): forced, whatever the switches say."""
+    from . import blocklist, fplist
+
+    out: dict[str, tuple[bool, str]] = {}
+    for name, mod in (("community blocklist", blocklist), ("false-positive list", fplist)):
+        try:
+            out[name] = mod.refresh(True)
+        except Exception as e:  # noqa: BLE001 - a failed download must never break the dialog
+            out[name] = (False, str(e))
+    return out
+
+
 def run_scan(s: Settings, *, manual: bool = False) -> Report:
     reason = skip_reason(s, manual=manual)
     if reason:

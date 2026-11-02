@@ -126,6 +126,10 @@ The grey line under each list in the dialog shows its state:
 | `not downloaded yet (fetched at start and then every few hours)` | No copy yet (first start, or no network so far). |
 | `not available: the last download failed (…)` | The last attempt failed; the reason is in the brackets (for example `HTTP Error 404` if the `lists` release does not exist, or `signature verification failed`). The previous verified copy, if any, keeps being used. |
 
+**Refresh community lists now:** the button in the *AUR scanners* box downloads both lists immediately (also when the
+cached copy is still fresh, and regardless of which lists are switched on), verifies them and updates the grey lines. The
+result of each list is shown next to the button. The download runs in the background; the dialog stays usable.
+
 **When lists are downloaded:** at app start (the start scan waits for it), then checked every hour and downloaded again
 when the cached copy is older than 6 hours, and right after you switch a list on. Scans do not download anything, except
 that a scan fetches a list once if none is cached at all. After a failed download the app waits 15 minutes before it tries again.

@@ -85,11 +85,13 @@ class HistoryDialog(QDialog):
         self.btn_fp = QPushButton("Report false positive")
         self.btn_fp.setToolTip("Open a prefilled form on GitHub for a finding that is wrong. Uses the first package of the\n"
                                "selected scan; you can change it in the form. Nothing is sent by the app.")
+        self.btn_fp.setStyleSheet(report.STYLE_FALSE_POSITIVE)
         self.btn_fp.clicked.connect(self._report_false_positive)
         self.btn_bad = QPushButton("Report malicious package")
         self.btn_bad.setToolTip("Open a prefilled form on GitHub to propose a package for the community blocklist.\n"
                                 "Uses the first package of the selected scan; you can change it in the form.\n"
                                 "Only report packages you have checked yourself.")
+        self.btn_bad.setStyleSheet(report.STYLE_MALICIOUS)
         self.btn_bad.clicked.connect(self._report_malicious)
         row.addWidget(self.btn_fp)
         row.addWidget(self.btn_bad)

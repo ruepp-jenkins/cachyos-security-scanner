@@ -376,6 +376,13 @@ class GuiTest(unittest.TestCase):
         self.assertIn("community blocklist: updated", d.refresh_result.text())
         self.assertIn("false-positive list: FAILED – HTTP Error 404", d.refresh_result.text())
 
+    def test_report_buttons_are_tinted(self):
+        from cachy_sec.report_dialog import ReportDialog
+        d = self._track(ReportDialog())
+        self.assertIn("46, 160, 67", d.buttons[0].styleSheet())
+        self.assertIn("218, 54, 51", d.buttons[1].styleSheet())
+        self.assertEqual(d.buttons[2].styleSheet(), "")
+
     def test_report_dialog_offers_three_reports(self):
         from cachy_sec.report_dialog import ReportDialog
         d = self._track(ReportDialog())

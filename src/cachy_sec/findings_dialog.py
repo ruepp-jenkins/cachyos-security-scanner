@@ -138,9 +138,17 @@ class FindingsDialog(QDialog):
         rep.setToolTip("Open a prefilled form on GitHub to tell the project that this finding is wrong for this version.\n"
                        "Only package, version and rule code are filled in; nothing is sent by the app.\n"
                        "Please check the package yourself first.")
+        rep.setStyleSheet(report.STYLE_FALSE_POSITIVE)
         rep.clicked.connect(lambda _=False, r=r: QDesktopServices.openUrl(
             QUrl(report.false_positive_url(r.package, r.version, [r.code]))))
         line.addWidget(rep)
+        bad = QPushButton("Report malicious")
+        bad.setToolTip("Open a prefilled form on GitHub to propose this package for the community blocklist.\n"
+                       "Only report packages you have checked yourself. Nothing is sent by the app.")
+        bad.setStyleSheet(report.STYLE_MALICIOUS)
+        bad.clicked.connect(lambda _=False, r=r: QDesktopServices.openUrl(
+            QUrl(report.blocklist_url(r.package, r.version))))
+        line.addWidget(bad)
         return line
 
     def _ignore(self, r: ignores.Row, button: QPushButton, label: QLabel) -> None:

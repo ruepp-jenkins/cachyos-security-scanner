@@ -14,6 +14,18 @@ NEW_ISSUE = f"https://github.com/{updater.GITHUB_REPO}/issues/new"
 MAX_FIELD = 200  # values come from scanner output (untrusted) and must keep the URL short
 
 
+def _tint(rgb: str) -> str:
+    """Very faint coloured button: translucent, so it fits light and dark themes and does not shout."""
+    return (f"QPushButton {{ background-color: rgba({rgb}, 28); border: 1px solid rgba({rgb}, 90); "
+            f"border-radius: 4px; padding: 4px 10px; }} "
+            f"QPushButton:hover {{ background-color: rgba({rgb}, 55); }} "
+            f"QPushButton:disabled {{ background-color: transparent; border-color: rgba({rgb}, 40); }}")
+
+
+STYLE_FALSE_POSITIVE = _tint("46, 160, 67")  # green: "the finding is wrong"
+STYLE_MALICIOUS = _tint("218, 54, 51")  # red: "the package is bad"
+
+
 def _clean(value: str) -> str:
     return "".join(c for c in str(value) if c.isprintable())[:MAX_FIELD].strip()
 

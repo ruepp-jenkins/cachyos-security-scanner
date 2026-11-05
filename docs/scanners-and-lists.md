@@ -70,7 +70,7 @@ package, version and rule code (you need a GitHub account; the app sends nothing
 
 | Where | Button | Opens |
 |---|---|---|
-| [Findings window](findings-window.md), per entry | **Report false positive** | the *false positive* form for that package, version and rule |
+| [Findings window](findings-window.md), per entry | **Report false positive** (faint green) / **Report malicious** (faint red) | the *false positive* form for that package, version and rule, or the *blocklist* form for that package |
 | [Scan history](scan-history.md), bottom | **Report false positive** / **Report malicious package** | the matching form, prefilled from the first package of the selected scan |
 | Tray menu | **Report a problem…** | a small window: *False positive*, *Malicious package* or *Program error* (empty forms; a program error gets the app version) |
 

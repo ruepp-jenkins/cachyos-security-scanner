@@ -20,7 +20,7 @@ package.
 |---|---|
 | **Title and scan info** | the summary and when the scan ran (`14:32, automatic scan`). Several findings windows can be open at once |
 | **One row per finding** | severity, title, package and version; with *Show details* also the explanation and rule codes |
-| **Buttons per entry** | **Open files**, **Ignore** and **Report false positive** (below) |
+| **Buttons per entry** | **Open files**, **Ignore**, **Report false positive** (faint green) and **Report malicious** (faint red) (below) |
 | **Notes** | what the app did with the results, e.g. *"1 finding hidden by the community false-positive list"* |
 | **(outdated) banner** | a newer scan finished after this window opened, so the list may no longer be current. Look at the newest scan |
 | **Show details** | expands the explanations |
@@ -57,6 +57,12 @@ For a finding you checked and found wrong. It opens a **prefilled form on GitHub
 rule code are filled in; you need a GitHub account). The app sends nothing itself; you review the text and submit. If the
 project accepts it, the entry goes into the signed [community false-positive list](scanners-and-lists.md#-reporting-a-false-positive-or-a-malicious-package).
 This does not hide the finding on your machine, use **Ignore** for that.
+
+### 🚩 Report malicious
+
+For a package you checked and consider really malicious. It opens the **blocklist form** on GitHub, prefilled with the
+package and version. Only report what you have verified; the maintainers review every proposal before it reaches the
+signed [community blocklist](scanners-and-lists.md#-reporting-a-false-positive-or-a-malicious-package).
 
 ### 🗑️ Remove packages…
 

@@ -7,11 +7,12 @@ from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QPushButton, QVBoxLa
 
 from . import icons, report
 
-CHOICES = (  # (button text, explanation, URL builder)
-    ("False positive", "A finding of a scanner that is wrong for a package version.", report.false_positive_url),
+CHOICES = (  # (button text, explanation, URL builder, style)
+    ("False positive", "A finding of a scanner that is wrong for a package version.", report.false_positive_url,
+     report.STYLE_FALSE_POSITIVE),
     ("Malicious package", "A package that is malicious or compromised (proposal for the community blocklist).",
-     report.blocklist_url),
-    ("Program error", "The app itself misbehaves: crash, wrong behaviour, unclear message.", report.bug_url),
+     report.blocklist_url, report.STYLE_MALICIOUS),
+    ("Program error", "The app itself misbehaves: crash, wrong behaviour, unclear message.", report.bug_url, ""),
 )
 
 
@@ -26,9 +27,10 @@ class ReportDialog(QDialog):
         intro.setWordWrap(True)
         root.addWidget(intro)
         self.buttons: list[QPushButton] = []
-        for text, hint, builder in CHOICES:
+        for text, hint, builder, style in CHOICES:
             b = QPushButton(text)
             b.setToolTip(hint)
+            b.setStyleSheet(style)
             b.clicked.connect(lambda _=False, fn=builder: self._open(fn()))
             self.buttons.append(b)
             root.addWidget(b)

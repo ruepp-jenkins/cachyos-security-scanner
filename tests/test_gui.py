@@ -376,6 +376,21 @@ class GuiTest(unittest.TestCase):
         self.assertIn("community blocklist: updated", d.refresh_result.text())
         self.assertIn("false-positive list: FAILED – HTTP Error 404", d.refresh_result.text())
 
+    def test_tray_report_window_opens_once_stays_open_and_opens_the_form(self):
+        tray = self._tray()
+        tray.open_report()
+        first = tray.report_dlg
+        self.assertIsNotNone(first)
+        tray.open_report()
+        self.assertIs(tray.report_dlg, first)  # one window at a time
+        with mock.patch("cachy_sec.report_dialog.QDesktopServices.openUrl", return_value=True) as op:
+            for b in first.buttons:
+                b.click()
+        self.assertEqual(op.call_count, 3)  # every choice opens its form
+        self.assertTrue(first.isVisible())  # and the window stays open, like the history window
+        first.reject()
+        self.assertIsNone(tray.report_dlg)
+
     def test_report_buttons_are_tinted(self):
         from cachy_sec.report_dialog import ReportDialog
         d = self._track(ReportDialog())

@@ -20,7 +20,7 @@ package.
 |---|---|
 | **Title and scan info** | the summary and when the scan ran (`14:32, automatic scan`). Several findings windows can be open at once |
 | **One row per finding** | severity, title, package and version; with *Show details* also the explanation and rule codes |
-| **Buttons per entry** | **Open files** and **Ignore** (below) |
+| **Buttons per entry** | **Open files**, **Ignore** and **Report false positive** (below) |
 | **Notes** | what the app did with the results, e.g. *"1 finding hidden by the community false-positive list"* |
 | **(outdated) banner** | a newer scan finished after this window opened, so the list may no longer be current. Look at the newest scan |
 | **Show details** | expands the explanations |
@@ -51,6 +51,13 @@ Accepts **one entry**: this package, **in this version**, for this rule. It is a
 - Ignores are listed in [Settings → Accepted findings](settings.md#ignoring-findings); **Revoke selected** undoes one.
 - After you ignore something, the app rescans so the result is current.
 
+### 📣 Report false positive
+
+For a finding you checked and found wrong. It opens a **prefilled form on GitHub** in your browser (package, version and
+rule code are filled in; you need a GitHub account). The app sends nothing itself; you review the text and submit. If the
+project accepts it, the entry goes into the signed [community false-positive list](scanners-and-lists.md#-reporting-a-false-positive-or-a-malicious-package).
+This does not hide the finding on your machine, use **Ignore** for that.
+
 ### 🗑️ Remove packages…
 
 Offered only for **critical** findings that map to an installed package.
@@ -73,7 +80,7 @@ could break software that depends on it.
    - **Looks wrong** → *Remove packages…*, and if you used the software, consider that credentials on that machine could
      be affected.
    - **Harmless (false positive)** → *Ignore*. You can also propose it for the community list, see
-     [Scanners and community lists](scanners-and-lists.md#-reporting-a-false-positive-or-a-malicious-package).
+     [Scanners and community lists](scanners-and-lists.md#-reporting-a-false-positive-or-a-malicious-package) with **Report false positive**.
    - **Unsure** → leave it, ask in the package's AUR comments or the Arch forums.
 
 The complete record stays in the [scan history](scan-history.md).

@@ -1,0 +1,27 @@
+name: Report a program error
+description: Something in the app itself does not work as expected (crash, wrong behaviour, unclear message).
+title: "Bug: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For a **false positive** or a **malicious package** please use the dedicated templates instead.
+        Do not paste secrets. Scan logs can contain your user name in file paths; remove it first.
+  - type: input
+    id: version
+    attributes: { label: App version, placeholder: "1.2.3" }
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+    validations: { required: true }
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce (optional)
+  - type: textarea
+    id: log
+    attributes:
+      label: Relevant log output (optional)
+      render: text

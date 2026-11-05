@@ -1402,3 +1402,46 @@ class DocsUrlTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ReportLinkTest(unittest.TestCase):
+    def test_links_use_the_issue_form_fields_and_are_prefilled(self):
+        from urllib.parse import parse_qs, urlparse
+        from cachy_sec import report
+        u = urlparse(report.false_positive_url("heidisql", "1:12.22-1", ["DEEP-001", "X-1"]))
+        q = {k: v[0] for k, v in parse_qs(u.query).items()}
+        self.assertEqual((u.scheme, u.netloc, u.path), ("https", "github.com", "/ruepp-jenkins/cachyos-security-scanner/issues/new"))
+        self.assertEqual((q["template"], q["package"], q["version"], q["codes"]),
+                         ("false-positive.yml", "heidisql", "1:12.22-1", "DEEP-001, X-1"))
+        q = {k: v[0] for k, v in parse_qs(urlparse(report.blocklist_url("evil-bin", "1.2-1")).query).items()}
+        self.assertEqual((q["template"], q["package"], q["versions"]), ("blocklist.yml", "evil-bin", "1.2-1"))
+        self.assertEqual(parse_qs(urlparse(report.bug_url()).query)["template"], ["bug.yml"])
+        self.assertEqual(report.blocklist_url(), report.NEW_ISSUE + "?template=blocklist.yml")
+
+    def test_untrusted_values_are_cleaned_and_limited(self):
+        from cachy_sec import report
+        url = report.false_positive_url("a\nb&evil=1", "x" * 5000, [])
+        self.assertNotIn("\n", url)
+        self.assertNotIn("&evil=1", url)  # the ampersand is encoded, so it cannot add a parameter
+        self.assertLess(len(url), 1000)
+
+    def test_every_prefilled_field_exists_in_its_template(self):
+        from cachy_sec import report
+        root = Path(__file__).resolve().parent.parent / ".github" / "ISSUE_TEMPLATE"
+        for tmpl, url in (("false-positive.yml", report.false_positive_url("p", "1", ["C"])),
+                          ("blocklist.yml", report.blocklist_url("p", "1")), ("bug.yml", report.bug_url())):
+            text = (root / tmpl).read_text()
+            from urllib.parse import parse_qs, urlparse
+            for key in parse_qs(urlparse(url).query):
+                if key not in ("template", "title"):
+                    self.assertIn(f"id: {key}", text, f"{tmpl}: no field {key}")
+
+    def test_history_entry_names_the_first_package(self):
+        from cachy_sec import history
+        with tempfile.TemporaryDirectory() as d:
+            p = Path(d) / "x.json"
+            p.write_text(json.dumps({"results": [{"findings": [
+                {"package": None}, {"package": "heidisql", "version": "1:12.22-1", "rules": [["DEEP-001", "t", 1]]}]}]}))
+            e = history.Entry(p, "", "aur_scan", "", "warning", "")
+            self.assertEqual(e.first_package(), ("heidisql", "1:12.22-1", ["DEEP-001"]))
+            self.assertEqual(history.Entry(Path(d) / "none.json", "", "", "", "", "").first_package(), ("", "", []))

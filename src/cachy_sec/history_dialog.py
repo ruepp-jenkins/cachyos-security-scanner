@@ -9,9 +9,10 @@ from PySide6.QtWidgets import (QCheckBox, QDialog, QHBoxLayout, QLineEdit, QMess
                                QAbstractItemView, QHeaderView)
 from pathlib import Path
 
-from PySide6.QtCore import Qt, QTimer
+from PySide6.QtCore import QUrl, Qt, QTimer
+from PySide6.QtGui import QDesktopServices
 
-from . import history, icons
+from . import history, icons, report
 
 
 THREAT_STATUSES = ("warning", "critical")
@@ -81,6 +82,17 @@ class HistoryDialog(QDialog):
             b.clicked.connect(fn)
             row.addWidget(b)
         row.addStretch()
+        self.btn_fp = QPushButton("Report false positive")
+        self.btn_fp.setToolTip("Open a prefilled form on GitHub for a finding that is wrong. Uses the first package of the\n"
+                               "selected scan; you can change it in the form. Nothing is sent by the app.")
+        self.btn_fp.clicked.connect(self._report_false_positive)
+        self.btn_bad = QPushButton("Report malicious package")
+        self.btn_bad.setToolTip("Open a prefilled form on GitHub to propose a package for the community blocklist.\n"
+                                "Uses the first package of the selected scan; you can change it in the form.\n"
+                                "Only report packages you have checked yourself.")
+        self.btn_bad.clicked.connect(self._report_malicious)
+        row.addWidget(self.btn_fp)
+        row.addWidget(self.btn_bad)
         close = QPushButton("Close")
         close.clicked.connect(self.close)
         row.addWidget(close)
@@ -193,6 +205,18 @@ class HistoryDialog(QDialog):
         self.log.setPlainText(text)
         if keep_position:
             bar.setValue(bar.maximum() if at_bottom else pos)  # follow a growing log only if already at the end
+
+    def _selected_package(self) -> tuple[str, str, list[str]]:
+        e = next((e for e in self.entries if e.path == self.selected), None)
+        return e.first_package() if e else ("", "", [])
+
+    def _report_false_positive(self) -> None:
+        package, version, codes = self._selected_package()
+        QDesktopServices.openUrl(QUrl(report.false_positive_url(package, version, codes)))
+
+    def _report_malicious(self) -> None:
+        package, version, _ = self._selected_package()
+        QDesktopServices.openUrl(QUrl(report.blocklist_url(package, version)))
 
     def _open_folder(self) -> None:
         d = history.history_dir()

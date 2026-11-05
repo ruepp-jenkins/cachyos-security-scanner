@@ -376,6 +376,14 @@ class GuiTest(unittest.TestCase):
         self.assertIn("community blocklist: updated", d.refresh_result.text())
         self.assertIn("false-positive list: FAILED – HTTP Error 404", d.refresh_result.text())
 
+    def test_report_dialog_offers_three_reports(self):
+        from cachy_sec.report_dialog import ReportDialog
+        d = self._track(ReportDialog())
+        self.assertEqual([b.text() for b in d.buttons], ["False positive", "Malicious package", "Program error"])
+        with mock.patch("cachy_sec.report_dialog.QDesktopServices.openUrl") as op:
+            d.buttons[2].click()
+        self.assertIn("template=bug.yml", op.call_args[0][0].toString())
+
     def test_settings_dialog_saves_the_schedule_options(self):
         d = self._track(SettingsDialog(st.Settings()))
         d.periodic.setChecked(True)

@@ -26,7 +26,7 @@ It is the place to look when:
 ├──┴─────────────────────┴─────────────┴────────────────┴──────────────────────┤
 │ log of the selected scan (full output of the scanner)                          │
 └───────────────────────────────────────────────────────────────────────────────┘
-        [ Refresh ] [ Open folder ] [ Clear history… ]                [ Close ]
+        [ Refresh ] [ Open folder ] [ Clear history… ]  [ Report false positive ] [ Report malicious package ] [ Close ]
 ```
 
 ### Columns
@@ -64,6 +64,8 @@ Scanner **results** have a shield; **system states** have other shapes, so you c
 | **read the details** | select a line (only **one** can be selected); the log appears below |
 | **open the files on disk** | **Open folder** |
 | **start over** | **Clear history…** (asks first) |
+| **report a wrong finding** | **Report false positive**: opens a prefilled form on GitHub for the first package of the selected scan (change it in the form if you mean another) |
+| **report a bad package** | **Report malicious package**: opens the blocklist form on GitHub, prefilled the same way. Only report packages you checked yourself |
 
 The window is **live**: new scans appear by themselves every few seconds, and the log of a running scan keeps growing.
 Your selection stays where it is, also while you sort or filter.

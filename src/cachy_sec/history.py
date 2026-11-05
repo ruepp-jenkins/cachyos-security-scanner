@@ -33,6 +33,21 @@ class Entry:
     summary: str
     duration_s: float = 0.0
 
+    def first_package(self) -> tuple[str, str, list[str]]:
+        """(package, version, rule codes) of the first finding that names a package; empty values if there is none.
+
+        Used to prefill the report forms. Package scan entries only (binary logs are plain text)."""
+        try:
+            data = json.loads(_read(self.path)) if self.path.suffix == ".json" else {}
+        except ValueError:
+            return "", "", []
+        for r in data.get("results", []) if isinstance(data, dict) else []:
+            for f in r.get("findings", []):
+                if isinstance(f, dict) and isinstance(f.get("package"), str) and f["package"]:
+                    codes = [str(x[0]) for x in f.get("rules", []) if isinstance(x, list) and x]
+                    return f["package"], str(f.get("version") or ""), codes
+        return "", "", []
+
     def log_text(self) -> str:
         """Everything worth showing in the viewer for this entry."""
         if self.path.suffix == ".log":

@@ -65,8 +65,18 @@ dialog shows the status of each list and the reason if a download failed, and it
 
 ### 📣 Reporting a false positive or a malicious package
 
-Open an issue in the repository with the matching form (**False positive** or **Blocklist**):
+You can report directly from the app; each button opens the matching form on GitHub in your browser, prefilled with the
+package, version and rule code (you need a GitHub account; the app sends nothing itself):
+
+| Where | Button | Opens |
+|---|---|---|
+| [Findings window](findings-window.md), per entry | **Report false positive** | the *false positive* form for that package, version and rule |
+| [Scan history](scan-history.md), bottom | **Report false positive** / **Report malicious package** | the matching form, prefilled from the first package of the selected scan |
+| Tray menu | **Report a problem…** | a small window: *False positive*, *Malicious package* or *Program error* (empty forms; a program error gets the app version) |
+
+You can also open an issue by hand with the matching form (**False positive**, **Blocklist** or **Program error**):
 [github.com/ruepp-jenkins/cachyos-security-scanner/issues](https://github.com/ruepp-jenkins/cachyos-security-scanner/issues/new/choose).
+Check the package yourself first and remove your user name from any log you paste (it appears in file paths).
 Entries are reviewed before they go into a list; the format and rules are in [`lists/README.md`](https://github.com/ruepp-jenkins/cachyos-security-scanner/blob/master/lists/README.md).
 
 ## 🧯 Limits

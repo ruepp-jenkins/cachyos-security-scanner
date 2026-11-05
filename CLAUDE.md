@@ -36,6 +36,8 @@ PYTHONPATH=src python3 -m cachy_sec.signedlist validate lists/*.json   # what CI
 
 **Notifications & tray.** `notify.py` runs `notify-send`; clickable ones (`--action … --wait`, one helper thread each, max 10) open the history with the matching entry selected (`Tray._click_to`, `SELECTORS`, `HistoryDialog.select_latest`). The tray icon is the colour of the last result (`Report.icon_status`) but the blue app icon while any scan runs (`Tray._refresh_tray`); menu entries use theme icons.
 
+**Reporting.** `report.py` builds links to this repo's issue forms (`.github/ISSUE_TEMPLATE/*.yml`; query parameters must equal the form field ids) and only opens them in the browser, never sending anything; only short facts go into the URL, never log text. Buttons: findings window (per entry), history window, tray *Report a problem…* (`report_dialog.py`). Renaming a form field id means changing `report.py`.
+
 **Options.** Per-scanner choices and validated extra arguments live in `scanopts.py` (specs, command-line builders, denylists) and are edited in `options_dialog.py` (opened by the *Options…* buttons of `settings_dialog.py`); the scanners build their commands from them.
 
 **Website.** The docs are also published with Jekyll/GitHub Pages (`_config.yml`, theme in `_config.yml`, `_includes/head-custom.html` loads Mermaid). Pages always serves `master`; the app's Help links point at the *tag* on GitHub instead.

@@ -19,7 +19,7 @@ signature. Hidden findings are noted in the scan log.
 
 ## Report a false positive
 
-Open an issue with the *Report an aur-scan false positive* template, or send a pull request that adds an entry.
+In the app use **Report false positive** (findings window, scan history, or tray menu → *Report a problem…*), which opens a prefilled form. Or open an issue with the *Report an aur-scan false positive* template, or send a pull request that adds an entry.
 Please check the package yourself first. A maintainer reviews every entry.
 
 ```json
@@ -46,7 +46,7 @@ Rules (checked by `python -m cachy_sec.signedlist validate lists/*.json` and in 
 
 Known malicious or compromised AUR packages. The app matches them against the installed foreign packages (name and version)
 and reports a match as critical; removal still needs the user's confirmation. Only add packages you have checked and
-can explain; a wrong entry alarms every user. Use the issue template *Report a malicious AUR package* or a pull request.
+can explain; a wrong entry alarms every user. Use **Report malicious package** in the app's scan history (or tray menu → *Report a problem…*), the issue template *Report a malicious AUR package* or a pull request.
 
 ```json
 {

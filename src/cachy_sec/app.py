@@ -16,6 +16,7 @@ from .scanners.base import ERROR, ScanResult
 from .settings import Settings
 from .findings_dialog import FindingsDialog
 from .history_dialog import HistoryDialog
+from .report_dialog import ReportDialog
 from .settings_dialog import SettingsDialog
 
 TRIGGER = Path("/var/lib/cachy-security-scanner/trigger")  # touched by the pacman hook
@@ -111,6 +112,7 @@ class Tray(QObject):
         self._findings_dialogs: list = []  # open findings windows, to mark them outdated by a newer scan
         self.history_dlg = None  # single-instance windows; findings dialogs may be many
         self.settings_dlg = None
+        self.report_dlg = None
 
         app.setWindowIcon(QIcon(icons.path(icons.APP)))
         self.tray = QSystemTrayIcon(QIcon(icons.path(icons.APP)), app)
@@ -131,6 +133,7 @@ class Tray(QObject):
         self.act_restart = entry("Restart to apply update", self._restart, "system-reboot")
         self.act_restart.setVisible(False)
         entry("Settings…", self.open_settings, "configure")
+        entry("Report a problem…", self.open_report, "tools-report-bug")
         entry("Help", self.open_help, "help-contents")
         entry("Quit", app.quit, "application-exit")
         self.menu.aboutToShow.connect(self._refresh_menu)
@@ -504,6 +507,17 @@ class Tray(QObject):
 
     def open_help(self) -> None:
         QDesktopServices.openUrl(QUrl(updater.docs_url()))  # help of this version's tag on GitHub
+
+    def open_report(self) -> None:
+        """Choose what to report (false positive, malicious package, program error); one window at a time."""
+        if self.report_dlg is not None:
+            self._focus(self.report_dlg)
+            return
+        dlg = ReportDialog()
+        dlg.finished.connect(lambda _: (setattr(self, "report_dlg", None), dlg.deleteLater()))
+        self.report_dlg = dlg
+        self._track_dialog(dlg)
+        dlg.show()
 
     def open_settings(self) -> None:
         """At most one settings window (non-modal, so the tray stays usable)."""

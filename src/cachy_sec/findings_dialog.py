@@ -4,11 +4,12 @@ from __future__ import annotations
 from collections.abc import Callable
 from pathlib import Path
 
-from PySide6.QtGui import QFont, QIcon
+from PySide6.QtCore import QUrl
+from PySide6.QtGui import QDesktopServices, QFont, QIcon
 from PySide6.QtWidgets import (QDialog, QFrame, QHBoxLayout, QLabel, QPlainTextEdit, QPushButton,
                                QScrollArea, QVBoxLayout, QWidget)
 
-from . import icons, ignores, opener
+from . import icons, ignores, opener, report
 
 COLLAPSED_WIDTH = 700
 EXPANDED_SIZE = (900, 620)  # roomy enough that file paths and issue lines do not wrap
@@ -63,7 +64,7 @@ class FindingsDialog(QDialog):
         self._entries_height = 0
         if entries:
             root.addWidget(QLabel("Each entry can be inspected (Open files) and, for a known version, accepted on its own "
-                                  "(Ignore; reported again after an update):"))
+                                  "(Ignore; reported again after an update), or reported as a false positive to the project:"))
             area = QScrollArea()
             area.setWidgetResizable(True)
             area.setFrameShape(QFrame.StyledPanel)
@@ -133,6 +134,13 @@ class FindingsDialog(QDialog):
             btn.setEnabled(False)
             btn.setToolTip("The version of this package is unknown, so the finding cannot be accepted for one version.")
         line.addWidget(btn)
+        rep = QPushButton("Report false positive")
+        rep.setToolTip("Open a prefilled form on GitHub to tell the project that this finding is wrong for this version.\n"
+                       "Only package, version and rule code are filled in; nothing is sent by the app.\n"
+                       "Please check the package yourself first.")
+        rep.clicked.connect(lambda _=False, r=r: QDesktopServices.openUrl(
+            QUrl(report.false_positive_url(r.package, r.version, [r.code]))))
+        line.addWidget(rep)
         return line
 
     def _ignore(self, r: ignores.Row, button: QPushButton, label: QLabel) -> None:

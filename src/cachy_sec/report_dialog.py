@@ -1,7 +1,7 @@
 """Tray entry "Report a problem…": choose what to report; the matching GitHub form opens in the browser."""
 from __future__ import annotations
 
-from PySide6.QtCore import QUrl
+from PySide6.QtCore import Qt, QUrl
 from PySide6.QtGui import QDesktopServices, QIcon
 from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
 
@@ -34,17 +34,28 @@ class ReportDialog(QDialog):
             b.clicked.connect(lambda _=False, fn=builder: self._open(fn()))
             self.buttons.append(b)
             root.addWidget(b)
-            note = QLabel(hint)
-            note.setEnabled(False)  # greyed hint text
+            note = QLabel(hint)  # normal text colour: greyed text is hard to read and does not match the other windows
             note.setWordWrap(True)
+            note.setContentsMargins(0, 0, 0, 8)
             root.addWidget(note)
+        self.status = QLabel("")
+        self.status.setWordWrap(True)
+        self.status.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.status.setVisible(False)
+        root.addWidget(self.status)
         row = QHBoxLayout()
         row.addStretch()
-        close = QPushButton("Cancel")
+        close = QPushButton("Close")
         close.clicked.connect(self.reject)
         row.addWidget(close)
         root.addLayout(row)
+        self.resize(640, self.sizeHint().height())
 
     def _open(self, url: str) -> None:
-        QDesktopServices.openUrl(QUrl(url))
-        self.accept()
+        """Open the form. The window stays open like the history window does: closing it right away can cancel the
+        browser start on some desktops (the portal call is asynchronous). If no browser can be started, show the link."""
+        if QDesktopServices.openUrl(QUrl(url)):
+            self.status.setText("Opened in your browser.")
+        else:
+            self.status.setText("Could not start a browser. Open this link yourself:\n" + url)
+        self.status.setVisible(True)

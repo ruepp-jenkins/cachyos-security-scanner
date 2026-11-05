@@ -387,9 +387,15 @@ class GuiTest(unittest.TestCase):
         from cachy_sec.report_dialog import ReportDialog
         d = self._track(ReportDialog())
         self.assertEqual([b.text() for b in d.buttons], ["False positive", "Malicious package", "Program error"])
-        with mock.patch("cachy_sec.report_dialog.QDesktopServices.openUrl") as op:
+        d.show()
+        with mock.patch("cachy_sec.report_dialog.QDesktopServices.openUrl", return_value=True) as op:
             d.buttons[2].click()
         self.assertIn("template=bug.yml", op.call_args[0][0].toString())
+        self.assertTrue(d.isVisible(), "the window stays open after opening the form")
+        with mock.patch("cachy_sec.report_dialog.QDesktopServices.openUrl", return_value=False):
+            d.buttons[0].click()
+        self.assertIn("template=false-positive.yml", d.status.text())  # no browser: the link is shown instead
+        self.assertGreaterEqual(d.width(), 600)
 
     def test_settings_dialog_saves_the_schedule_options(self):
         d = self._track(SettingsDialog(st.Settings()))

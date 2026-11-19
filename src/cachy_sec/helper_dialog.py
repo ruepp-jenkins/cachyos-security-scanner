@@ -6,7 +6,7 @@ from collections.abc import Callable
 
 from PySide6.QtCore import QObject, Qt, QUrl, Signal
 from PySide6.QtGui import QDesktopServices, QIcon
-from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
+from PySide6.QtWidgets import QDialog, QFrame, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
 
 from . import helpers, icons, updater
 
@@ -24,14 +24,20 @@ class HelperDialog(QDialog):
         self.setWindowIcon(QIcon(icons.path(icons.APP)))
         root = QVBoxLayout(self)
         found = ", ".join(info.found)
-        text = (f"Found AUR helper(s): {found}.\n\n"
+        head = QHBoxLayout()
+        pic = QLabel()
+        pic.setPixmap(QIcon(icons.path(icons.APP)).pixmap(48, 48))
+        pic.setAlignment(Qt.AlignTop)
+        head.addWidget(pic)
+        text = (f"## An AUR helper other than paru is installed\n\nFound: **{found}**\n\n"
                 "The package scanner supports **paru** (the default AUR helper of CachyOS). Other helpers can keep fewer "
-                "build files in their cache, which can lead to problems such as little or nothing being scanned. "
-                + ("" if info.paru else "paru is not installed: `sudo pacman -S paru`."))
+                "build files in their cache, which can lead to problems such as little or nothing being scanned.\n\n"
+                + ("" if info.paru else "paru is not installed yet: `sudo pacman -S paru`"))
         intro = QLabel(text)
         intro.setWordWrap(True)
         intro.setTextFormat(Qt.MarkdownText)
-        root.addWidget(intro)
+        head.addWidget(intro, 1)
+        root.addLayout(head)
 
         self.yay_note = QLabel("")
         self.yay_note.setWordWrap(True)
@@ -40,6 +46,7 @@ class HelperDialog(QDialog):
         self.enable_btn.clicked.connect(self._enable_clicked)
         self.result = QLabel("")
         self.result.setWordWrap(True)
+        self.result.setVisible(False)
         if "yay" in info.found:
             if info.yay_keepsrc is True:
                 self.yay_note.setText("yay: the option **keepSrc** is on, build files are kept.")
@@ -50,6 +57,10 @@ class HelperDialog(QDialog):
                                       "(`src/`) after each build and the scan sees less. **Experimental:** this setting "
                                       "is a workaround, using paru is recommended.")
             self.yay_note.setTextFormat(Qt.MarkdownText)
+            line = QFrame()
+            line.setFrameShape(QFrame.HLine)
+            line.setFrameShadow(QFrame.Sunken)
+            root.addWidget(line)
             root.addWidget(self.yay_note)
             root.addWidget(self.enable_btn)
             root.addWidget(self.result)
@@ -70,13 +81,14 @@ class HelperDialog(QDialog):
         row.addWidget(self.never_btn)
         row.addWidget(self.close_btn)
         root.addLayout(row)
-        self.resize(560, self.sizeHint().height())
+        self.resize(600, self.sizeHint().height())
         self._signal = _Result()
         self._signal.done.connect(self._enabled)
 
     def _enable_clicked(self) -> None:
         self.enable_btn.setEnabled(False)
         self.result.setText("Running…")
+        self.result.setVisible(True)
         signal, enable = self._signal.done, self._enable
         threading.Thread(target=lambda: signal.emit(*enable()), daemon=True).start()
 

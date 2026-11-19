@@ -148,7 +148,7 @@ nice -n 19 ionice -c 2 -n 7  env PYTHONPATH=<vendor dir>  <python>  -m aur_check
 nice -n 19 ionice -c 2 -n 7  aur-scan --no-color system --fail-on high
 ```
 
-- `system` makes it analyse the PKGBUILDs of your installed AUR packages (from your AUR helper's cache).
+- `system` makes it analyse the PKGBUILDs of your installed AUR packages (from your AUR helper's cache; how much is kept there depends on the helper, see [AUR helpers](aur-helpers.md)).
 - `--fail-on high` makes it exit non-zero when something at severity *high* or above is found.
 - Timeout: 30 minutes.
 - **Exit code → status:**

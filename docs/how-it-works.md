@@ -107,6 +107,8 @@ No shell is ever used (`shell=False`, argument lists); paths are passed as singl
 | `python3.x -m aur_check --json` | package scan | `aur-malware-check` |
 | `aur-scan --no-color system --fail-on high` | package scan, `aur-scan` on | `aur-scan` |
 | `pacman -Qm` | package scan, blocklist | list AUR packages |
+| `yay -P -g` | at start, only if `yay` is installed | reads yay's configuration (the `keepSrc` option) for the [AUR helper hint](aur-helpers.md) |
+| `yay --keepsrc --save` | only when you click *Set up yay* in that hint | changes yay's configuration; no root |
 | `clamdscan --fdpass -i -- <paths>` | binary scan | ClamAV client; terminal on request, background when scheduled |
 | `nice -n 19`, `ionice -c 2 -n 7` | in front of the heavy commands above | low priority (setting) |
 | `ssh-keygen -Y verify` | updates and lists | signature check |

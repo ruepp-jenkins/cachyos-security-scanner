@@ -203,6 +203,10 @@ class SettingsDialog(QDialog):
         ed.addWidget(self.editor, 1)
         root.addLayout(ed)
 
+        self.helper_hint = QCheckBox("Warn at start when an AUR helper other than paru is installed")
+        self.helper_hint.setToolTip("paru is the supported helper; others (yay …) can leave the scanner with less to scan.")
+        self.helper_hint.setChecked(s.warn_other_aur_helper)
+        root.addWidget(self.helper_hint)
         self.autostart = QCheckBox("Start automatically at login")
         self.autostart.setChecked(s.autostart)
         root.addWidget(self.autostart)
@@ -359,6 +363,7 @@ class SettingsDialog(QDialog):
         s.use_false_positive_list = self.b_fp.isChecked()
         s.ignored_findings = [x.strip() for x in self.ignored.toPlainText().splitlines() if x.strip()]
         s.editor_command = self.editor.text().strip()
+        s.warn_other_aur_helper = self.helper_hint.isChecked()
         s.autostart = self.autostart.isChecked()
         s.history_keep = self.keep.value()
         s.auto_update = self.auto_update.isChecked()

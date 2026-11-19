@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import sys
+import threading
 from pathlib import Path
 
 from PySide6.QtCore import Qt, QFileSystemWatcher, QObject, QRunnable, QThreadPool, QTimer, QUrl, Signal
@@ -10,11 +11,12 @@ from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 
 import time
 
-from . import autostart, engine, history, icons, ignores, notify, remove, scheduler, singleton, updater
+from . import autostart, engine, helpers, history, icons, ignores, notify, remove, scheduler, singleton, updater
 from .scanners import clamd
 from .scanners.base import ERROR, ScanResult
 from .settings import Settings
 from .findings_dialog import FindingsDialog
+from .helper_dialog import HelperDialog
 from .history_dialog import HistoryDialog
 from .report_dialog import ReportDialog
 from .settings_dialog import SettingsDialog
@@ -82,6 +84,10 @@ class _ListsJob(QRunnable):
 
 class _ListsSignal(QObject):
     done = Signal(bool)
+
+
+class _HelperSignal(QObject):
+    result = Signal(object)
 
 
 class _UpdateSignal(QObject):
@@ -159,6 +165,10 @@ class Tray(QObject):
         self.upd_timer.timeout.connect(lambda: self.check_update(manual=False))
         self.upd_timer.start(24 * 3600 * 1000)
         QTimer.singleShot(30_000, lambda: self.check_update(manual=False))
+        self.helper_sig = _HelperSignal()
+        self.helper_sig.result.connect(self._helpers_checked)
+        self.helper_dlg = None
+        QTimer.singleShot(5_000, self.check_helpers)
         self.click_sig = _ClickSignal()
         self.click_sig.clicked.connect(lambda target: self.open_history(select=target))
         self.bin_done = _BinaryDone()
@@ -507,6 +517,31 @@ class Tray(QObject):
 
     def open_help(self) -> None:
         QDesktopServices.openUrl(QUrl(updater.docs_url()))  # help of this version's tag on GitHub
+
+    def check_helpers(self) -> None:
+        """At start: hint when an AUR helper other than paru is installed (unless switched off). Detection runs in a thread."""
+        self._reload_settings()
+        if not self.settings.warn_other_aur_helper or self.helper_dlg is not None:
+            return
+        sig = self.helper_sig.result
+        threading.Thread(target=lambda: sig.emit(helpers.inspect()), daemon=True).start()
+
+    def _helpers_checked(self, info: helpers.Info) -> None:
+        if not info.others or self.helper_dlg is not None or not self.settings.warn_other_aur_helper:
+            return
+        dlg = HelperDialog(info, self._helper_hint_off)
+        dlg.finished.connect(lambda _: (setattr(self, "helper_dlg", None), dlg.deleteLater()))
+        self.helper_dlg = dlg
+        self._track_dialog(dlg)
+        dlg.show()
+
+    def _helper_hint_off(self) -> None:
+        self._reload_settings()
+        self.settings.warn_other_aur_helper = False
+        try:
+            self.settings.save()
+        except OSError as e:
+            notify.notify("Settings could not be saved", str(e), kind="bad")
 
     def open_report(self) -> None:
         """Choose what to report (false positive, malicious package, program error); one window at a time."""

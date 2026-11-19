@@ -74,6 +74,7 @@ class Settings:
     confirm_before_remove: bool = True
     history_keep: int = 200  # number of scan records to keep
     editor_command: str = ""  # e.g. "codium"; empty = auto-detect, falls back to the file manager
+    warn_other_aur_helper: bool = True  # start-up hint when an AUR helper other than paru is installed
     autostart: bool = True  # start at login (XDG autostart entry)
     auto_update: bool = True  # app updates from GitHub Releases only
 

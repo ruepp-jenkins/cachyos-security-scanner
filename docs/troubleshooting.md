@@ -57,6 +57,13 @@ Make sure you run a current version (very old versions had a bug that prevented 
 `~/.config/cachy-security-scanner/settings.json`; if saving fails, the app notifies you and keeps your choices in memory.
 Check that the folder is writable and the disk is not full.
 
+### A package is "not found in cache" / little is scanned
+
+- `aur-scan` reads the cache of your AUR helper. With **paru** the build folder is kept; with **yay** it is deleted unless its
+  `keepSrc` option is on, and a package can then be scanned less deeply or not at all. See [AUR helpers](aur-helpers.md).
+- After switching helpers the new helper's cache is empty until it has fetched or built the package once.
+- A package that was installed from your own build or a repository outside the AUR is not in any helper cache.
+
 ### A harmless package is reported
 
 - With `aur-scan` that happens (heuristics). Use **Ignore** in the [findings window](findings-window.md#-ignore) and keep

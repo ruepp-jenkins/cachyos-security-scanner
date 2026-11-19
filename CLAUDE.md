@@ -38,6 +38,8 @@ PYTHONPATH=src python3 -m cachy_sec.signedlist validate lists/*.json   # what CI
 
 **Reporting.** `report.py` builds links to this repo's issue forms (`.github/ISSUE_TEMPLATE/*.yml`; query parameters must equal the form field ids) and only opens them in the browser, never sending anything; only short facts go into the URL, never log text. Buttons (faint green = false positive, faint red = malicious, styles in `report.py`): findings window (per entry), history window, tray *Report a problem…* (`report_dialog.py`). Renaming a form field id means changing `report.py`.
 
+**AUR helpers.** `helpers.py` detects installed helpers (`shutil.which`), reads yay's `keepSrc` (`yay -P -g`) and, only on a click, runs `yay --keepsrc --save`; `helper_dialog.py` is the start-up hint (`Tray.check_helpers`, setting `warn_other_aur_helper`). paru is the supported helper, yay is experimental; the app never changes a helper's configuration by itself.
+
 **Options.** Per-scanner choices and validated extra arguments live in `scanopts.py` (specs, command-line builders, denylists) and are edited in `options_dialog.py` (opened by the *Options…* buttons of `settings_dialog.py`); the scanners build their commands from them.
 
 **Website.** The docs are also published with Jekyll/GitHub Pages (`_config.yml`, theme in `_config.yml`, `_includes/head-custom.html` loads Mermaid). Pages always serves `master`; the app's Help links point at the *tag* on GitHub instead.

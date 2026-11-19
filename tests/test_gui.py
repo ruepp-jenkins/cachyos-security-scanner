@@ -391,6 +391,38 @@ class GuiTest(unittest.TestCase):
         first.reject()
         self.assertIsNone(tray.report_dlg)
 
+    def test_helper_dialog_offers_the_yay_setting_and_can_be_silenced(self):
+        from cachy_sec import helpers
+        from cachy_sec.helper_dialog import HelperDialog
+        silenced = []
+        d = self._track(HelperDialog(helpers.Info(["yay"], False), lambda: silenced.append(1),
+                                     lambda: (True, "keepSrc is now on.")))
+        d.show()
+        self.assertTrue(d.enable_btn.isVisible())
+        self.assertIn("experimental", d.enable_btn.text().lower())
+        d._enabled(True, "keepSrc is now on.")  # what the worker thread reports
+        self.assertFalse(d.enable_btn.isEnabled())
+        self.assertTrue(d.info.yay_keepsrc)
+        d.never_btn.click()
+        self.assertEqual(silenced, [1])
+        # yay already set up, or a different helper: no button
+        d2 = self._track(HelperDialog(helpers.Info(["yay"], True), lambda: None))
+        d2.show()
+        self.assertFalse(d2.enable_btn.isVisible())
+        d3 = self._track(HelperDialog(helpers.Info(["pikaur"], None), lambda: None))
+        d3.show()
+        self.assertFalse(d3.enable_btn.isVisible())
+
+    def test_tray_shows_the_helper_hint_only_for_other_helpers(self):
+        from cachy_sec import helpers
+        tray = self._tray()
+        tray._helpers_checked(helpers.Info(["paru"], None))
+        self.assertIsNone(tray.helper_dlg)  # paru only: nothing to say
+        tray._helpers_checked(helpers.Info(["paru", "yay"], False))
+        self.assertIsNotNone(tray.helper_dlg)
+        tray.helper_dlg.reject()
+        self.assertIsNone(tray.helper_dlg)  # closing keeps the hint for the next start
+
     def test_report_buttons_are_tinted(self):
         from cachy_sec.report_dialog import ReportDialog
         d = self._track(ReportDialog())

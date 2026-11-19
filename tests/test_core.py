@@ -1445,3 +1445,40 @@ class ReportLinkTest(unittest.TestCase):
             e = history.Entry(p, "", "aur_scan", "", "warning", "")
             self.assertEqual(e.first_package(), ("heidisql", "1:12.22-1", ["DEEP-001"]))
             self.assertEqual(history.Entry(Path(d) / "none.json", "", "", "", "", "").first_package(), ("", "", []))
+
+
+class AurHelperTest(unittest.TestCase):
+    def test_parse_keepsrc_reads_the_json_of_yay(self):
+        from cachy_sec import helpers
+        self.assertIs(helpers.parse_keepsrc('{"aururl": "x", "keepSrc": true}'), True)
+        self.assertIs(helpers.parse_keepsrc('noise\n{"keepSrc": false}\n'), False)
+        self.assertIsNone(helpers.parse_keepsrc('{"other": 1}'))
+        self.assertIsNone(helpers.parse_keepsrc("not json"))
+        self.assertIsNone(helpers.parse_keepsrc('{"keepSrc": "yes"}'))
+
+    def test_inspect_finds_helpers_and_reads_the_yay_setting(self):
+        from cachy_sec import helpers
+        have = {"paru", "yay"}
+        with mock.patch("cachy_sec.helpers.shutil.which", side_effect=lambda n: "/usr/bin/" + n if n in have else None), \
+             mock.patch("cachy_sec.helpers.run", return_value=(0, '{"keepSrc": false}')) as run:
+            info = helpers.inspect()
+        run.assert_called_once_with(["yay", "-P", "-g"], 30)
+        self.assertEqual((info.found, info.others, info.paru, info.yay_needs_setting), (["paru", "yay"], ["yay"], True, True))
+        with mock.patch("cachy_sec.helpers.shutil.which", side_effect=lambda n: "/usr/bin/paru" if n == "paru" else None):
+            info = helpers.inspect()
+        self.assertEqual((info.others, info.yay_needs_setting, info.yay_keepsrc), ([], False, None))  # nothing to warn about
+
+    def test_enable_runs_the_command_and_checks_the_result(self):
+        from cachy_sec import helpers
+        calls = []
+
+        def fake(cmd, timeout=600, low_priority=False):
+            calls.append(cmd)
+            return 0, '{"keepSrc": true}' if cmd == ["yay", "-P", "-g"] else ""
+
+        with mock.patch("cachy_sec.helpers.run", side_effect=fake):
+            ok, _ = helpers.enable_yay_keepsrc()
+        self.assertTrue(ok)
+        self.assertEqual(calls, [["yay", "--keepsrc", "--save"], ["yay", "-P", "-g"]])
+        with mock.patch("cachy_sec.helpers.run", return_value=(1, "error: boom")):
+            self.assertEqual(helpers.enable_yay_keepsrc(), (False, "error: boom"))

@@ -42,6 +42,7 @@ flowchart LR
 | 🧪 [Scanners and community lists](scanners-and-lists.md) | Which tool does what, false positives, signed lists |
 | 🔄 [Updates](updates.md) | How the app updates itself and why that is safe |
 | 🔁 [Scanner lifecycle](scanner-lifecycle.md) | Where the scanner tools come from, how they are checked, updated and called |
+| 🧩 [AUR helpers](aur-helpers.md) | paru is supported; yay needs a setting; the start-up hint |
 
 ### Setting things up
 

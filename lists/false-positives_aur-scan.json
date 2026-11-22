@@ -27,6 +27,15 @@
       "reported": "2026-11-19",
       "reason": "CRYPTO-003 matches strings inside prebuilt .NET libraries (DLLs) of the vendor package that only look like a Monero/Bitcoin wallet address. No wallet address is used by the package.",
       "description": "Seen on CachyOS with paru: the scanner also read the extracted build folder (src/), where the package's .deb content (usr/lib/devolutions/RemoteDesktopManager/*.dll, for example AWSSDK.*.dll, Anthropic.SDK.dll, Avalonia.*.dll) lies, and reported 12 matches in binary files. The PKGBUILD itself only downloads the vendor's .deb and unpacks it. The matches are random character runs in compiled libraries. Reviewed by the reporter."
+    },
+    {
+      "package": "it87-dkms-git",
+      "versions": ["301.8dd7f65-1"],
+      "codes": ["DEEP-001"],
+      "author": "MyUncleSam",
+      "reported": "2026-11-22",
+      "reason": "DEEP-001 fires on the sed -i substitutions in package() that only fill the @_PKGBASE@/@PKGVER@ placeholders in dkms.conf. No decoding or execution of data takes place.",
+      "description": "The PKGBUILD contains no base64, eval, curl, wget or pipe-to-shell. The sources are the upstream git repository (github.com/frankcrawford/it87) plus two local files whose sha256 sums match. The built package has no .INSTALL script and no binaries. Note: this entry covers exactly the scanned version 301.8dd7f65-1; newer commits of this -git package are scanned again. Checked with Codex and Sonnet."
     }
   ]
 }

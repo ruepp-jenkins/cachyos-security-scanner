@@ -103,6 +103,7 @@ No shell is ever used (`shell=False`, argument lists); paths are passed as singl
 | Program | When | Purpose |
 |---|---|---|
 | `git clone --depth 1`, `git pull --ff-only`, `git fsck`, `git rev-parse` | before scans | install / update / verify the scanner checkouts |
+| `git ls-remote`, `git clone --branch`, `git fetch`, `git checkout` (release tags) | before scans, `aur-scan` on | follow the newest `aur-scan` release |
 | `cargo build --release --locked -p aur-scanner-cli` | when `aur-scan` is on and its source changed | build `aur-scan` |
 | `python3.x -m aur_check --json` | package scan | `aur-malware-check` |
 | `aur-scan --no-color system --fail-on high` | package scan, `aur-scan` on | `aur-scan` |
@@ -131,7 +132,7 @@ The app talks **only to GitHub**. It refuses any other host, including after red
 | `github.com/…/releases/download/lists/…` | the two community lists and their signatures | at start, hourly check, download when older than 6 h, and when you press *Refresh lists* |
 | `github.com/…/issues/new?template=…` | opened **in your browser** by the report buttons; the app itself sends nothing | only when you click a report button |
 | `github.com/lenucksi/aur-malware-check.git` | clone / pull of the scanner (done by `git`) | before scans (setting) |
-| `github.com/KiefStudioMA/ks-aur-scanner.git` | clone / pull of `aur-scan` (done by `git`) | before scans, only if `aur-scan` is on and not installed from the AUR |
+| `github.com/KiefStudioMA/ks-aur-scanner.git` | release list / clone / fetch of `aur-scan` (done by `git`) | before scans, only if `aur-scan` is on and not installed from the AUR |
 
 Further traffic comes from the external tools, not from the app: `cargo` downloads Rust crates from crates.io when it
 builds `aur-scan`; `aur-malware-check` may fetch its reference lists as described in its repository; `freshclam`

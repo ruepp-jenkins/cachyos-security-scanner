@@ -33,7 +33,8 @@ A good default is to keep 1 and 3 on. Switch 2 on if you want deeper (and noisie
 *(Short version – the full procedure with all commands is in [Scanner lifecycle](scanner-lifecycle.md).)*
 
 - The scanner programs are fetched with `git` into `~/.local/share/cachy-security-scanner/vendor/` and updated with
-  `git pull` before a scan (setting *Update scanner sources before each scan*).
+  `git` before a scan (setting *Update scanner sources before each scan*): `aur-malware-check` by `git pull`,
+  `aur-scan` by switching to its newest stable release.
 - A **broken checkout** is detected (`git fsck`) and deleted and cloned again.
 - `aur-scan` is compiled with `cargo` when it changed. If the AUR package `aur-scanner` is installed, that binary is used.
 - If something cannot be set up, you get an **error entry** in the history – never silence.

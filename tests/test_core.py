@@ -1,5 +1,7 @@
 import json
 import os
+import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -202,6 +204,74 @@ class AdapterTest(unittest.TestCase):
             self.assertEqual(len(r.findings), 2)
         with mock.patch("cachy_sec.scanners.aur_scan.run", return_value=(127, "nope")):
             self.assertFalse(AurScan().scan().ok)
+
+    def _scan(self, out, code=1, **settings):
+        with mock.patch("cachy_sec.scanners.aur_scan.run", return_value=(code, out)), \
+                mock.patch.object(AurScan, "_binary", return_value="aur-scan"), \
+                mock.patch("cachy_sec.ignores.installed_versions", return_value={}), \
+                mock.patch("cachy_sec.ignores.load", return_value=[]):
+            return AurScan(settings=Settings(**settings)).scan()
+
+    def test_aur_scan_high_findings_without_detail_lines_are_not_clean(self):
+        r = self._scan("Scanning: a ISSUES: 2 high \nScanning: b OK\n")
+        self.assertEqual((r.status, [f.package for f in r.findings]), ("warning", ["a"]))
+        self.assertEqual(r.findings[0].codes, ["UNLISTED-HIGH"])
+        self.assertIn("2 issues", r.findings[0].title)
+        mixed = self._scan("Scanning: a ISSUES: 1 critical 3 high \n    DEEP-001 X - /c/a/PKGBUILD\n")
+        self.assertEqual(mixed.findings[0].codes, ["UNLISTED-HIGH", "DEEP-001"])
+
+    def test_aur_scan_rule_ids_without_digits_are_kept(self):
+        r = self._scan("Scanning: a ISSUES: 2 critical \n    EXEC-REMOTE Runs remote code - /c/a/x.install\n"
+                       "    TI-UNCHECKED-001 Not checked - /c/a/PKGBUILD\n")
+        self.assertEqual(r.findings[0].codes, ["EXEC-REMOTE", "TI-UNCHECKED-001"])
+
+    def test_aur_scan_ioc_alert_is_critical(self):
+        r = self._scan("IOC ALERT: 1 installed package(s) match known-malicious indicators:\n  bad -> Campaign (c1)\n"
+                       "  Remove these immediately and treat the host as compromised.\n\nScanning: ok OK\n")
+        self.assertEqual((r.status, [(f.package, f.severity) for f in r.findings]), ("critical", [("bad", "critical")]))
+
+    def test_aur_scan_unchecked_and_skipped_packages_are_visible(self):
+        out = ("Scanning: a error: boom\nScanning: b OK\n\n  Errors: 1 package(s) could not be fetched or scanned and "
+               "were NOT reviewed:\n    - a: scan error: boom\n")
+        r = self._scan(out)
+        self.assertEqual(r.status, "error")
+        self.assertIn("a: scan error", r.message)
+        r = self._scan("Scanning: b OK\n\n  Skipped: 2 packages not found in cache (use --rescan):\n    - x\n    - y\n", 0)
+        self.assertEqual(r.status, "clean")
+        self.assertIn("x, y", r.notes[0])
+
+    def test_aur_scan_rescan_output_and_unlisted_lower_findings(self):
+        r = self._scan("Fetching: a ISSUES: 1 critical \n    DEEP-001 X - /c/a/PKGBUILD\n")
+        self.assertEqual([f.package for f in r.findings], ["a"])
+        r = self._scan("Scanning: a OK\n", aur_scan_fail_on="medium")  # gate tripped, nothing listed
+        self.assertEqual((r.status, len(r.findings)), ("warning", 1))
+
+    def test_ensure_release_stays_on_the_newest_stable_tag(self):
+        from cachy_sec import vendor
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(os.environ, {"XDG_DATA_HOME": tmp}):
+            up = Path(tmp) / "up"
+            def git(*a):
+                subprocess.run(["git", "-C", str(up), "-c", "user.name=t", "-c", "user.email=t@example.invalid",
+                                *a], check=True, capture_output=True)
+            def commit(text, tag=""):
+                (up / "f").write_text(text)
+                git("add", "f")
+                git("commit", "-qm", text)
+                if tag:
+                    git("tag", "-a", tag, "-m", tag)
+            up.mkdir()
+            git("init", "-q")
+            commit("one", "v2.0.0")
+            url, d = up.as_uri(), vendor.vendor_root() / "demo"
+            self.assertEqual(vendor.ensure_repo(url, d)[0], True)  # an old checkout of the default branch
+            commit("two", "v10.0.0")
+            commit("candidate", "v11.0.0-rc.1")
+            self.assertEqual(vendor.ensure_release(url, d), (True, "v10.0.0"))
+            self.assertEqual((d / "f").read_text(), "two")
+            self.assertEqual(vendor.ensure_release(url, d), (True, "v10.0.0"))
+            shutil.rmtree(d)
+            self.assertEqual(vendor.ensure_release(url, d), (True, "v10.0.0"))
+            self.assertEqual(vendor.ensure_release((Path(tmp) / "gone").as_uri(), d)[0], True)  # offline: keep it
 
     def test_aur_scan_build_failure_is_reported_with_log(self):
         sc = AurScan()

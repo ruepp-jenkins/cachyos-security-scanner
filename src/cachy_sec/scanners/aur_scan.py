@@ -14,14 +14,21 @@ from pathlib import Path
 
 from .. import fplist, ignores, scanopts, vendor
 from ..settings import Settings
-from .base import CLEAN, ERROR, WARNING, Finding, Scanner, ScanResult, run, which
+from .base import CLEAN, CRITICAL, ERROR, WARNING, Finding, Scanner, ScanResult, run, which
 
 _ERROR_CODES = {124, 126, 127}
 LOG_TAIL = 100_000
 
 
-_HEADER = re.compile(r"^Scanning:\s+(\S+)\s+ISSUES:\s*(.*?)\s*$")
-_ISSUE = re.compile(r"^\s{2,}([A-Z][A-Z0-9]*-\d+)\s+(.+?)\s*$")
+_PREFIXES = ("Scanning:", "Fetching:")  # "Fetching:" replaces "Scanning:" with --rescan
+_HEADER = re.compile(r"^(?:Scanning|Fetching):\s+(\S+)\s+ISSUES:\s*(.*?)\s*$")
+# `aur-scan system` prints detail lines for critical findings only; everything else exists just as a count (or not at all)
+_HIGH_COUNT = re.compile(r"(\d+) high")
+UNLISTED_HIGH = "UNLISTED-HIGH"
+UNLISTED_LOWER = "UNLISTED-LOWER"
+_BELOW_HIGH = ("medium", "low", "info")
+# rule ids are not all "ABC-001": there are e.g. EXEC-REMOTE and TI-UNCHECKED-001
+_ISSUE = re.compile(r"^\s{2,}([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+)\s+(.+?)\s*$")
 
 
 def is_ignored(pkg: str, code: str, ignore: set[str]) -> bool:
@@ -36,7 +43,7 @@ def scanned_dirs(out: str) -> dict[str, Path]:
         m = _HEADER.match(line)
         if m:
             pkg = m.group(1)
-        elif line.startswith("Scanning:"):
+        elif line.startswith(_PREFIXES):
             pkg = None
         elif pkg and pkg not in dirs and _ISSUE.match(line) and " - /" in line:
             dirs[pkg] = Path("/" + line.rpartition(" - /")[2]).parent
@@ -44,23 +51,71 @@ def scanned_dirs(out: str) -> dict[str, Path]:
 
 
 def recognized(out: str) -> bool:
-    return any(ln.startswith("Scanning:") for ln in out.splitlines())
+    return any(ln.startswith(_PREFIXES) for ln in out.splitlines())
+
+
+def ioc_hits(out: str) -> list[tuple[str, str]]:
+    """(package, campaign) of the "IOC ALERT" block: installed names that are known to be malicious."""
+    hits: list[tuple[str, str]] = []
+    inside = False
+    for line in out.splitlines():
+        if line.startswith("IOC ALERT:"):
+            inside = True
+        elif inside:
+            m = re.match(r"^\s+(\S+) -> (.+?)\s*$", line)
+            if m:
+                hits.append((m.group(1), m.group(2)))
+            elif not line.strip() or not line.startswith(" "):
+                inside = False
+    return hits
+
+
+def _summary_list(out: str, heading: str) -> list[str]:
+    """The "    - item" lines below a heading of the summary block ("Errors:", "Skipped:")."""
+    items: list[str] = []
+    inside = False
+    for line in out.splitlines():
+        if line.strip().startswith(heading):
+            inside = True
+        elif inside:
+            if line.startswith("    - "):
+                items.append(line[6:].strip())
+            else:
+                inside = False
+    return items
+
+
+def not_reviewed(out: str) -> list[str]:
+    """"package: reason" for packages aur-scan could not fetch or scan."""
+    return _summary_list(out, "Errors:")
+
+
+def skipped(out: str) -> list[str]:
+    """Packages aur-scan did not check because no helper cache has their PKGBUILD."""
+    return _summary_list(out, "Skipped:")
+
+
+def _short(items: list[str], n: int = 10) -> str:
+    return ", ".join(items[:n]) + (f" and {len(items) - n} more" if len(items) > n else "")
 
 
 def parse_output(out: str, label: str, ignore: frozenset[str] | set[str] = frozenset(),
                  suppress: Callable[[str, str], bool] | None = None,
-                 versions: dict[str, str] | None = None) -> list[Finding]:
+                 versions: dict[str, str] | None = None, fail_on: str = "high") -> list[Finding]:
     """One finding per package that `aur-scan system` reports issues for.
 
     Output format (seen in practice):
         Scanning: <pkg> ISSUES: 10 critical
             CODE-001 Title - /path/to/file
     The trailing summary block ("Severity: 11 critical ...") is deliberately not a finding.
+    aur-scan lists only critical findings. High ones (and, if `fail_on` is lower than "high", a package whose
+    header counts neither) become UNLISTED-* issues so that they are never taken for "clean".
+
     Issues matching `ignore` (code, package or package:CODE) or `suppress(package, code)` (per-version ignores)
     are dropped; a package without remaining issues produces no finding.
     """
     findings: list[Finding] = []
-    pkg = counts = None
+    pkg = None
     issues: list[tuple[str, str, str]] = []
 
     def flush() -> None:
@@ -95,8 +150,14 @@ def parse_output(out: str, label: str, ignore: frozenset[str] | set[str] = froze
         if m:
             flush()
             pkg, counts, issues = m.group(1), m.group(2), []
+            high = _HIGH_COUNT.search(counts)
+            if high and fail_on != "critical":
+                title = "high-severity finding, not listed by aur-scan system (see: aur-scan check)"
+                issues = [(UNLISTED_HIGH, title, "")] * int(high.group(1))
+            elif fail_on in _BELOW_HIGH and "critical" not in counts and not high:
+                issues = [(UNLISTED_LOWER, "findings below high, not listed by aur-scan system (see: aur-scan check)", "")]
             continue
-        if line.startswith("Scanning:"):  # "Scanning: pkg OK": a clean package ends the previous block
+        if line.startswith(_PREFIXES):  # "Scanning: pkg OK": a clean package ends the previous block
             flush()
             pkg, issues = None, []
             continue
@@ -126,7 +187,7 @@ BUILD_CMD = ["cargo", "build", "--release", "--locked", "-p", "aur-scanner-cli"]
 
 
 class AurScan(Scanner):
-    """Uses `aur-scan` from PATH (AUR package) or, if absent, clones the repo and builds it with cargo.
+    """Uses `aur-scan` from PATH (AUR package) or, if absent, clones the newest release tag and builds it with cargo.
 
     Upstream publishes no prebuilt binaries, so building needs git, cargo and clang (pacman: rust clang).
     The pacman package of this app depends on them, so normally this just works.
@@ -173,7 +234,7 @@ class AurScan(Scanner):
         if which("aur-scan"):
             return  # package-managed
         before = vendor.head(_dir()) if _dir().exists() else ""
-        ok, msg = vendor.ensure_repo(REPO_URL, _dir())
+        ok, msg = vendor.ensure_release(REPO_URL, _dir())
         if not ok:
             self._build_log = f"git: {msg}"
             return
@@ -181,7 +242,7 @@ class AurScan(Scanner):
             built, out = self._build()
             if not built:  # broken tree or toolchain trouble: start from a clean checkout once
                 shutil.rmtree(_dir(), ignore_errors=True)
-                if vendor.ensure_repo(REPO_URL, _dir())[0]:
+                if vendor.ensure_release(REPO_URL, _dir())[0]:
                     built, out = self._build()
             self._build_log = "" if built else out
 
@@ -200,8 +261,11 @@ class AurScan(Scanner):
         code, out = run([binary, "--no-color", "system", *options], 1800, low_priority=True)
         if options != ["--fail-on", "high"]:
             out = f"[options: {shlex.join(options)}]\n{out}"
+        missing = skipped(out)
+        skip_notes = [f"aur-scan did not check {len(missing)} package(s), no PKGBUILD in an AUR helper cache: "
+                      f"{_short(missing)}"] if missing else []
         if code == 0:
-            return ScanResult(self.name, CLEAN, log=out)
+            return ScanResult(self.name, CLEAN, log=out, notes=skip_notes)
         if code in _ERROR_CODES:
             return ScanResult(self.name, ERROR, [], f"exit {code}: {out[-500:]}", log=out)
         if self._use_fp and not self._fp_checked:
@@ -224,7 +288,15 @@ class AurScan(Scanner):
                 hits[f"{pkg} {versions.get(pkg)} {rule}"] = f"{e.reason} (reported by {e.author}, {e.reported})"
             return e is not None
 
-        findings = parse_output(out, self.label, self._ignore, suppress, versions)
+        fail_on = self._settings.aur_scan_fail_on
+        findings = parse_output(out, self.label, self._ignore, suppress, versions, fail_on)
+        listed = bool(parse_output(out, self.label, fail_on=fail_on))  # anything reported at all, before ignoring
+        # known-malicious names are never hidden by an ignore list
+        iocs = ioc_hits(out)
+        findings = [Finding(CRITICAL, f"{p}: installed package matches a known-malicious name ({c})", self.label,
+                            package=p, version=versions.get(p, ""), detail=f"aur-scan IOC alert: {c}")
+                    for p, c in iocs] + findings
+        failed = not_reviewed(out)
         if recognized(out):  # make the "why was it (not) hidden" question answerable from the history
             reported = sorted({m.group(1) for m in map(_HEADER.match, out.splitlines()) if m})
             out += ("\n\n--- context ---\n"
@@ -236,7 +308,12 @@ class AurScan(Scanner):
         if hits:  # transparency: show what the community list hid
             out += "\n\n--- hidden by the community false-positive list ---\n" + "\n".join(
                 f"{k}: {v}" for k, v in hits.items()) + "\n"
-        notes: list[str] = []
+        notes: list[str] = list(skip_notes)
+        if failed:
+            notes.append(f"aur-scan could NOT check {len(failed)} package(s): {_short(failed, 5)}")
+        if listed and fail_on in _BELOW_HIGH:
+            notes.append(f"aur-scan system does not list every finding below 'high'; check single packages with "
+                         "'aur-scan check <package>'.")
         if hits:
             notes.append(f"{len(hits)} finding(s) were hidden by the community false-positive list.")
         if findings and recognized(out):
@@ -245,8 +322,12 @@ class AurScan(Scanner):
             elif not entries:
                 notes.append("The community false-positive list is on but not available "
                              f"({self._fp_status or 'no verified copy in the cache'}); nothing could be hidden.")
-        if not findings and recognized(out):
+        if not findings and failed:
+            return ScanResult(self.name, ERROR, [], f"{len(failed)} package(s) could not be checked: {_short(failed, 3)}",
+                              log=out, notes=notes)
+        if not findings and recognized(out) and listed:
             return ScanResult(self.name, CLEAN, log=out, notes=notes)  # everything it reported is on an ignore list
         if not findings:
-            findings = [Finding(WARNING, "aur-scan reported findings at or above 'high'", self.label)]
-        return ScanResult(self.name, WARNING, findings, out[-2000:], log=out, notes=notes)
+            findings = [Finding(WARNING, f"aur-scan reported findings at or above '{fail_on}' (see the log)", self.label)]
+        status = CRITICAL if iocs else WARNING
+        return ScanResult(self.name, status, findings, out[-2000:], log=out, notes=notes)

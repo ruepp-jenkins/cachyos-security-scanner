@@ -42,7 +42,7 @@ Everything the app fetches lives in your home folder. **No root rights** are use
 ## 🩺 2. How a checkout is checked and updated
 
 The app keeps its checkouts in a single folder, `~/.local/share/cachy-security-scanner/vendor/`. Before every scan (with
-*Update scanner sources before each scan* on) it runs this procedure for each git-managed scanner:
+*Update scanner sources before each scan* on) it runs this procedure for `aur-malware-check` (`aur-scan` follows [release tags](#aur-scan-stays-on-releases)):
 
 ```mermaid
 flowchart TD
@@ -74,8 +74,22 @@ Safety details:
 - Clones are **shallow** (`--depth 1`): only the latest state is downloaded.
 - With the update setting **off**, a missing tool is still fetched once on demand (otherwise there would be nothing to run).
 
-> ⚠️ **Trust note.** The checkouts follow the **default branch** of the upstream repositories. The app does **not** pin a
-> commit and does **not** verify signatures for them (unlike its own updates and the community lists). Whatever
+### aur-scan stays on releases
+
+For `ks-aur-scanner` the app does not follow a branch but the **newest stable release tag** (`vX.Y.Z`; pre-releases such as
+`-rc.1` are ignored):
+
+| Step | Command |
+|---|---|
+| find the newest release | `git ls-remote --tags --refs <url>` |
+| first clone | `git clone --depth 1 --branch <tag> <url> <dir>` |
+| newer (or other) release | `git fetch --depth 1 origin +refs/tags/<tag>:refs/tags/<tag>`, then `git checkout --force --detach refs/tags/<tag>` |
+
+The same health check applies; a broken checkout is deleted and cloned again. If the releases cannot be listed (offline),
+the existing checkout is used as it is.
+
+> ⚠️ **Trust note.** `aur-malware-check` follows the **default branch** of its repository, `aur-scan` its **newest release
+> tag**. The app does **not** pin a fixed version and does **not** verify signatures for them (unlike its own updates and the community lists). Whatever
 > upstream publishes is what will run, as your user. That is the price of getting new detection rules without waiting for
 > a release of this app. If you do not accept that, switch the scanner off, or install it from a source you trust (for
 > `aur-scan`: the AUR package `aur-scanner`) – the app then uses your installed command and does not touch it.
@@ -95,7 +109,7 @@ What that command downloads, and from where, is up to the upstream tool – see
 
 ### aur-scan
 
-`aur-scan` has to be compiled. The app builds it **only when needed**: when the checkout changed (a new commit arrived) or
+`aur-scan` has to be compiled. The app builds it **only when needed**: when the checkout changed (a new release arrived) or
 no built binary exists yet.
 
 ```
@@ -158,6 +172,20 @@ nice -n 19 ionice -c 2 -n 7  aur-scan --no-color system --fail-on high
   | 0 | clean |
   | 124 (timeout), 126, 127 (cannot run / not found) | error |
   | other (findings at or above *high*) | the output is parsed into findings, then filtered (below) |
+
+- **What the app reads from the output** (`aur-scan system` itself prints details for *critical* findings only):
+
+  | In the output | In the app |
+  |---|---|
+  | critical finding lines | findings with rule code and file |
+  | a count of *high* findings without lines | a finding `UNLISTED-HIGH` per package; details with `aur-scan check <package>` (not counted if the fail level is *critical*) |
+  | `IOC ALERT` (installed name known to be malicious) | **critical** finding; no ignore rule or list hides it |
+  | `Errors:` packages that could not be fetched or scanned | a note; **error** if there are no findings |
+  | `Skipped:` packages without a PKGBUILD in a helper cache | a note naming them |
+  | non-zero exit but nothing the app can attribute | one general warning |
+
+  With a fail level below *high*, upstream does not list all lower findings per package; the app then shows
+  `UNLISTED-LOWER` or the general warning.
 
 - **Filtering of the parsed findings** (three mechanisms; only the community list is itemised in the log, with reason,
   author and date):
@@ -226,6 +254,6 @@ rm -rf ~/.local/share/cachy-security-scanner/vendor
 
 - The app does not know *what* the tools check; it relies on their exit codes and output format. If upstream changes the
   format, parsing may need an update of this app (the exit code still gives a status).
-- No commit pinning for the git-managed scanners (see the trust note above).
+- No fixed version pinning for the git-managed scanners (see the trust note above).
 - Shallow clones mean you cannot browse upstream history in the checkout.
 - The first scan after installing can take minutes (downloads, Rust build).

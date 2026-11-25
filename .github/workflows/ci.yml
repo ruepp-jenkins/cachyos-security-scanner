@@ -3,10 +3,13 @@ on: [push, pull_request]
 jobs:
   test:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python: ["3.12", "3.14"]  # minimum supported and what Arch/CachyOS ships
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
-        with: { python-version: "3.12" }
+        with: { python-version: "${{ matrix.python }}" }
       - name: Qt libraries and PySide6 for the headless GUI tests
         run: |
           sudo apt-get update -qq

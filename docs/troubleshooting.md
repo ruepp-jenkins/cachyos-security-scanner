@@ -63,6 +63,13 @@ Check that the folder is writable and the disk is not full.
   `keepSrc` option is on, and a package can then be scanned less deeply or not at all. See [AUR helpers](aur-helpers.md).
 - After switching helpers the new helper's cache is empty until it has fetched or built the package once.
 - A package that was installed from your own build or a repository outside the AUR is not in any helper cache.
+- The history entry names the packages `aur-scan` skipped.
+
+### "UNLISTED-HIGH" findings
+
+`aur-scan system` only counts *high* findings without saying which. Run `aur-scan check <package>` (for the app's own
+build: `~/.local/share/cachy-security-scanner/vendor/ks-aur-scanner/target/release/aur-scan check <package>`) to see
+them. **Ignore** works for this entry; the community false-positive list cannot hide it.
 
 ### A harmless package is reported
 

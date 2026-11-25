@@ -53,7 +53,7 @@ flowchart TD
     D -- no --> E["delete the folder<br/>+ git clone --depth 1"]
     D -- yes --> F["git pull --ff-only --quiet"]
     F -- ok --> G["up to date"]
-    F -- fails --> H["delete the folder<br/>+ git clone --depth 1<br/>(diverged, force-pushed, corrupt)"]
+    F -- fails --> H["clone a fresh copy and replace the old one;<br/>if that fails too (offline), keep the old one"]
     C --> G
     E --> G
     H --> G
@@ -64,13 +64,14 @@ flowchart TD
 | clone | `git clone --depth 1 <url> <dir>` | 5 min |
 | health check | `git -C <dir> fsck --connectivity-only --no-dangling`, then `git -C <dir> rev-parse --verify HEAD` | 2 min / 30 s |
 | update | `git -C <dir> pull --ff-only --quiet` | 3 min |
-| recovery | delete the folder, clone again | – |
+| recovery | clone into a new folder, replace the old one only if that worked | 5 min |
 
 Safety details:
 
 - **Deletion is restricted:** the app only ever deletes a folder that sits **directly inside** its own `vendor/` folder. It
   refuses any other path.
 - A **failed clone** never leaves a half-cloned folder behind.
+- **Offline** nothing is lost: a working checkout stays and is used as it is (the history entry says *stale*).
 - Clones are **shallow** (`--depth 1`): only the latest state is downloaded.
 - With the update setting **off**, a missing tool is still fetched once on demand (otherwise there would be nothing to run).
 
@@ -98,19 +99,22 @@ the existing checkout is used as it is.
 
 ### aur-malware-check
 
-After the pull, the app runs the tool's own refresh of its campaign lists:
+After the pull, the app runs the tool's own refresh of its campaign definitions:
 
 ```
-<python> -m aur_check --refresh-campaigns          # timeout 2 min
+<python> -m aur_check --refresh-campaigns --list-campaigns   # timeout 2 min
 ```
 
-What that command downloads, and from where, is up to the upstream tool – see
-[its repository](https://github.com/lenucksi/aur-malware-check).
+`--list-campaigns` makes the tool stop after the refresh (without it, it would also run a full scan). The refresh
+updates the campaign **definitions** (`data/campaigns.json`); the **package name lists** come with the repository and
+are updated by `git pull`. The app does not use upstream's `--refresh` option, which would overwrite a package list with
+the contents of a web page. See [its repository](https://github.com/lenucksi/aur-malware-check).
 
 ### aur-scan
 
-`aur-scan` has to be compiled. The app builds it **only when needed**: when the checkout changed (a new release arrived) or
-no built binary exists yet.
+`aur-scan` has to be compiled. The app builds it **only when needed**: when the checked-out commit differs from the one
+recorded for the last successful build (`target/built-commit`) or no built binary exists. Its threat indicators are part
+of the program, so they are updated with a new release.
 
 ```
 cargo build --release --locked -p aur-scanner-cli --manifest-path ~/.local/share/cachy-security-scanner/vendor/ks-aur-scanner/Cargo.toml
@@ -119,8 +123,9 @@ cargo build --release --locked -p aur-scanner-cli --manifest-path ~/.local/share
 - Timeout: 1 hour. Runs at low priority. `--locked` builds exactly the dependency versions upstream pinned.
 - `cargo` downloads the Rust crates from crates.io on the first build.
 - The result is `vendor/ks-aur-scanner/target/release/aur-scan`.
-- If the build fails, the app deletes the checkout **once**, clones again and retries. If it still fails, the scan reports
-  an **error** with the last line of the build output (the full log is in the history).
+- If the build fails and an **older build** exists, that one is used (with a note) and the build is tried again next time.
+  Without one, the app clones afresh **once** and retries; if that fails too, the scan reports an **error** with the last
+  line of the build output.
 - Requirements: `git`, `cargo` (package `rust`), and for building `clang`, `pkgconf`, `openssl` – all dependencies of the
   app's package. See [Requirements](setup-requirements.md#-rust-only-for-aur-scan).
 
@@ -221,6 +226,11 @@ nice -n 19 ionice -c 2 -n 7  clamdscan --fdpass -i -- <existing paths…>
 - Nothing is deleted or moved: there is no `--remove` or `--move`.
 
 ## 🧾 5. What ends up in the history
+
+Each entry starts with an **update** section (before the tool output): where the program comes from, what `git` did and
+which commit is used, build result, campaign refresh, list sizes, `aur-scan` version and indicator date, and the state of
+the community lists. ClamAV logs show the engine and signature database version; the signatures themselves are updated
+by ClamAV's `freshclam`, not by this app.
 
 Each scanner gets **its own entry** with: start time, trigger, duration, status, a one-line summary, the findings with their
 severity, notes, and the **complete tool output**. Setup problems (clone failed, build failed, Python too old) are errors

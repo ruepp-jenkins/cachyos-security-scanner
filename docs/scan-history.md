@@ -108,3 +108,9 @@ community false-positive list: on, 1 entries (cached copy)
 
 Found something? Continue in the [findings window](findings-window.md): it shows the same entries with buttons to open
 the files, accept an entry or remove the package.
+
+## 🔄 What was updated
+
+The text of an entry has an `--- update ---` section above the tool output. It says whether the scanner program and its
+data were updated before that scan, and if not, why (offline, build failed, updates switched off). Details:
+[Scanner lifecycle](scanner-lifecycle.md#-5-what-ends-up-in-the-history).

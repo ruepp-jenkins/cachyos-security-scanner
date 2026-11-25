@@ -66,6 +66,8 @@ class Entry:
                     out.append(f"    {ln}")
             if r.get("message"):
                 out.append(r["message"])
+            if r.get("update_log"):
+                out += ["", "--- update ---", r["update_log"]]
             if r.get("log"):
                 out += ["", "--- output ---", r["log"]]
             out.append("")
@@ -85,6 +87,7 @@ def _stamp() -> str:
 
 def _result_dict(r: ScanResult) -> dict:
     return {"backend": r.backend, "status": r.status, "message": r.message[-LOG_CAP:], "log": r.log[-LOG_CAP:],
+            "update_log": r.update_log[-LOG_CAP:],
             "findings": [{"severity": f.severity, "title": f.title, "source": f.source, "package": f.package,
                           "detail": f.detail, "files": f.files,
                           "version": f.version, "codes": f.codes,

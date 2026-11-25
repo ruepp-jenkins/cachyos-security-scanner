@@ -31,6 +31,7 @@ class ScanResult:
     message: str = ""
     log: str = ""  # raw tool output, kept for the scan history
     duration_s: float = 0.0
+    update_log: str = ""  # what was updated before this scan (sources, builds, databases), shown in the history
     notes: list[str] = field(default_factory=list)  # short hints shown with the findings (why something was/was not hidden)
 
     @property
@@ -78,6 +79,13 @@ def run(cmd: list[str], timeout: int = 600, low_priority: bool = False) -> tuple
 
 
 class Scanner:
+    def log_update(self, line: str) -> None:
+        """Remember a line about the update of sources, builds or databases; it ends up in the history entry."""
+        self.__dict__.setdefault("_update_lines", []).append(line)
+
+    def update_lines(self) -> list[str]:
+        return self.__dict__.setdefault("_update_lines", [])
+
     name = "base"
     label = "base"
 

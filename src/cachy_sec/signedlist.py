@@ -140,6 +140,17 @@ def describe(loaded: Loaded | None, noun: str = "entry", plural: str = "entries"
     return f"available, {stamp}, {n} {noun if n == 1 else plural}"
 
 
+def state_line(spec: Spec, loaded: Loaded | None) -> str:
+    """describe() plus when the cached copy was downloaded and whether the last download failed; for scan logs."""
+    error = last_error(spec)
+    line = describe(loaded, "entry", "entries", error)
+    if loaded is not None:
+        line += "; downloaded " + time.strftime("%Y-%m-%d %H:%M", time.localtime(loaded.fetched))
+        if error:
+            line += f"; the last download failed ({error})"
+    return line
+
+
 def main(argv: list[str]) -> int:
     from . import blocklist, fplist  # registry; imported here to avoid import cycles
 

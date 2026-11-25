@@ -1,7 +1,8 @@
 """Self-managing checkouts of upstream scanner repositories (no manual steps for the user).
 
 ensure_repo() clones when missing, fast-forwards otherwise, and wipes + re-clones a broken
-checkout. ensure_release() does the same but stays on the newest stable release tag (vX.Y.Z).
+checkout. A working checkout is only replaced after its successor was downloaded, so being offline never removes a
+scanner. ensure_release() does the same but stays on the newest stable release tag (vX.Y.Z).
 Deletion is restricted to directories directly below our own vendor root.
 """
 from __future__ import annotations
@@ -28,12 +29,30 @@ def _healthy(d: Path) -> bool:
         and run(["git", "-C", str(d), "rev-parse", "--verify", "HEAD"], 30)[0] == 0
 
 
-def _clone(url: str, d: Path) -> tuple[bool, str]:
+def _clone(url: str, d: Path, tag: str | None = None) -> tuple[bool, str]:
     d.parent.mkdir(parents=True, exist_ok=True)
-    code, out = run(["git", "clone", "--depth", "1", url, str(d)], 300, low_priority=True)
+    branch = ["--branch", tag] if tag else []
+    code, out = run(["git", "clone", "--depth", "1", *branch, url, str(d)], 300, low_priority=True)
     if code != 0:
         shutil.rmtree(d, ignore_errors=True)  # never leave a half-cloned directory behind
-    return code == 0, out[-300:]
+    return code == 0, (tag or "cloned") if code == 0 else _last_line(out)
+
+
+def _last_line(out: str) -> str:
+    return (out.strip().splitlines() or ["unknown git error"])[-1][-300:]
+
+
+def reclone(url: str, d: Path, tag: str | None = None) -> tuple[bool, str]:
+    """Replace an existing checkout with a fresh one; the old one stays if the download fails."""
+    if not _inside_root(d):
+        return False, "refusing to manage a directory outside the vendor root"
+    new = d.with_name(f".{d.name}.new")
+    shutil.rmtree(new, ignore_errors=True)
+    ok, msg = _clone(url, new, tag)
+    if ok:
+        shutil.rmtree(d, ignore_errors=True)
+        new.rename(d)
+    return ok, msg
 
 
 def ensure_repo(url: str, d: Path) -> tuple[bool, str]:
@@ -47,13 +66,13 @@ def ensure_repo(url: str, d: Path) -> tuple[bool, str]:
     if not _healthy(d):
         shutil.rmtree(d, ignore_errors=True)
         return _clone(url, d)
+    before = head(d)
     code, out = run(["git", "-C", str(d), "pull", "--ff-only", "--quiet"], 180, low_priority=True)
     if code == 0:
-        return True, "updated"
-    # Diverged, shallow-history trouble, corrupt objects, force-pushed upstream: start over.
-    shutil.rmtree(d, ignore_errors=True)
-    ok, msg = _clone(url, d)
-    return ok, msg if not ok else "re-cloned after failed update"
+        return True, "already up to date" if head(d) == before else "updated"
+    # Diverged, shallow-history trouble, corrupt objects, force-pushed upstream (or simply offline): start over if we can.
+    ok, msg = reclone(url, d)
+    return True, "re-cloned after failed update" if ok else f"stale: update failed ({_last_line(out)})"
 
 
 _RELEASE_TAG = re.compile(r"refs/tags/(v(\d+)\.(\d+)\.(\d+))$")  # no suffix: pre-releases (-rc.1) never match
@@ -82,21 +101,24 @@ def ensure_release(url: str, d: Path) -> tuple[bool, str]:
     tag = latest_release(url)
     if tag is None:
         return (True, "stale: release list not available") if d.exists() else (False, "no release found")
-    if d.exists():
-        code, commit = run(["git", "-C", str(d), "rev-parse", "-q", "--verify", f"refs/tags/{tag}^{{commit}}"], 30)
-        if code == 0 and commit.strip() == head(d):
-            return True, tag
-        if run(["git", "-C", str(d), "fetch", "--depth", "1", "--quiet", "origin", f"+refs/tags/{tag}:refs/tags/{tag}"],
-               300, low_priority=True)[0] == 0 \
-                and run(["git", "-C", str(d), "checkout", "--quiet", "--force", "--detach", f"refs/tags/{tag}"], 120)[0] == 0:
-            return True, tag
-        shutil.rmtree(d, ignore_errors=True)  # start over
-    d.parent.mkdir(parents=True, exist_ok=True)
-    code, out = run(["git", "clone", "--depth", "1", "--branch", tag, url, str(d)], 300, low_priority=True)
-    if code != 0:
-        shutil.rmtree(d, ignore_errors=True)
-    return code == 0, tag if code == 0 else out[-300:]
+    if not d.exists():
+        return _clone(url, d, tag)
+    code, commit = run(["git", "-C", str(d), "rev-parse", "-q", "--verify", f"refs/tags/{tag}^{{commit}}"], 30)
+    if code == 0 and commit.strip() == head(d):
+        return True, tag
+    if run(["git", "-C", str(d), "fetch", "--depth", "1", "--quiet", "origin", f"+refs/tags/{tag}:refs/tags/{tag}"],
+           300, low_priority=True)[0] == 0 \
+            and run(["git", "-C", str(d), "checkout", "--quiet", "--force", "--detach", f"refs/tags/{tag}"], 120)[0] == 0:
+        return True, tag
+    ok, msg = reclone(url, d, tag)
+    return True, tag if ok else f"stale: could not switch to {tag} ({msg})"
 
 
 def head(d: Path) -> str:
     return run(["git", "-C", str(d), "rev-parse", "HEAD"], 30)[1].strip()
+
+
+def version(d: Path) -> str:
+    """"abc1234 of 2026-07-07" for the checked-out commit."""
+    code, out = run(["git", "-C", str(d), "log", "-1", "--format=%h of %cs"], 30)
+    return out.strip() if code == 0 else "unknown"

@@ -129,13 +129,16 @@ def run_scan(s: Settings, *, manual: bool = False) -> Report:
         if s.update_sources_before_scan:
             try:
                 sc.update()
-            except Exception:  # noqa: BLE001 - a failed update must never block the scan
-                pass
+            except Exception as e:  # noqa: BLE001 - a failed update must never block the scan
+                Scanner.log_update(sc, f"update failed: {e}")
+        else:
+            Scanner.log_update(sc, "Update scanner sources before each scan: off (settings)")
         try:
             r = sc.scan()
         except Exception as e:  # noqa: BLE001
             r = ScanResult(sc.name, ERROR, [], str(e), log=f"Scanner crashed: {e}")
         r.duration_s = time.monotonic() - t0
+        r.update_log = "\n".join(Scanner.update_lines(sc))
         results.append(r)
     return Report(results)
 

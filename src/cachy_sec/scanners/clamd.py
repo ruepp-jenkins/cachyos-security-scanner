@@ -16,6 +16,7 @@ from pathlib import Path
 
 from .. import scanopts
 from ..settings import Settings
+from .base import run
 
 BACKGROUND_TIMEOUT = 6 * 3600
 
@@ -27,6 +28,7 @@ opts=("${@:1:nopts}"); shift "$nopts"
 tmp=$(mktemp)
 {
 echo "clamdscan: scanning $# path(s) via clamd ($(date '+%F %T'))"
+echo "Engine/database: $(clamdscan --version 2>/dev/null)"
 echo
 clamdscan "${opts[@]}" -- "$@" 2>&1
 } | tee "$log" "$tmp"
@@ -196,6 +198,16 @@ def cancel_background() -> bool:
         return True
 
 
+def database_info() -> str:
+    """"ClamAV <engine>/<signature version>/<signature date>" as reported by the daemon ("unknown" if it cannot say).
+    The signature database itself is updated by ClamAV's own freshclam service, not by this app."""
+    try:
+        code, out = run(["clamdscan", "--version"], 30)
+        return out.strip().splitlines()[0] if code == 0 and out.strip() else "unknown"
+    except Exception:  # noqa: BLE001 - information only, it must never stop a scan
+        return "unknown"
+
+
 def run_background(paths: list[str], low_priority: bool = True, trigger: str = "scheduled",
                    settings: Settings | None = None) -> tuple[str, str]:
     """Scan without a terminal and write the log to the history. Returns (state, message) with state
@@ -214,7 +226,8 @@ def run_background(paths: list[str], low_priority: bool = True, trigger: str = "
     mark_scan()
     try:
         log = history.new_binary_log_path()
-        log.write_text(f"clamdscan: scanning {len(existing)} path(s) via clamd ({time.strftime('%F %T')}) [trigger: {trigger}]\n\n")
+        log.write_text(f"clamdscan: scanning {len(existing)} path(s) via clamd ({time.strftime('%F %T')}) [trigger: {trigger}]\n"
+                       f"Engine/database: {database_info()}\n\n")
     except OSError:
         log = None
 

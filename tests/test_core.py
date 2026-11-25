@@ -14,7 +14,7 @@ from cachy_sec import engine, scheduler, updater  # noqa: E402
 from cachy_sec.scanners import aur_malware_check as amc  # noqa: E402
 from cachy_sec import blocklist, signedlist  # noqa: E402
 from cachy_sec.scanners.aur_scan import AurScan  # noqa: E402
-from cachy_sec.scanners.base import CLEAN, CRITICAL, WARNING, ScanResult  # noqa: E402
+from cachy_sec.scanners.base import CLEAN, CRITICAL, WARNING, Scanner, ScanResult  # noqa: E402
 from cachy_sec.settings import Settings  # noqa: E402
 
 
@@ -272,6 +272,69 @@ class AdapterTest(unittest.TestCase):
             shutil.rmtree(d)
             self.assertEqual(vendor.ensure_release(url, d), (True, "v10.0.0"))
             self.assertEqual(vendor.ensure_release((Path(tmp) / "gone").as_uri(), d)[0], True)  # offline: keep it
+
+    def test_offline_update_keeps_the_checkout(self):
+        from cachy_sec import vendor
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(os.environ, {"XDG_DATA_HOME": tmp}):
+            d = vendor.vendor_root() / "demo"
+            up = Path(tmp) / "up"
+            subprocess.run(["git", "init", "-q", str(up)], check=True)
+            subprocess.run(["git", "-C", str(up), "-c", "user.name=t", "-c", "user.email=t@example.invalid",
+                            "commit", "-qm", "one", "--allow-empty"], check=True)
+            self.assertEqual(vendor.ensure_repo(up.as_uri(), d), (True, "cloned"))
+            self.assertEqual(vendor.ensure_repo(up.as_uri(), d), (True, "already up to date"))
+            shutil.rmtree(up)  # like no network
+            ok, msg = vendor.ensure_repo(up.as_uri(), d)
+            self.assertTrue(ok and msg.startswith("stale:"), msg)
+            self.assertTrue((d / ".git").is_dir())
+
+    def test_update_log_reaches_the_history(self):
+        from cachy_sec import history
+
+        class Fake(Scanner):
+            name = "fake"
+
+            def available(self):
+                return True
+
+            def update(self):
+                self.log_update("database: 42 entries")
+
+            def scan(self):
+                return ScanResult("fake", CLEAN, log="scan output")
+
+        fake = Fake()
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(os.environ, {"XDG_STATE_HOME": tmp, "XDG_DATA_HOME": tmp}), \
+                mock.patch.object(engine, "enabled_scanners", return_value=[fake]):
+            report = engine.run_scan(Settings(), manual=True)
+            [path] = history.record(report, "test", 0.0, 0.0)
+            text = history.Entry.log_text(type("E", (), {"path": path})())
+        self.assertLess(text.index("--- update ---\ndatabase: 42 entries"), text.index("--- output ---"))
+
+    def test_amc_refresh_does_not_run_a_second_scan_and_is_logged(self):
+        sc = amc.AurMalwareCheck()
+        out = "--- campaigns.json refresh ---\n  = aur-infected (unchanged)\n-----------------------------\nlist\n"
+        with mock.patch.object(amc.AurMalwareCheck, "_cwd_cmd", return_value=(0, out)) as cmd:
+            sc._refresh_campaigns()
+        cmd.assert_called_once_with(["--refresh-campaigns", "--list-campaigns"], 120)
+        self.assertEqual(sc.update_lines(), ["campaign definitions: refreshed from upstream", "  = aur-infected (unchanged)"])
+
+    def test_aur_scan_keeps_the_old_build_and_retries_when_a_build_fails(self):
+        from cachy_sec import vendor
+        with tempfile.TemporaryDirectory() as tmp, mock.patch.dict(os.environ, {"XDG_DATA_HOME": tmp}), \
+                mock.patch("cachy_sec.scanners.aur_scan.which", side_effect=lambda n: None if n == "aur-scan" else n), \
+                mock.patch.object(vendor, "ensure_release", return_value=(True, "v2.0.0")), \
+                mock.patch.object(vendor, "head", return_value="new"), mock.patch.object(vendor, "version", return_value="new"), \
+                mock.patch.object(AurScan, "_build", return_value=(False, "error: boom")) as build:
+            binary = vendor.vendor_root() / "ks-aur-scanner" / "target" / "release" / "aur-scan"
+            binary.parent.mkdir(parents=True)
+            binary.write_text("old")
+            for _ in range(2):
+                sc = AurScan()
+                sc._update_program()
+            self.assertEqual(build.call_count, 2)  # tried again next time
+            self.assertTrue(binary.exists())
+            self.assertIn("build: FAILED, the previous build is still used", sc.update_lines())
 
     def test_aur_scan_build_failure_is_reported_with_log(self):
         sc = AurScan()

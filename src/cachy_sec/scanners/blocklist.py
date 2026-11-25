@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from .. import blocklist
-from ..signedlist import describe
+from ..signedlist import describe, state_line
 from ..ignores import installed_versions
 from .base import CLEAN, CRITICAL, ERROR, Finding, Scanner, ScanResult
 
@@ -17,6 +17,9 @@ class CommunityBlocklist(Scanner):
     def available(self) -> bool:
         return True  # needs only network access (or a cached copy); a missing list is reported as an error in scan()
 
+    def update(self) -> None:
+        pass  # downloaded at start and periodically (engine.refresh_lists); scan() fetches it if it is missing
+
     def scan(self) -> ScanResult:
         loaded = blocklist.load()
         if loaded is None:  # regular refreshes run at start and periodically; a scan only fetches when there is nothing yet
@@ -26,6 +29,7 @@ class CommunityBlocklist(Scanner):
         if loaded is None:
             return ScanResult(self.name, ERROR, [], f"community blocklist not available yet: {self._status}",
                               log=f"No verified blocklist in the cache.\n{self._status}")
+        self.log_update(f"community blocklist: {state_line(blocklist.SPEC, loaded)}")
         installed = installed_versions()
         findings = []
         for pkg, version in sorted(installed.items()):

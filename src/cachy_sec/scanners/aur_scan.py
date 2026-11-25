@@ -12,7 +12,7 @@ import shutil
 from collections.abc import Callable
 from pathlib import Path
 
-from .. import fplist, ignores, scanopts, vendor
+from .. import fplist, ignores, scanopts, signedlist, vendor
 from ..settings import Settings
 from .base import CLEAN, CRITICAL, ERROR, WARNING, Finding, Scanner, ScanResult, run, which
 
@@ -175,6 +175,17 @@ def parse_output(out: str, label: str, ignore: frozenset[str] | set[str] = froze
 REPO_URL = "https://github.com/KiefStudioMA/ks-aur-scanner.git"
 
 
+def _marker() -> Path:
+    return _dir() / "target" / "built-commit"  # which commit the binary was built from
+
+
+def _built_commit() -> str:
+    try:
+        return _marker().read_text().strip()
+    except OSError:
+        return ""
+
+
 def _dir() -> Path:
     return vendor.vendor_root() / "ks-aur-scanner"
 
@@ -204,6 +215,7 @@ class AurScan(Scanner):
         self._fp_status = ""
         self._prepared = False
         self._build_log = ""
+        self._outdated = False  # the newest release could not be built; an older build is used
 
     def _binary(self) -> str | None:
         return which("aur-scan") or (str(_built()) if _built().exists() else None)
@@ -231,20 +243,61 @@ class AurScan(Scanner):
     def update(self) -> None:
         self._prepared = True
         self._refresh_fp()
-        if which("aur-scan"):
-            return  # package-managed
-        before = vendor.head(_dir()) if _dir().exists() else ""
+        self._update_program()
+        self._log_databases()
+
+    def _update_program(self) -> None:
+        system = which("aur-scan")
+        if system:  # package-managed
+            self.log_update(f"program: installed command {system} (updated by your package manager)")
+            return
+        before = vendor.version(_dir()) if _dir().exists() else ""
         ok, msg = vendor.ensure_release(REPO_URL, _dir())
         if not ok:
             self._build_log = f"git: {msg}"
+            self.log_update(f"program: download FAILED: {msg}")
             return
-        if (vendor.head(_dir()) != before or not _built().exists()) and which("cargo"):
-            built, out = self._build()
-            if not built:  # broken tree or toolchain trouble: start from a clean checkout once
-                shutil.rmtree(_dir(), ignore_errors=True)
-                if vendor.ensure_release(REPO_URL, _dir())[0]:
-                    built, out = self._build()
-            self._build_log = "" if built else out
+        after = vendor.version(_dir())
+        changed = f" (was {before})" if before and before != after else ""
+        self.log_update(f"program (git release): {msg}; commit {after}{changed}")
+        if _built().exists() and _built_commit() == vendor.head(_dir()):
+            self.log_update("build: up to date, nothing to compile")
+            return
+        if not which("cargo"):
+            self.log_update("build: skipped, cargo is not installed")
+            return
+        built, out = self._build()
+        if not built and not _built().exists():  # nothing usable: start from a clean checkout once
+            if vendor.reclone(REPO_URL, _dir(), vendor.latest_release(REPO_URL))[0]:
+                built, out = self._build()
+        self._build_log = "" if built else out
+        if built:
+            try:
+                _marker().parent.mkdir(parents=True, exist_ok=True)
+                _marker().write_text(vendor.head(_dir()))
+            except OSError:
+                pass
+            self.log_update("build: compiled with cargo")
+            return
+        self._outdated = _built().exists()
+        self.log_update("build: FAILED" + (", the previous build is still used" if self._outdated else ""))
+        self.log_update("\n".join(out.strip().splitlines()[-15:]))
+
+    def _log_databases(self) -> None:
+        """Version and built-in threat indicators of aur-scan (part of the program, so they change with releases)."""
+        binary = self._binary()
+        if binary:
+            code, out = run([binary, "--version"], 30)
+            if code == 0:
+                self.log_update(f"version: {out.strip()}")
+            code, out = run([binary, "--no-color", "ioc"], 60)
+            if code == 0:
+                info = [" ".join(ln.split()) for ln in out.splitlines()
+                        if ln.strip().startswith(("Last updated", "Indicators", "Override file"))]
+                if info:
+                    self.log_update("built-in threat indicators: " + "; ".join(info))
+        if self._use_fp:
+            self.log_update("community false-positive list: " + signedlist.state_line(fplist.SPEC, fplist.load()))
 
     def scan(self) -> ScanResult:
         if self._binary() is None and not self._prepared:
@@ -265,6 +318,8 @@ class AurScan(Scanner):
         skip_notes = [f"aur-scan did not check {len(missing)} package(s), no PKGBUILD in an AUR helper cache: "
                       f"{_short(missing)}"] if missing else []
         if code == 0:
+            if self._outdated:
+                skip_notes.append("The newest aur-scan release could not be built; the previous build was used (see the log).")
             return ScanResult(self.name, CLEAN, log=out, notes=skip_notes)
         if code in _ERROR_CODES:
             return ScanResult(self.name, ERROR, [], f"exit {code}: {out[-500:]}", log=out)
@@ -309,6 +364,8 @@ class AurScan(Scanner):
             out += "\n\n--- hidden by the community false-positive list ---\n" + "\n".join(
                 f"{k}: {v}" for k, v in hits.items()) + "\n"
         notes: list[str] = list(skip_notes)
+        if self._outdated:
+            notes.append("The newest aur-scan release could not be built; the previous build was used (see the log).")
         if failed:
             notes.append(f"aur-scan could NOT check {len(failed)} package(s): {_short(failed, 5)}")
         if listed and fail_on in _BELOW_HIGH:

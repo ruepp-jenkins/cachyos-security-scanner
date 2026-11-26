@@ -6,7 +6,7 @@ from html import escape
 from pathlib import Path
 
 from PySide6 import __version__ as pyside_version
-from PySide6.QtCore import Qt, QUrl, qVersion
+from PySide6.QtCore import QEvent, Qt, QUrl, qVersion
 from PySide6.QtGui import (QDesktopServices, QFont, QFontMetricsF, QIcon, QPalette, QTextBlockFormat, QTextCharFormat,
                            QTextCursor, QTextOption)
 from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QPushButton, QTextBrowser, QVBoxLayout
@@ -25,6 +25,9 @@ def _value(text: str) -> QLabel:
 
 _PATH = re.compile(r"(?<![\w:/.])(?:~/|/)[^\s,;()]+")  # a path inside a longer value
 _PATH_ROWS = ("Path", "Location", "Definition files")  # rows whose whole value is a path (it may contain spaces)
+_LEFT = 12  # indentation of the rows below their heading
+_GAP = 16  # between the longest key and the values
+_HANGING = "  "  # wrapped lines start this much right of the value's first line, so they are recognisable as such
 
 
 def folder_of(path: str) -> Path | None:
@@ -53,6 +56,13 @@ class InfoView(QTextBrowser):
         self.setOpenLinks(False)
         self.setWordWrapMode(QTextOption.WrapAtWordBoundaryOrAnywhere)  # long paths wrap instead of being cut off
         self.anchorClicked.connect(self.open_link)
+        self._sections: list = []
+
+    def changeEvent(self, event) -> None:  # noqa: N802 - Qt override
+        super().changeEvent(event)
+        # the column positions depend on the font: build the text again if it changes
+        if event.type() in (QEvent.FontChange, QEvent.ApplicationFontChange) and getattr(self, "_sections", None):
+            self.show_sections(self._sections)
 
     def open_link(self, url: QUrl) -> None:
         folder = folder_of(url.toLocalFile())
@@ -76,12 +86,13 @@ class InfoView(QTextBrowser):
         cursor.insertText(text[position:], plain)
 
     def show_sections(self, sections) -> None:
+        self._sections = list(sections)
         self.clear()
         cursor = self.textCursor()
         normal = QTextCharFormat()
         bold = QTextCharFormat()
         bold.setFontWeight(QFont.Bold)
-        metrics = QFontMetricsF(self.font())
+        groups: list[list[int]] = []  # block numbers of the rows of each section
         first = True
         for name, rows in sections:
             heading = QTextBlockFormat()
@@ -92,22 +103,69 @@ class InfoView(QTextBrowser):
             else:
                 cursor.insertBlock(heading)
             cursor.insertText(name, bold)
-            # one column width per section; wrapped values continue below the value, not below the key
-            column = max(metrics.horizontalAdvance(f"{key}:") for key, _ in rows) + 16 if rows else 0
-            line = QTextBlockFormat()
-            line.setTabPositions([QTextOption.Tab(column, QTextOption.LeftTab)])  # counted from the start of the first line
-            line.setLeftMargin(column + 12)
-            line.setTextIndent(-column)
+            group: list[int] = []
             base = ""
             for key, value in rows:
-                cursor.insertBlock(line)
+                cursor.insertBlock(QTextBlockFormat())
+                group.append(cursor.blockNumber())
                 is_file = base and key.endswith((".json", ".txt"))
                 self._insert(cursor, f"{key}:", normal, [(0, len(key), f"{base}/{key}")] if is_file else [])
                 cursor.insertText("\t", normal)
                 self._insert(cursor, value, normal, path_spans(key, value))
                 if key == "Definition files":
                     base = value
+            groups.append(group)
+        for group in groups:
+            self._align(group)
         self.moveCursor(QTextCursor.Start)
+
+    def value_start(self, number: int) -> float | None:
+        """Where the value of a row really begins, measured from the start of its first line; None while the text
+        is not laid out yet (asking an empty layout for a line crashes Qt)."""
+        self.document().documentLayout().documentSize()  # make sure the layout is up to date
+        block = self.document().findBlockByNumber(number)
+        layout = block.layout()
+        if layout is None or layout.lineCount() == 0:
+            return None
+        line = layout.lineAt(0)
+        x = line.cursorToX(block.text().index("\t") + 1)
+        return (x[0] if isinstance(x, tuple) else x) - line.x()
+
+    def showEvent(self, event) -> None:  # noqa: N802 - Qt override
+        super().showEvent(event)
+        # filled before it was visible: only now the text can be measured (not on un-minimising: keeps the selection)
+        if self._sections and not event.spontaneous():
+            self.show_sections(self._sections)
+
+    def _format_rows(self, numbers: list[int], tab: float, wrap_at: float) -> None:
+        fmt = QTextBlockFormat()
+        fmt.setTabPositions([QTextOption.Tab(tab, QTextOption.LeftTab)])
+        fmt.setLeftMargin(wrap_at)  # where wrapped lines start ...
+        fmt.setTextIndent(_LEFT - wrap_at)  # ... while the first line starts below the heading
+        for number in numbers:
+            cursor = QTextCursor(self.document().findBlockByNumber(number))
+            cursor.setBlockFormat(fmt)
+
+    def _align(self, numbers: list[int]) -> None:
+        """One column per section. Positions are measured on the laid-out text instead of being predicted from font
+        metrics, which differ between fonts, styles and screen scales."""
+        if not numbers:
+            return
+        metrics = QFontMetricsF(self.document().defaultFont())
+        keys = [self.document().findBlockByNumber(n).text().split("\t")[0] for n in numbers]
+        tab = max(metrics.horizontalAdvance(k) for k in keys) + _GAP
+        hanging = metrics.horizontalAdvance(_HANGING)
+        value = tab  # until the real position can be measured
+        for _ in range(5):
+            self._format_rows(numbers, tab, _LEFT + value + hanging)
+            starts = [x for x in map(self.value_start, numbers) if x is not None]
+            if not starts:
+                break
+            value = max(starts)
+            if value - min(starts) < 1:
+                break
+            tab = value + _GAP  # a key reached past the column: widen it
+        self._format_rows(numbers, tab, _LEFT + value + hanging)
 
 
 def _links(items: list[tuple[str, str]]) -> QLabel:

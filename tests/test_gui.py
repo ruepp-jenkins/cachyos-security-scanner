@@ -428,6 +428,46 @@ class GuiTest(unittest.TestCase):
             self.assertEqual([c.args[0].toLocalFile() for c in opened.call_args_list],
                              [t, str(data), str(data), t])
 
+    def test_about_values_form_a_column_and_wrapped_lines_are_indented_further(self):
+        from PySide6.QtGui import QFont
+        from cachy_sec import about_dialog
+        long = "/very/long/path/to/somewhere/" * 5
+
+        def positions(view):
+            rows, block = [], view.document().begin()
+            while block.isValid():
+                if "\t" in block.text():
+                    layout = block.layout()
+                    line = layout.lineAt(0)
+                    x = line.cursorToX(block.text().index("\t") + 1)
+                    value = (x[0] if isinstance(x, tuple) else x) + layout.position().x()
+                    wrapped = [layout.lineAt(i).x() + layout.position().x() for i in range(1, layout.lineCount())]
+                    rows.append((value, wrapped))
+                block = block.next()
+            return rows
+
+        def check(view):
+            rows = positions(view)
+            values = [value for value, _ in rows]
+            self.assertLess(max(values) - min(values), 1.5, rows)  # one column
+            self.assertTrue(rows[0][1], "the long value should wrap")
+            for value, wrapped in rows:
+                for start in wrapped:
+                    self.assertGreater(start, value + 4, rows)  # recognisable as a continuation
+                    self.assertLess(start, value + 30, rows)  # but only slightly
+
+        d = self._track(about_dialog.AboutDialog())
+        d.resize(520, 600)
+        d.show()
+        d.show_info([("section", [("Path", long), ("Additional indicator file", long), ("Version", "1")])])
+        QCoreApplication.processEvents()
+        check(d.view)
+        before = positions(d.view)[0][0]
+        d.view.setFont(QFont(d.view.font().family(), d.view.font().pointSize() + 6))  # a font that arrives later
+        QCoreApplication.processEvents()
+        check(d.view)
+        self.assertGreater(positions(d.view)[0][0], before)
+
     def test_every_entry_has_its_own_open_files_button_and_there_is_no_global_one(self):
         with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
             (Path(a) / "PKGBUILD").write_text("x")

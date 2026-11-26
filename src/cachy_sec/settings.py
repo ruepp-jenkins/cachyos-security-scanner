@@ -13,10 +13,13 @@ WEEK_MINUTES = 7 * 24 * 60
 DEFAULT_BINARY_PATHS = [
     "/usr/bin",
     "/usr/local/bin",
+    "/usr/lib",
     "~/.local/bin",
     "/var/lib/flatpak/exports/bin",
 ]
 OLD_DEFAULT_BINARY_PATHS = ["/usr/bin", "/usr/local/bin", "/opt", "~/.local/bin", "/var/lib/flatpak/exports/bin"]  # until schema 6
+# until schema 8 (before /usr/lib was added)
+PREVIOUS_DEFAULT_BINARY_PATHS = ["/usr/bin", "/usr/local/bin", "~/.local/bin", "/var/lib/flatpak/exports/bin"]
 
 
 def config_path() -> Path:
@@ -26,7 +29,7 @@ def config_path() -> Path:
 
 @dataclass
 class Settings:
-    schema: int = 8  # bump when a default changes meaning; see load()
+    schema: int = 9  # bump when a default changes meaning; see load()
     # --- when the AUR package scans run (manual scans are always possible) ---
     scan_on_start: bool = True
     startup_delay_minutes: int = 1  # wait this long after the app started (lets the desktop finish starting)
@@ -118,7 +121,9 @@ class Settings:
             s.binary_scan_paths = list(DEFAULT_BINARY_PATHS)  # /opt left the defaults (large, little value); own lists stay
         if old < 8 and s.pkg_change_delay_seconds == 10:
             s.pkg_change_delay_seconds = 20  # the old default
-        s.schema = 8
+        if old < 9 and s.binary_scan_paths == PREVIOUS_DEFAULT_BINARY_PATHS:
+            s.binary_scan_paths = list(DEFAULT_BINARY_PATHS)  # /usr/lib was added (programs of many packages live there)
+        s.schema = 9
         s.validate()
         return s
 

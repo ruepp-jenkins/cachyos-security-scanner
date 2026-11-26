@@ -72,6 +72,11 @@ class SchedulerTest(unittest.TestCase):
             self.assertEqual(Settings.load(p).binary_scan_paths, st.DEFAULT_BINARY_PATHS)
             p.write_text(json.dumps({"schema": 6, "binary_scan_paths": ["/opt", "/srv"]}))
             self.assertEqual(Settings.load(p).binary_scan_paths, ["/opt", "/srv"])  # a list the user made stays
+            self.assertIn("/usr/lib", Settings().binary_scan_paths)
+            p.write_text(json.dumps({"schema": 8, "binary_scan_paths": st.PREVIOUS_DEFAULT_BINARY_PATHS}))
+            self.assertEqual(Settings.load(p).binary_scan_paths, st.DEFAULT_BINARY_PATHS)
+            p.write_text(json.dumps({"schema": 9, "binary_scan_paths": st.PREVIOUS_DEFAULT_BINARY_PATHS}))
+            self.assertEqual(Settings.load(p).binary_scan_paths, st.PREVIOUS_DEFAULT_BINARY_PATHS)  # removed on purpose
 
     def test_multiscan_is_off_by_default_and_migrated(self):
         import json, tempfile

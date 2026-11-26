@@ -26,12 +26,12 @@ def config_path() -> Path:
 
 @dataclass
 class Settings:
-    schema: int = 7  # bump when a default changes meaning; see load()
+    schema: int = 8  # bump when a default changes meaning; see load()
     # --- when the AUR package scans run (manual scans are always possible) ---
     scan_on_start: bool = True
     startup_delay_minutes: int = 1  # wait this long after the app started (lets the desktop finish starting)
     scan_after_pkg_changes: bool = True
-    pkg_change_delay_seconds: int = 10  # merges multi-step upgrades into one scan; short, so a bad package is caught fast
+    pkg_change_delay_seconds: int = 20  # merges multi-step upgrades into one scan; short, so a bad package is caught fast
     scan_periodic: bool = True
     interval_minutes: int = 360
     update_sources_before_scan: bool = True
@@ -82,7 +82,7 @@ class Settings:
         self.history_keep = max(10, min(int(self.history_keep), 5000))
         self.interval_minutes = max(15, min(int(self.interval_minutes), 52 * WEEK_MINUTES))
         self.startup_delay_minutes = max(0, min(int(self.startup_delay_minutes), 120))
-        self.pkg_change_delay_seconds = max(5, min(int(self.pkg_change_delay_seconds), 3600))
+        self.pkg_change_delay_seconds = max(10, min(int(self.pkg_change_delay_seconds), 600))
         self.binary_interval_minutes = max(60, min(int(self.binary_interval_minutes), 52 * WEEK_MINUTES))
         severities = ("critical", "high", "medium", "low", "info")
         if self.aur_scan_fail_on not in severities:
@@ -116,7 +116,9 @@ class Settings:
             s.binary_multiscan = False  # the default changed: a scan may take longer but must not affect performance
         if old < 7 and s.binary_scan_paths == OLD_DEFAULT_BINARY_PATHS:
             s.binary_scan_paths = list(DEFAULT_BINARY_PATHS)  # /opt left the defaults (large, little value); own lists stay
-        s.schema = 7
+        if old < 8 and s.pkg_change_delay_seconds == 10:
+            s.pkg_change_delay_seconds = 20  # the old default
+        s.schema = 8
         s.validate()
         return s
 

@@ -94,7 +94,7 @@ Run `aur-scan check <package>` (for the app's own build:
 
 - Check the hook: `ls -l /var/lib/cachy-security-scanner/trigger` – does the timestamp change after `pacman` runs?
 - No hook when running from source; see [the pacman hook](setup-requirements.md#-the-pacman-hook).
-- There is a short wait (*Wait after the last change*, 10 s by default); a scan is deferred, not lost.
+- There is a short wait (*Wait after the last change*, 20 s by default); a scan is deferred, not lost.
 
 ### Update does not apply
 

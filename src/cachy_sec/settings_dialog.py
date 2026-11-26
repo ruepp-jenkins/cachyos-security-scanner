@@ -82,11 +82,11 @@ class SettingsDialog(QDialog):
         self.start_delay.setToolTip("Wait this long after the app started, so the desktop can finish starting first.")
         self.on_start = self._cb_with("Scan at start, after", s.scan_on_start, f, self.start_delay)
         self.pkg_delay = QSpinBox()
-        self.pkg_delay.setRange(5, 3600)
+        self.pkg_delay.setRange(10, 600)
         self.pkg_delay.setSuffix(" s")
         self.pkg_delay.setValue(s.pkg_change_delay_seconds)
         self.pkg_delay.setToolTip("Wait this long after the last package change, so a multi-step upgrade gives one scan.\n"
-                                  "Every change is scanned; there is no limit on how often.")
+                                  "Every change is scanned; there is no limit on how often. 10 to 600 seconds, default 20.")
         self.after_pkg = self._cb_with("Scan after package installs/updates (needs pacman hook), wait",
                                        s.scan_after_pkg_changes, f, self.pkg_delay)
         self.interval = IntervalEdit(s.interval_minutes, 15, 52 * 7 * 24 * 60)

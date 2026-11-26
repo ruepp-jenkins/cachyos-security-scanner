@@ -57,8 +57,8 @@ class SchedulerTest(unittest.TestCase):
         self.assertFalse(scheduler.anything_after_pkg_change(Settings(scan_after_pkg_changes=False)))
 
     def test_package_scans_have_a_short_wait_and_no_minimum_gap(self):
-        self.assertEqual(Settings().pkg_change_delay_seconds, 10)
-        self.assertEqual(scheduler.pkg_delay_ms(Settings(pkg_change_delay_seconds=20)), 20_000)
+        self.assertEqual(Settings().pkg_change_delay_seconds, 20)
+        self.assertEqual(scheduler.pkg_delay_ms(Settings(pkg_change_delay_seconds=45)), 45_000)
         self.assertFalse(hasattr(Settings(), "pkg_scan_min_gap_minutes"))
 
     def test_opt_left_the_default_binary_paths(self):
@@ -87,9 +87,14 @@ class SchedulerTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             p = Path(d) / "s.json"
             p.write_text(json.dumps({"schema": 4, "pkg_change_delay_seconds": 30, "pkg_scan_min_gap_minutes": 10}))
-            self.assertEqual(Settings.load(p).pkg_change_delay_seconds, 10)
+            self.assertEqual(Settings.load(p).pkg_change_delay_seconds, 20)
             p.write_text(json.dumps({"schema": 4, "pkg_change_delay_seconds": 45}))
             self.assertEqual(Settings.load(p).pkg_change_delay_seconds, 45)  # a value the user chose stays
+            for saved, loaded in ((10, 20), (11, 11), (5, 10), (3600, 600)):  # old default, own value, new limits
+                p.write_text(json.dumps({"schema": 7, "pkg_change_delay_seconds": saved}))
+                self.assertEqual(Settings.load(p).pkg_change_delay_seconds, loaded, saved)
+            p.write_text(json.dumps({"schema": 8, "pkg_change_delay_seconds": 10}))
+            self.assertEqual(Settings.load(p).pkg_change_delay_seconds, 10)  # chosen after the change
 
     def test_binary_schedule_decisions(self):
         s = Settings(binary_periodic=True, binary_interval_minutes=7 * 1440)

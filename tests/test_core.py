@@ -481,6 +481,8 @@ class AboutTest(unittest.TestCase):
                 mock.patch("subprocess.run", side_effect=lambda cmd, **k: calls.append(cmd)):
             sections = dict(about.collect(Settings()))
         self.assertIn("not downloaded yet", dict(sections["aur-malware-check"])["Program"])
+        for name in ("aur-malware-check", "aur-scan (ks-aur-scanner) (switched off)"):
+            self.assertTrue(dict(sections[name])["Path"], name)  # the path is always shown
         self.assertIn("not built yet", dict(sections["aur-scan (ks-aur-scanner) (switched off)"])["Program"])
         self.assertIn("not installed", dict(sections["ClamAV"])["Status"])
         self.assertEqual(list(sections)[0], about.PROGRAM)
@@ -489,6 +491,34 @@ class AboutTest(unittest.TestCase):
         self.assertEqual(dict(sections["False-positive list (switched off)"])["Status"], "not used")  # aur-scan is off
         self.assertEqual(calls, [])
         self.assertTrue(all(url.startswith("https://") for _, url in about.links() + about.UPSTREAM))
+
+
+class AboutPathsTest(unittest.TestCase):
+    def test_paths_and_definition_files_of_the_aur_scanners(self):
+        from cachy_sec import about
+        with tempfile.TemporaryDirectory() as t, \
+                mock.patch.dict(os.environ, {"HOME": t, "XDG_DATA_HOME": t + "/.local/share"}):
+            checkout = Path(t) / ".local/share/cachy-security-scanner/vendor/aur-malware-check"
+            (checkout / "data/campaigns/demo").mkdir(parents=True)
+            for name in ("campaigns.json", "campaigns/demo/packages.txt", "campaigns/demo/SOURCES.md"):
+                (checkout / "data" / name).write_text("a\n")
+            extra = Path(t) / ".local/share/aur-scanner/ioc.toml"
+            extra.parent.mkdir(parents=True)
+            extra.write_text("")
+            with mock.patch.object(about, "which", return_value=None), \
+                    mock.patch.object(about.vendor, "version", return_value="abc of 2026-01-01"), \
+                    mock.patch.object(about.aur_scan, "built_binary", return_value=t + "/bin/aur-scan"), \
+                    mock.patch.object(about.aur_scan, "indicator_info", return_value="Last updated : x; Override file : (none); Indicators : 7"), \
+                    mock.patch.object(about, "run", return_value=(0, "aur-scan 3.0.0\n")):
+                amc_rows = dict(about._aur_malware_check())
+                scan_rows = dict(about._aur_scan())
+        self.assertEqual(amc_rows["Path"], "~/.local/share/cachy-security-scanner/vendor/aur-malware-check")
+        self.assertIn("campaigns.json", amc_rows)
+        self.assertTrue(amc_rows["campaigns/demo/packages.txt"].startswith("file of "))
+        self.assertNotIn("campaigns/demo/SOURCES.md", amc_rows)
+        self.assertEqual(scan_rows["Path"], "~/bin/aur-scan")
+        self.assertIn("~/.local/share/aur-scanner/ioc.toml", scan_rows["Additional indicator file"])
+        self.assertEqual(scan_rows["Threat indicators"], "Last updated : x; Indicators : 7")
 
 
 class ReleaseStampTest(unittest.TestCase):

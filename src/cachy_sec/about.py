@@ -4,6 +4,7 @@ Read-only: nothing is downloaded, updated or built. A part that cannot be determ
 """
 from __future__ import annotations
 
+import os
 import platform
 import time
 from collections.abc import Callable
@@ -47,6 +48,16 @@ def package_dir() -> Path:
     return Path(__file__).resolve().parent
 
 
+def short_path(path: Path | str) -> str:
+    """With "~" for the home directory: shorter, and a screenshot does not show the user name."""
+    text, home = str(path), str(Path.home())
+    return "~" + text[len(home):] if home != "/" and (text == home or text.startswith(home + "/")) else text
+
+
+def file_date(path: Path) -> str:
+    return time.strftime("%Y-%m-%d %H:%M", time.localtime(path.stat().st_mtime))
+
+
 def commit() -> str:
     """Commit of the running code: stamped into releases; read from git when run from a source checkout."""
     if __commit__:
@@ -67,7 +78,7 @@ def installation() -> str:
 
 def _program() -> list[tuple[str, str]]:
     return [("Version", app_version()), ("Commit", commit()), ("Installation", installation()),
-            ("Location", str(package_dir())), ("Python", platform.python_version())]
+            ("Location", short_path(package_dir())), ("Python", platform.python_version())]
 
 
 def _safe(rows: Callable[[], list[tuple[str, str]]]) -> list[tuple[str, str]]:
@@ -83,32 +94,58 @@ def _checkout(directory: Path) -> str:
     return f"commit {vendor.version(directory)}"
 
 
+def _definition_files(data: Path) -> list[tuple[str, str]]:
+    """campaigns.json and the lists of every campaign, each with the date of the file."""
+    files = [data / "campaigns.json"] + sorted((data / "campaigns").glob("*/*"))
+    return [(str(f.relative_to(data)), f"file of {file_date(f)}")
+            for f in files if f.is_file() and f.suffix in (".json", ".txt")]
+
+
 def _aur_malware_check() -> list[tuple[str, str]]:
     wrapper = which("aur-malware-check")
     if wrapper:
-        return [("Program", f"installed command {wrapper} (updated by your package manager)")]
+        return [("Path", short_path(wrapper)),
+                ("Program", "installed command (updated by your package manager)")]
     d = amc.vendor_dir()
-    rows = [("Program", _checkout(d))]
+    rows = [("Path", short_path(d)), ("Program", _checkout(d))]
     counts = amc.package_counts()
     if counts:
         rows.append(("Package lists", f"{sum(counts.values())} names in {len(counts)} campaigns"))
-    definitions = d / "data" / "campaigns.json"
-    if definitions.is_file():
-        rows.append(("Campaign definitions", "file of " + time.strftime("%Y-%m-%d %H:%M",
-                                                                        time.localtime(definitions.stat().st_mtime))))
+    files = _definition_files(d / "data")
+    if files:
+        rows.append(("Definition files", short_path(d / "data")))
+        rows += files
     return rows
+
+
+def indicator_files() -> list[Path]:
+    """The optional files that extend the indicators built into aur-scan (the places aur-scan itself reads)."""
+    data = os.environ.get("XDG_DATA_HOME", "")
+    base = Path(data) if data.startswith("/") else Path.home() / ".local" / "share"
+    return [f for f in (Path("/usr/share/aur-scanner/ioc.toml"), base / "aur-scanner" / "ioc.toml") if f.is_file()]
 
 
 def _aur_scan() -> list[tuple[str, str]]:
     system = which("aur-scan")
     binary = system or aur_scan.built_binary()
     if not binary:
-        return [("Program", "not built yet (happens with the first scan while aur-scan is enabled)")]
+        return [("Path", short_path(aur_scan.source_dir())),
+                ("Program", "not built yet (happens with the first scan while aur-scan is enabled)")]
     code, out = run([binary, "--version"], 30)
     version = out.strip() if code == 0 and out.strip() else "unknown"
-    source = f"installed command {system}" if system else f"built by this app, {_checkout(aur_scan.source_dir())}"
-    return [("Version", version), ("Source", source),
-            ("Threat indicators", aur_scan.indicator_info(binary) or "unknown")]
+    rows = [("Path", short_path(binary)), ("Version", version)]
+    if system:
+        rows.append(("Source", "installed command (updated by your package manager)"))
+    else:
+        rows.append(("Source", f"built by this app in {short_path(aur_scan.source_dir())}, "
+                     f"{_checkout(aur_scan.source_dir())}"))
+    rows.append(("Rules and indicators", "built into the program"))
+    # the "Override file" part is left out here: the files are listed below, with their date
+    info = [part for part in aur_scan.indicator_info(binary).split("; ") if not part.startswith("Override file")]
+    rows.append(("Threat indicators", "; ".join(info) or "unknown"))
+    extra = [("Additional indicator file", f"{short_path(f)}, file of {file_date(f)}") for f in indicator_files()]
+    rows += extra or [("Additional indicator file", "none")]
+    return rows
 
 
 def parse_clamav_version(line: str) -> list[tuple[str, str]]:

@@ -67,13 +67,24 @@ class _Redirects(urllib.request.HTTPRedirectHandler):
         return super().redirect_request(req, fp, code, msg, headers, newurl)
 
 
-def _get(url: str, limit: int = MAX_DOWNLOAD) -> bytes:
+def _get(url: str, limit: int = MAX_DOWNLOAD, etag: str = "", meta: dict | None = None) -> bytes | None:
+    """Download from GitHub. With `etag` the server is asked to send the file only if it changed: None means it did
+    not (HTTP 304). `meta`, if given, receives the new "etag"."""
     if not _host_ok(url):
         raise UpdateError(f"refusing non-GitHub URL: {url}")
-    req = urllib.request.Request(url, headers={"User-Agent": "cachy-security-scanner", "Accept": "application/vnd.github+json"})
+    headers = {"User-Agent": "cachy-security-scanner", "Accept": "application/vnd.github+json"}
+    if etag:
+        headers["If-None-Match"] = etag
+    req = urllib.request.Request(url, headers=headers)
     try:
         with urllib.request.build_opener(_Redirects).open(req, timeout=30) as r:
             data = r.read(limit + 1)
+            if meta is not None:
+                meta["etag"] = r.headers.get("ETag", "")
+    except urllib.error.HTTPError as e:
+        if e.code == 304 and etag:
+            return None
+        raise UpdateError(f"download failed: {e}") from e
     except (urllib.error.URLError, OSError) as e:
         raise UpdateError(f"download failed: {e}") from e
     if len(data) > limit:

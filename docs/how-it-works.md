@@ -57,7 +57,7 @@ All paths follow the XDG standard; the defaults are shown.
 
 | Content | Notes |
 |---|---|
-| the two community lists and their signatures, small status markers | replaced only by a verified download |
+| the two community lists and their signatures, their version tags (ETag), small status markers | replaced only by a verified download |
 | `aur/repo/`, `aur/work/`, `aur/state/` | only with `aur_scan_fetch_missing`: AUR repositories, unpacked sources (can be large) and what was found in them |
 
 ### Other places
@@ -142,7 +142,7 @@ The app's own downloads (updates and lists) go **only to GitHub**; it refuses an
 |---|---|---|
 | `api.github.com/repos/ruepp-jenkins/cachyos-security-scanner/releases` | find the newest release | 30 s after start, then daily (if automatic updates are on), or manual check |
 | `github.com/…/releases/download/vX.Y.Z/…` | update tarball, `SHA256SUMS`, signature | only when a newer version exists |
-| `github.com/…/releases/download/lists/…` | the two community lists and their signatures | at start, hourly, before a scan if older than 5 minutes, and when you press *Refresh lists* |
+| `github.com/…/releases/download/lists/…` | the two community lists and their signatures | checked at start, before every scan, hourly and when you press *Refresh lists*; transferred only if changed (ETag) |
 | `github.com/…/issues/new?template=…` | opened **in your browser** by the report buttons, with package, version, rule and a *Versions* block in the link; the app itself sends nothing | only when you click a report button |
 | `aur.archlinux.org` | `git` fetches the repository of a package that no helper cache holds | only with `aur_scan_fetch_missing`, at package scans |
 | the hosts named in such a package's `source=` | `makepkg` downloads the sources (sandboxed) | only with `aur_scan_fetch_missing`, when the package version changed |

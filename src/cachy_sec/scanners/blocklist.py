@@ -28,7 +28,7 @@ class CommunityBlocklist(Scanner):
         if loaded is None:
             return ScanResult(self.name, ERROR, [], f"community blocklist not available yet: {self._status}",
                               log=f"No verified blocklist in the cache.\n{self._status}")
-        self.log_update(f"community blocklist: {state_line(blocklist.SPEC, loaded)}")
+        self.log_update(f"community blocklist: {state_line(blocklist.SPEC, loaded)} (check before this scan: {self._status})")
         installed = installed_versions()
         findings = []
         for pkg, version in sorted(installed.items()):

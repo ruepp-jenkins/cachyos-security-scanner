@@ -63,7 +63,7 @@ Each entry records **who** reported it, **when**, **why**, and an optional descr
 
 ### When they are downloaded
 
-Always at app start, then hourly, and before a scan if the copy is older than 5 minutes
+The app checks at app start, before every scan and hourly whether a list changed, and downloads it only then
 ([details](settings.md#community-lists)). The settings
 dialog shows the status of each list and the reason if a download failed, and its *Refresh lists* button downloads both lists at once.
 

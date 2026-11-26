@@ -816,7 +816,7 @@ class FalsePositiveListTest(unittest.TestCase):
             payload.write_text(json.dumps(_fp_entry()))
             subprocess.run(["ssh-keygen", "-Y", "sign", "-q", "-f", str(key), "-n", fplist.SIG_NAMESPACE, str(payload)], check=True)
             files = {fplist._url(fplist.LIST_NAME): payload.read_bytes(), fplist._url(fplist.LIST_NAME + ".sig"): (Path(d) / (fplist.LIST_NAME + ".sig")).read_bytes()}
-            with mock.patch.object(updater, "_get", side_effect=lambda u, limit=0: files[u]):
+            with mock.patch.object(updater, "_get", side_effect=lambda u, limit=0, **kw: files[u]):
                 self.assertEqual(fplist.refresh(force=True, pubkey=pub), (True, "updated"))
                 self.assertEqual(len(fplist.load(pub)), 1)
                 self.assertTrue(fplist.refresh(pubkey=pub)[1].startswith("cache is fresh"))
@@ -829,7 +829,7 @@ class FalsePositiveListTest(unittest.TestCase):
             self.assertEqual(fplist.load(pub), [])
             # a bad download never replaces the cache
             files[fplist._url(fplist.LIST_NAME)] = b'{"schema":1,"entries":[]}'
-            with mock.patch.object(updater, "_get", side_effect=lambda u, limit=0: files[u]):
+            with mock.patch.object(updater, "_get", side_effect=lambda u, limit=0, **kw: files[u]):
                 ok, msg = fplist.refresh(force=True, pubkey=pub)
             self.assertFalse(ok)
 
@@ -1056,8 +1056,7 @@ class ListRefreshPolicyTest(unittest.TestCase):
 
             self.assertFalse(downloads(50 * 60))  # periodic check: hourly
             self.assertTrue(downloads(60 * 60))
-            self.assertFalse(downloads(60, max_age=signedlist.SCAN_MAX_AGE_S))  # scans: 5 minutes
-            self.assertTrue(downloads(6 * 60, max_age=signedlist.SCAN_MAX_AGE_S))
+            self.assertTrue(downloads(1, max_age=signedlist.SCAN_MAX_AGE_S))  # every scan asks
             self.assertTrue(downloads(0, force=True))  # at start and on the button
             self.assertTrue(downloads(-3600))  # a file from the "future" (clock changed) is not fresh
             get.reset_mock()  # the failure above: the periodic check waits, a scan tries anyway
@@ -1066,6 +1065,50 @@ class ListRefreshPolicyTest(unittest.TestCase):
             self.assertFalse(get.called)
             fplist.refresh(max_age=signedlist.SCAN_MAX_AGE_S)
             self.assertTrue(get.called)
+
+    def test_an_unchanged_list_is_not_transferred_again(self):
+        from cachy_sec import fplist
+        seen = []
+
+        def get(url, limit=0, etag="", meta=None):
+            seen.append((url.rsplit("/", 1)[1], etag))
+            if url.endswith(".sig"):
+                return b"sig"
+            if etag == '"v1"':
+                return None  # HTTP 304
+            meta["etag"] = '"v1"'
+            return b'{"schema":1,"entries":[]}'
+
+        with tempfile.TemporaryDirectory() as d, mock.patch.dict(os.environ, {"XDG_CACHE_HOME": d}), \
+                mock.patch.object(updater, "_get", side_effect=get), mock.patch.object(updater, "verify_signature"):
+            self.assertEqual(fplist.refresh(force=True), (True, "updated"))
+            data = signedlist.paths(fplist.SPEC)[0]
+            os.utime(data, (0, 0))
+            seen.clear()
+            self.assertEqual(fplist.refresh(max_age=signedlist.SCAN_MAX_AGE_S), (True, "unchanged"))
+            self.assertEqual(seen, [(fplist.LIST_NAME, '"v1"')])  # one conditional request, no signature
+            self.assertGreater(data.stat().st_mtime, 0)  # noted as checked just now
+            data.write_text("broken")  # a copy that no longer verifies or parses is fetched in full
+            seen.clear()
+            self.assertEqual(fplist.refresh(force=True), (True, "updated"))
+            self.assertEqual([etag for _, etag in seen], ["", ""])
+
+    def test_a_304_answer_means_unchanged_and_the_etag_is_sent(self):
+        import email.message
+        import urllib.error
+        sent = []
+
+        class Opener:
+            def open(self, request, timeout=0):
+                sent.append(request.get_header("If-none-match"))
+                raise urllib.error.HTTPError(request.full_url, 304, "Not Modified", email.message.Message(), None)
+
+        url = signedlist.url("x.json")
+        with mock.patch("urllib.request.build_opener", return_value=Opener()):
+            self.assertIsNone(updater._get(url, 10, etag='"abc"'))
+            with self.assertRaises(updater.UpdateError):
+                updater._get(url, 10)  # without an ETag a 304 is not a valid answer
+        self.assertEqual(sent, ['"abc"', None])
 
     def test_aur_scan_logs_the_state_of_the_false_positive_list(self):
         for loaded, expected in ((None, "not downloaded yet"), (signedlist.Loaded([1, 2], "", 0.0), "2 entries")):
@@ -1226,7 +1269,7 @@ class SignedListTest(unittest.TestCase):
             subprocess.run(["ssh-keygen", "-Y", "sign", "-q", "-f", str(key), "-n", blocklist.SIG_NAMESPACE, str(payload)], check=True)
             files = {signedlist.url(blocklist.LIST_NAME): payload.read_bytes(),
                      signedlist.url(blocklist.LIST_NAME + ".sig"): (Path(d) / (blocklist.LIST_NAME + ".sig")).read_bytes()}
-            with mock.patch.object(updater, "_get", side_effect=lambda u, limit=0: files[u]):
+            with mock.patch.object(updater, "_get", side_effect=lambda u, limit=0, **kw: files[u]):
                 self.assertEqual(blocklist.refresh(force=True, pubkey=pub), (True, "updated"))
             loaded = signedlist.load(blocklist.SPEC, pub)
             self.assertEqual((loaded.published, len(loaded.entries)), ("2026-10-31T18:45:01Z", 1))
@@ -1235,7 +1278,7 @@ class SignedListTest(unittest.TestCase):
             for p in signedlist.paths(blocklist.SPEC):
                 p.unlink()
             calls = []
-            def boom(u, limit=0):
+            def boom(u, limit=0, **kw):
                 calls.append(u)
                 raise updater.UpdateError("HTTP Error 404")
             with mock.patch.object(updater, "_get", side_effect=boom):

@@ -23,7 +23,7 @@ from . import updater
 
 RELEASE_TAG = "lists"  # rolling release that carries the lists
 STALE_AFTER_S = 55 * 60  # periodic check: hourly (a little less, so an hourly tick never just misses it)
-SCAN_MAX_AGE_S = 5 * 60  # a scan only uses a list that was downloaded this recently, if it can get a new one
+SCAN_MAX_AGE_S = 0  # every scan asks GitHub whether the list changed
 RETRY_AFTER_FAILURE_S = 5 * 60  # do not hammer GitHub while a list cannot be fetched
 _LOCK = threading.Lock()  # a scan and the periodic check must not write the same list at once
 _PUBLISHED = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
@@ -42,7 +42,7 @@ class Spec:
 class Loaded:
     entries: list
     published: str  # "" when the file carries no stamp
-    fetched: float  # when the cached copy was downloaded
+    fetched: float  # when the cached copy was last downloaded or confirmed to be current
     commit: str = ""  # git commit the list was published from; "" when the file carries none
 
 
@@ -87,8 +87,9 @@ def refresh(spec: Spec, force: bool = False, pubkey: str | None = None,
             max_age: float | None = None) -> tuple[bool, str]:
     """Download list + signature, verify, validate, store. The cache is only ever replaced by a verified list.
 
-    `force` always downloads. `max_age` (scans) downloads when the copy is older, even right after a failed attempt.
-    Otherwise (periodic check) the copy may be STALE_AFTER_S old and a failure is not retried immediately.
+    The list is only transferred if it changed since the stored copy (HTTP ETag). `force` always asks the server.
+    `max_age` (scans) asks when the copy was last checked longer ago, even right after a failed attempt. Otherwise
+    (periodic check) the copy may be STALE_AFTER_S old and a failure is not retried immediately.
     """
     with _LOCK:
         return _refresh(spec, force, pubkey, max_age)
@@ -101,8 +102,21 @@ def _refresh(spec: Spec, force: bool, pubkey: str | None, max_age: float | None)
         failed = _age(_failed_marker(spec))
         if max_age is None and failed is not None and failed < RETRY_AFTER_FAILURE_S:
             return False, "the last download failed a moment ago; trying again later"
+    etag_file = _dir() / (spec.name + ".etag")
     try:
-        data = updater._get(url(spec.name), spec.max_bytes)
+        etag = etag_file.read_text().strip() if load(spec, pubkey) is not None else ""  # only for a copy that verifies
+    except OSError:
+        etag = ""
+    meta: dict = {}
+    try:
+        data = updater._get(url(spec.name), spec.max_bytes, etag=etag, meta=meta)
+        if data is None:  # unchanged: remember that it was checked
+            try:
+                os.utime(paths(spec)[0])
+                _failed_marker(spec).unlink(missing_ok=True)
+            except OSError:
+                pass
+            return True, "unchanged"
         sig = updater._get(url(spec.name + ".sig"), 100_000)
         updater.verify_signature(data, sig, pubkey, namespace=spec.namespace)
         spec.validate(json.loads(data))
@@ -121,6 +135,10 @@ def _refresh(spec: Spec, force: bool, pubkey: str | None, max_age: float | None)
             tmp.write_bytes(blob)
             tmp.replace(p)
         _failed_marker(spec).unlink(missing_ok=True)
+        if meta.get("etag"):
+            etag_file.write_text(meta["etag"])
+        else:
+            etag_file.unlink(missing_ok=True)
     except OSError as e:
         return False, str(e)
     return True, "updated"
@@ -158,11 +176,11 @@ def describe(loaded: Loaded | None, noun: str = "entry", plural: str = "entries"
 
 
 def state_line(spec: Spec, loaded: Loaded | None) -> str:
-    """describe() plus when the cached copy was downloaded and whether the last download failed; for scan logs."""
+    """describe() plus when the copy was last checked and whether the last download failed; for scan logs."""
     error = last_error(spec)
     line = describe(loaded, "entry", "entries", error)
     if loaded is not None:
-        line += "; downloaded " + time.strftime("%Y-%m-%d %H:%M", time.localtime(loaded.fetched))
+        line += "; last checked " + time.strftime("%Y-%m-%d %H:%M", time.localtime(loaded.fetched))
         if error:
             line += f"; the last download failed ({error})"
     return line

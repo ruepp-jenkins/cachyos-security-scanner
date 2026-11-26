@@ -184,7 +184,7 @@ def _list(spec: signedlist.Spec) -> list[tuple[str, str]]:
         rows = [("Status", f"active, signature verified, {n} {'entry' if n == 1 else 'entries'}"),
                 ("Published", published),
                 ("Commit", loaded.commit[:7] or "not recorded in this copy"),
-                ("Downloaded", time.strftime("%Y-%m-%d %H:%M", time.localtime(loaded.fetched)))]
+                ("Last checked", time.strftime("%Y-%m-%d %H:%M", time.localtime(loaded.fetched)))]
     if error:
         rows.append(("Last download", f"failed: {error}"))
     return rows

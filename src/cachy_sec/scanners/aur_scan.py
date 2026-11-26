@@ -386,7 +386,7 @@ class AurScan(Scanner):
             if info:
                 self.log_update(f"built-in threat indicators: {info}")
         if self._use_fp:
-            self.log_update("community false-positive list: " + signedlist.state_line(fplist.SPEC, fplist.load()))
+            self.log_update("community false-positive list: " + signedlist.state_line(fplist.SPEC, signedlist.load(fplist.SPEC)))
 
     def _read_details(self, binary: str, dirs: dict[str, Path], options: list[str]) -> dict[str, list[dict]]:
         """Run `aur-scan scan` on the given package directories to learn which findings are behind the counts."""

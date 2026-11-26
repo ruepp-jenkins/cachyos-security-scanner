@@ -1067,6 +1067,16 @@ class ListRefreshPolicyTest(unittest.TestCase):
             fplist.refresh(max_age=signedlist.SCAN_MAX_AGE_S)
             self.assertTrue(get.called)
 
+    def test_aur_scan_logs_the_state_of_the_false_positive_list(self):
+        for loaded, expected in ((None, "not downloaded yet"), (signedlist.Loaded([1, 2], "", 0.0), "2 entries")):
+            scanner = AurScan(use_fp_list=True)
+            with tempfile.TemporaryDirectory() as t, mock.patch.dict(os.environ, {"XDG_CACHE_HOME": t}), \
+                    mock.patch.object(signedlist, "load", return_value=loaded), \
+                    mock.patch.object(AurScan, "_binary", return_value=None):
+                scanner._log_databases()
+            self.assertIn("community false-positive list: ", scanner.update_lines()[-1])
+            self.assertIn(expected, scanner.update_lines()[-1])
+
     def test_engine_refresh_lists_follows_the_settings(self):
         with mock.patch("cachy_sec.blocklist.refresh", return_value=(True, "updated")) as bl, \
              mock.patch("cachy_sec.fplist.refresh", return_value=(True, "cache is fresh")) as fp:

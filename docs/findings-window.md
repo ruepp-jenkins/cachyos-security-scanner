@@ -55,6 +55,8 @@ your editor – or in the file manager if no editor is found.
 - ⚠️ An editor that opens a whole folder may be able to run things from it (for example VS Code tasks in
   `.vscode/tasks.json`). Keep the folder in **Restricted Mode** and answer *No* when the editor asks whether you trust
   the folder.
+- For a package the app [fetched itself](scanner-lifecycle.md#-packages-that-no-helper-cache-holds), the folder is its copy below `~/.cache/cachy-security-scanner/aur/work/`.
+  It contains unchecked downloads: be at least as careful.
 - Choose your editor with *Editor for "Open files"* in the [settings](settings.md#general) (empty = automatic).
 
 ### ✅ Ignore

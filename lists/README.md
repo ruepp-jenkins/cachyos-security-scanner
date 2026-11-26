@@ -8,12 +8,12 @@ This folder holds lists maintained by the community, named `<topic>_<scanner>.js
 ## False positives (aur-scan)
 
 `false-positives_aur-scan.json` lists findings of the heuristic scanner ks-aur-scanner that are known to be harmless for a
-specific software version. The app only uses it if the user ticks **"Use the community false-positive list"**
-for aur-scan in the settings. It only hides the listed findings for the listed versions; it cannot add findings.
+specific software version. The app uses it while aur-scan is switched on and **"Community false-positive list"** below it is ticked
+(the default). It only hides the listed findings for the listed versions; it cannot add findings.
 
 ## How it reaches the app
 
-On every change to this folder the workflow `false-positives.yml` validates the file, signs it with the release key
+On every change to this folder the workflow `lists.yml` validates the files, signs it with the release key
 and publishes it on the rolling release `lists`. The app downloads only from there and verifies the
 signature. Hidden findings are noted in the scan log.
 
@@ -60,4 +60,4 @@ can explain; a wrong entry alarms every user. Use **Report malicious package** i
 }
 ```
 `versions` is optional (omit = every version); globs like `1.2.*` are allowed. The workflow adds a `published`
-timestamp to the signed copy; do not set it yourself.
+timestamp and the `commit` to the signed copy; do not set them yourself.

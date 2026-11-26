@@ -74,4 +74,5 @@ flowchart LR
 - You decide what to do with a finding. Read it, open the files, search for the package name before removing anything.
 - The tools behind the scans are separate projects with their own limits; see [Scanners and community lists](scanners-and-lists.md).
 
-*This help matches the version you run: the **Help** button in the settings opens the page of your version's tag on GitHub.*
+*This help matches the version you run: the tray entry **Help** opens this page, and the **Help** button in the settings opens
+the settings reference, both from your version's tag on GitHub.*

@@ -67,14 +67,15 @@ release into an empty directory and run `makepkg -si`.
 - Sits in the system tray, scans on a schedule, after package installs/updates and on request, and notifies you when
   something is found. Nothing is removed without your click and confirmation.
 - Runs the scanners above with low priority, keeps them up to date by itself and shows each scanner's result separately in the scan history.
-- A window per finding lets you open the files behind an entry in your editor, accept an entry for one software version
-  or (if you wish) remove the package.
+- One findings window, kept current by later scans, lets you open the files behind an entry in your editor, accept an entry
+  for one software version or (if you wish) remove the package. Repeated scans with the same result stay quiet.
+- An *About* window shows versions, paths and the state of scanners and lists; reports to the project are prefilled with them.
 - Two signed community lists (known malicious packages, known false positives) are maintained in [`lists/`](lists/); proposals are welcome.
 - Updates itself from signed GitHub releases.
 
 ## 📖 Help
 
-The full help starts at **[docs/README.md](docs/README.md)**; the **Help** button in the settings opens it for your version.
+The full help starts at **[docs/README.md](docs/README.md)**; the tray entry **Help** opens it for your version.
 
 | | |
 |---|---|
@@ -83,7 +84,7 @@ The full help starts at **[docs/README.md](docs/README.md)**; the **Help** butto
 | ⚙️ [Settings reference](docs/settings.md) | 🧪 [Scanners and community lists](docs/scanners-and-lists.md) |
 | 🦠 [Set up ClamAV](docs/setup-clamav.md) | 🧰 [Requirements](docs/setup-requirements.md) |
 | 🔄 [Updates](docs/updates.md) | 🔁 [Scanner lifecycle](docs/scanner-lifecycle.md) |
-| 🩹 [Troubleshooting](docs/troubleshooting.md) | |
+| 🩹 [Troubleshooting](docs/troubleshooting.md) | 🧩 [AUR helpers](docs/aur-helpers.md) |
 | 🔬 [How it works (files, network, privileges)](docs/how-it-works.md) | 🏗️ [Maintainer notes](docs/maintainers.md) |
 
 ## License and disclaimer

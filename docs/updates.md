@@ -54,11 +54,12 @@ notification explains it. Clicking the entry restarts immediately.
 
 ## What updates cannot do
 
-Updates replace **Python files only**. Changes to system files – the pacman hook, new package dependencies – come with a
-newly installed package: download the new `.pkg.tar.zst` from the release and install it with `sudo pacman -U`.
+Updates replace **Python files only**. Changes to system files – the pacman hook, new package dependencies (for example
+`bubblewrap`) – come with a newly installed package: download the new `.pkg.tar.zst` from the release and install it with `sudo pacman -U`.
 
 ## Checking your version
 
+- Tray menu → **About**: version, commit and whether you run the installed package or a downloaded update.
 - **Settings → bottom of the dialog**: *version X* and, if one is waiting, *update Y installed, applied on restart*.
 - The help button opens the documentation of the **tag of your version**.
 

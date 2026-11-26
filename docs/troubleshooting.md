@@ -69,6 +69,18 @@ Check that the folder is writable and the disk is not full.
 - With `--rescan`, ignore rules for a version and the false-positive list cannot apply: the version `aur-scan` fetched
   is not known to the app.
 
+### A fetched package was "NOT checked" or "only partly checked"
+
+Only with [`aur_scan_fetch_missing`](settings.md#aur-scanners). The history entry has `missing package <name>: …` lines.
+
+| Message mentions | Meaning |
+|---|---|
+| `not found in the AUR` | the package is not (or no longer) in the AUR, or was built from your own files |
+| `critical finding in the repository files` | on purpose: `makepkg` is not run; check the finding first |
+| `bwrap` / `makepkg` not found | install [bubblewrap](setup-requirements.md#-bubblewrap-only-for-fetching-missing-packages) |
+| `prepare() failed, sources only extracted` | the package needs tools that are not installed; what could be extracted was scanned |
+| `sources not unpacked: …` | download or checksum problem, or a tool for the source type is missing; a failing checksum deserves a closer look |
+
 ### "UNLISTED-HIGH" findings
 
 `aur-scan system` only counts *high* findings; the app reads their rules and files with a second scan of the package's
@@ -90,6 +102,9 @@ Run `aur-scan check <package>` (for the app's own build:
 - Increase *Delay after start*, lower the scan frequency, switch off *Scan after package installs/updates* if the load bothers you
   ([Settings](settings.md#when-to-scan)).
 - `aur-scan` compiles Rust code the first time; install the AUR package `aur-scanner` to avoid that.
+- *Download and unpack packages that no helper cache holds* can download hundreds of MB the first time; switch it off if
+  that is too much.
+- A binary scan includes `/usr/lib`, which is large; remove that path in the ClamAV options if the scan takes too long.
 - ClamAV: the daemon's own priority is separate → [make it gentler](setup-clamav.md#make-clamav-gentler-optional).
 - Find the cause: during the slowdown run `top` and look for `cargo`, `rustc`, `git`, `clamd`, `aur-scan`; compare the
   times with the *Started* column of the history.
@@ -113,7 +128,7 @@ Run `aur-scan check <package>` (for the app's own build:
 
 Please include:
 
-1. The app version (bottom of the settings dialog).
+1. The versions: the report buttons fill them in; otherwise see tray menu → **About**.
 2. The relevant history entry (select it, copy the log). Remove anything private.
 3. Your desktop and how you started the app (menu / autostart / terminal).
 4. When started from a terminal: its output.
@@ -135,6 +150,7 @@ Stop the app (tray → **Quit**), then remove what you want to reset:
 | settings only | `rm ~/.config/cachy-security-scanner/settings.json` |
 | accepted findings | `rm ~/.config/cachy-security-scanner/ignored_findings.json` |
 | history | *Scan history → Clear history…* or `rm ~/.local/share/cachy-security-scanner/history/*` |
+| fetched AUR packages (fetched again at the next scan) | `rm -rf ~/.cache/cachy-security-scanner/aur` |
 | scanner checkouts (re-cloned at the next scan) | `rm -rf ~/.local/share/cachy-security-scanner/vendor` |
 | downloaded update (back to the packaged version) | `rm -rf ~/.local/share/cachy-security-scanner/updates` |
 | everything | all of the above plus `rm -rf ~/.cache/cachy-security-scanner` |

@@ -2,8 +2,9 @@
 
 ← [Help overview](README.md)
 
-The package scanner `aur-scan` does not download packages itself. It reads what **your AUR helper** (paru, yay, …) has left
-in its cache. What a scan can see therefore depends on the helper.
+The package scanner `aur-scan` reads what **your AUR helper** (paru, yay, …) has left in its cache. What a scan can see
+therefore depends on the helper. For packages that are in no cache at all, the app can
+[fetch and unpack them itself](scanner-lifecycle.md#-packages-that-no-helper-cache-holds) (opt-in).
 
 ## What is supported
 

@@ -12,7 +12,7 @@
    sudo pacman -U cachy-security-scanner.pkg.tar.zst
    ```
 
-   pacman installs the dependencies (`python`, `pyside6`, `git`, `openssh`, `libnotify`, `rust`, …) on its own.
+   pacman installs the dependencies (`python`, `pyside6`, `git`, `openssh`, `libnotify`, `bubblewrap`, `rust`, …) on its own.
 4. Start **CachyOS Security Scanner** from the application menu. From the next login on it starts by itself
    (see [autostart](settings.md#general)).
 
@@ -57,7 +57,8 @@ in the [settings](settings.md#when-to-scan).
 ## What the app will never do
 
 - It never removes a package on its own. Removal is a button in the [findings window](findings-window.md) and asks again.
-- It never runs files from a finding. *Open files* only opens a folder in your editor or file manager.
+- It never runs files from a finding. *Open files* only opens a folder in your editor or file manager. (Only if you switch
+  on [fetching missing packages](scanner-lifecycle.md#-packages-that-no-helper-cache-holds) does `makepkg` run a PKGBUILD, in a sandbox, to unpack sources.)
 - It never changes system files. The only root action is the removal you confirm (via polkit), see
   [How it works](how-it-works.md#-privileges).
 

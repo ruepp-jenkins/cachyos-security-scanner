@@ -17,7 +17,7 @@
 
 ## Community lists
 
-`lists/*.json` are validated, stamped with a `published` time, signed (one signature namespace per list) and uploaded
+`lists/*.json` are validated, stamped with a `published` time and the `commit` (both shown by the app), signed (one signature namespace per list) and uploaded
 to the rolling release `lists` by `.github/workflows/lists.yml` on every push that touches `lists/`. Start the workflow
 once by hand (*Run workflow*) after the first push, so the release exists. See [`lists/README.md`](https://github.com/ruepp-jenkins/cachyos-security-scanner/blob/master/lists/README.md) for
 the entry format and review rules.

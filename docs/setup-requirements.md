@@ -15,6 +15,7 @@ what to do if something is missing – for example when you run the app from sou
 | `libnotify` | desktop notifications (`notify-send`) | `libnotify` | ✅ |
 | `pacman` | package data, removal | `pacman` | ✅ |
 | Python 3.14+ | the scanner `aur-malware-check` | `python` (CachyOS often has it) | for that scanner |
+| `bubblewrap` (and `makepkg`, part of `pacman`) | unpacking packages that no helper cache holds | `bubblewrap` | only with [`aur_scan_fetch_missing`](settings.md#aur-scanners) |
 | Rust toolchain | building `aur-scan` once | `rust`, `clang`, `pkgconf`, `openssl` | only if `aur-scan` is on and not installed from the AUR |
 | `polkit` + an authentication agent | removing a package | `polkit` | only for removal |
 | `clamav` | binary scans | `clamav` | optional → [Set up ClamAV](setup-clamav.md) |
@@ -76,6 +77,20 @@ downloads Rust crates from crates.io. The build can take a few minutes and uses 
 setting on.
 
 **Skip the build:** install the AUR package `aur-scanner` (it provides `aur-scan`); the app then uses it instead.
+
+## 📦 bubblewrap (only for fetching missing packages)
+
+With [`aur_scan_fetch_missing`](settings.md#aur-scanners) the app unpacks the sources of packages that no helper cache
+holds inside a [bubblewrap](https://github.com/containers/bubblewrap) sandbox. It is a dependency of the app's package. If
+you only received a newer app version through the [self-update](updates.md#what-updates-cannot-do), install it yourself:
+
+```bash
+sudo pacman -S bubblewrap
+bwrap --version
+```
+
+Without it nothing is unpacked; such packages are then only checked from their repository files, and the result says so.
+Some sources need extra tools (for example `git` or `unzip`), as when you build the package yourself.
 
 ## 🪝 The pacman hook
 

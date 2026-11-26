@@ -38,6 +38,8 @@ A good default is to keep 1 and 3 on. Switch 2 on if you want deeper (and noisie
 - A **broken checkout** is detected (`git fsck`) and deleted and cloned again.
 - `aur-scan` is compiled with `cargo` when it changed. If the AUR package `aur-scanner` is installed, that binary is used.
 - If something cannot be set up, you get an **error entry** in the history – never silence.
+- `aur-scan` only sees packages in your AUR helper's cache, unless you let the app
+  [fetch the missing ones](scanner-lifecycle.md#-packages-that-no-helper-cache-holds).
 
 ## 📋 Community lists
 

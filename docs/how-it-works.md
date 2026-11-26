@@ -13,7 +13,7 @@ servers it contacts and which privileges it uses. If something here is wrong, th
 | Process model | one user-level process per login session (single-instance lock), no daemon, no root service |
 | Role | **orchestrator and UI** – it does not contain detection logic |
 | Detection | external programs, started as separate processes (see below) |
-| Network | only GitHub (see below); no telemetry, no account |
+| Network | the app's own downloads: only GitHub; with the opt-in for missing packages also the AUR and the packages' sources (see below); no telemetry, no account |
 | Root rights | only via polkit for a package removal you confirm, plus one `touch` in a pacman hook |
 | License | MIT; the scanners keep their own licenses and are **not bundled** |
 
@@ -29,6 +29,7 @@ flowchart TB
     H["pacman hook (root)<br/>touch trigger file"] -.->|"file watcher"| B
     B -.->|"pkexec pacman -Rns<br/>(only after your confirmation)"| P["pacman (root via polkit)"]
     B -->|"HTTPS / git"| G[("GitHub")]
+    B -.->|"only with aur_scan_fetch_missing"| U[("AUR and package sources")]
 ```
 
 ## 📁 Files the app writes
@@ -48,7 +49,6 @@ All paths follow the XDG standard; the defaults are shown.
 |---|---|
 | `history/` | the [scan history](scan-history.md): `*.json` per scanner and scan, `*-binaries.log` |
 | `vendor/aur-malware-check/` | `git clone --depth 1` of the scanner |
-| `~/.cache/cachy-security-scanner/aur/` | only with `aur_scan_fetch_missing`: AUR repositories, unpacked sources and their state |
 | `vendor/ks-aur-scanner/` | clone of `aur-scan` and its Rust build output (`target/`), only if `aur-scan` is not installed from the AUR |
 | `updates/<version>/` and `updates/current` | a verified downloaded update of the app, see [Updates](updates.md) |
 | `binary-last-scan`, `binary-last-success` | timestamps of the last ClamAV scan attempt and the last one that ran to a result (used to schedule the next) |
@@ -58,6 +58,7 @@ All paths follow the XDG standard; the defaults are shown.
 | Content | Notes |
 |---|---|
 | the two community lists and their signatures, small status markers | replaced only by a verified download |
+| `aur/repo/`, `aur/work/`, `aur/state/` | only with `aur_scan_fetch_missing`: AUR repositories, unpacked sources (can be large) and what was found in them |
 
 ### Other places
 
@@ -90,6 +91,8 @@ The app writes **nothing** outside these places, except what the external tools 
 | `.SRCINFO` next to a scanned PKGBUILD (AUR helper cache, e.g. `~/.cache/yay/<pkg>`, `~/.cache/paru/…`) | the version that was actually scanned |
 | the scanners' output | parsed into findings |
 | the trigger file `/var/lib/cachy-security-scanner/trigger` (mtime) | start a scan after a pacman transaction |
+| `/var/lib/pacman/local/<package>/desc` | only with `aur_scan_fetch_missing`: which AUR repository a package comes from |
+| dates of the scanners' definition files, `git log` of the checkouts | the *About* window |
 
 The scanners themselves read more, according to their own documentation: `aur-malware-check` looks at the pacman log,
 systemd units, package-manager caches and known indicator files; `aur-scan` reads PKGBUILDs and install scripts of installed
@@ -130,23 +133,27 @@ Environment: scanners inherit your environment. The launcher sets `CACHY_SEC_SUP
 
 ## 🌐 Network access
 
-The app talks **only to GitHub**. It refuses any other host, including after redirects.
+The app's own downloads (updates and lists) go **only to GitHub**; it refuses any other host there, including after redirects.
 
 | Destination | Purpose | Frequency |
 |---|---|---|
 | `api.github.com/repos/ruepp-jenkins/cachyos-security-scanner/releases` | find the newest release | 30 s after start, then daily (if automatic updates are on), or manual check |
 | `github.com/…/releases/download/vX.Y.Z/…` | update tarball, `SHA256SUMS`, signature | only when a newer version exists |
 | `github.com/…/releases/download/lists/…` | the two community lists and their signatures | at start, hourly, before a scan if older than 5 minutes, and when you press *Refresh lists* |
-| `github.com/…/issues/new?template=…` | opened **in your browser** by the report buttons; the app itself sends nothing | only when you click a report button |
+| `github.com/…/issues/new?template=…` | opened **in your browser** by the report buttons, with package, version, rule and a *Versions* block in the link; the app itself sends nothing | only when you click a report button |
+| `aur.archlinux.org` | `git` fetches the repository of a package that no helper cache holds | only with `aur_scan_fetch_missing`, at package scans |
+| the hosts named in such a package's `source=` | `makepkg` downloads the sources (sandboxed) | only with `aur_scan_fetch_missing`, when the package version changed |
 | `github.com/lenucksi/aur-malware-check.git` | clone / pull of the scanner (done by `git`) | before scans (setting) |
 | `github.com/KiefStudioMA/ks-aur-scanner.git` | release list / clone / fetch of `aur-scan` (done by `git`) | before scans, only if `aur-scan` is on and not installed from the AUR |
 
 Further traffic comes from the external tools, not from the app: `cargo` downloads Rust crates from crates.io when it
 builds `aur-scan`; `aur-malware-check` may fetch its reference lists as described in its repository; `freshclam`
-updates ClamAV signatures. Check the projects' documentation for details.
+updates ClamAV signatures; `aur-scan` asks the AUR when its `--rescan` option is on. Check the projects' documentation for details.
 
-**What GitHub sees:** the usual request metadata (your IP address, a `User-Agent: cachy-security-scanner` header). The
-app sends **no information about your system, your packages or your findings** anywhere.
+**What others see:** GitHub gets the usual request metadata (your IP address, a `User-Agent: cachy-security-scanner`
+header). By default the app sends **no information about your system, your packages or your findings** anywhere. With
+`aur_scan_fetch_missing` (or `--rescan`) the AUR learns which packages are asked for, and the source hosts see your IP
+address, just as when you install with an AUR helper. A report reaches GitHub only when you submit the form yourself.
 
 ## 🔐 Trust and verification
 
@@ -154,6 +161,7 @@ app sends **no information about your system, your packages or your findings** a
 |---|---|
 | App updates | SSH signature (ed25519, namespace `cachy-security-scanner`) over `SHA256SUMS` + SHA-256 of the tarball; public key embedded in the app; HTTPS; GitHub hosts only; safe extraction; crash fallback |
 | Community lists | own signature namespace per list; verified on download and on every load; unverified lists are ignored; they can only add a finding (blocklist) or hide a specific finding for an exact version (false positives) |
+| AUR packages fetched for scanning (opt-in) | not signature-verified; `makepkg` verifies the checksums of the PKGBUILD and runs it only inside a bubblewrap sandbox, see [the details and the risk](scanner-lifecycle.md#-packages-that-no-helper-cache-holds) |
 | Scanner checkouts | fetched over HTTPS with `git`; **not** signature-verified by this app (the upstream projects are trusted at the level of their GitHub repositories). A broken checkout is deleted and cloned again |
 
 Honest note on the last row: the scanners are third-party code that this app downloads and runs **as your user**. That is
@@ -189,7 +197,9 @@ install `aur-scan` from the AUR (`aur-scanner`) so it is built and updated by yo
 
 - No detection of its own, no signature database of its own.
 - No removal, quarantine or killing of anything without your explicit action. ClamAV runs without `--remove`/`--move`; those and similar options are also refused as extra arguments.
-- No execution of files from a finding; no opening of single files with a default handler.
+- No execution of files from a finding; no opening of single files with a default handler. The one case in which package
+  code runs at all is the opt-in `aur_scan_fetch_missing`: `makepkg` runs the PKGBUILD and its `prepare()` inside a
+  sandbox to unpack sources; nothing is built or installed.
 - No telemetry, no crash reports, no accounts, no ads.
 - No installation into system folders by itself; updates stay in your home directory.
 

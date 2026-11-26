@@ -33,7 +33,7 @@ Key rules:
 | Scanner | Source | How it reaches you |
 |---|---|---|
 | **aur-malware-check** | [github.com/lenucksi/aur-malware-check](https://github.com/lenucksi/aur-malware-check) | `git clone --depth 1 https://github.com/lenucksi/aur-malware-check.git` into `~/.local/share/cachy-security-scanner/vendor/aur-malware-check/` – unless a system-wide command `aur-malware-check` already exists in your `PATH`; then that one is used and **not** managed by the app |
-| **aur-scan** (ks-aur-scanner) | [github.com/KiefStudioMA/ks-aur-scanner](https://github.com/KiefStudioMA/ks-aur-scanner) | uses `aur-scan` from your `PATH` if present (for example from the AUR package `aur-scanner`). Otherwise `git clone --depth 1 https://github.com/KiefStudioMA/ks-aur-scanner.git` into `vendor/ks-aur-scanner/` and **builds it with Rust** (upstream publishes no prebuilt binary) |
+| **aur-scan** (ks-aur-scanner) | [github.com/KiefStudioMA/ks-aur-scanner](https://github.com/KiefStudioMA/ks-aur-scanner) | uses `aur-scan` from your `PATH` if present (for example from the AUR package `aur-scanner`). Otherwise the app clones the newest release tag of `https://github.com/KiefStudioMA/ks-aur-scanner.git` into `vendor/ks-aur-scanner/` and **builds it with Rust** (upstream publishes no prebuilt binary) |
 | **Community blocklist** | this repository, release `lists` | a signed JSON file downloaded by the app itself (no external tool), see [Scanners and community lists](scanners-and-lists.md#-community-lists) |
 | **ClamAV** | your distribution (`pacman -S clamav`) | you install it; the app only calls `clamdscan`, see [Set up ClamAV](setup-clamav.md) |
 
@@ -218,7 +218,7 @@ nice -n 19 ionice -c 2 -n 7  aur-scan --no-color system --fail-on high
   | a count higher than that scan explains | `UNLISTED-HIGH`: only `system` knows it (its history check, e.g. a package that gained risky behaviour), or the folder was not found (`--rescan`) |
   | `IOC ALERT` (installed name known to be malicious) | **critical** finding; no ignore rule or list hides it |
   | `Errors:` packages that could not be fetched or scanned | a note; **error** if there are no findings |
-  | `Skipped:` packages without a PKGBUILD in a helper cache | a note naming them |
+  | `Skipped:` packages without a PKGBUILD in a helper cache | a note naming them, or the app [fetches them](#-packages-that-no-helper-cache-holds) (opt-in) |
   | non-zero exit but nothing the app can attribute | one general warning |
 
   With a fail level below *high*, upstream does not list all lower findings per package. For a package with neither
@@ -232,7 +232,9 @@ nice -n 19 ionice -c 2 -n 7  aur-scan --no-color system --fail-on high
   2. your accepted entries (*Ignore* button; package + version + rule),
   3. the signed community false-positive list (exact package version + rule), if switched on.
 - **Version binding:** the version used for steps 2 and 3 is the one in the `.SRCINFO` of the *scanned* PKGBUILD folder
-  (it can differ from the installed version); if there is none, the installed version from `pacman -Qm`.
+  (it can differ from the installed version); if there is none, the installed version from `pacman -Qm`. For packages
+  the app fetched it is the version of the fetched commit. With `--rescan` the scanned version is unknown, so steps 2 and
+  3 hide nothing for those packages.
 - If everything reported is filtered out, the result is **clean**, with notes saying how many findings were hidden by which
   mechanism. Hidden findings are listed in the log under *hidden by the community false-positive list*.
 
@@ -264,7 +266,8 @@ nice -n 19 ionice -c 2 -n 7  clamdscan --fdpass -i -- <existing paths…>
 Each entry starts with an **update** section (before the tool output): where the program comes from, what `git` did and
 which commit is used, build result, campaign refresh, list sizes, `aur-scan` version and indicator date, and the state of
 the community lists. ClamAV logs show the engine and signature database version; the signatures themselves are updated
-by ClamAV's `freshclam`, not by this app.
+by ClamAV's `freshclam`, not by this app. With `aur_scan_fetch_missing` there are also `missing package <name>: …`
+lines: download, chosen commit and version, unpacking with duration and size, reuse, failures and deleted copies.
 
 Each scanner gets **its own entry** with: start time, trigger, duration, status, a one-line summary, the findings with their
 severity, notes, and the **complete tool output**. Setup problems (clone failed, build failed, Python too old) are errors

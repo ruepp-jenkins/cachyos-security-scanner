@@ -36,7 +36,7 @@ It is the place to look when:
 | *(icon)* | the status of the scan, see the table below. Hover for the status word |
 | **Started** | date **and** time the scan started |
 | **Type** | which scanner produced the entry (`aur_malware_check`, `aur_scan`, `blocklist`, …) or `binaries` for a ClamAV scan |
-| **Trigger** | what started it: `startup`, `interval`, `package change`, `manual`, `after ignore`, `with package scan` |
+| **Trigger** | what started it: `startup`, `interval`, `package change`, `manual`, `after ignore`, `after removal`, `with package scan` |
 | **Summary** | one line: *No threats found*, *N findings*, the error, or why it was skipped |
 
 All columns size themselves to their content; *Summary* takes the remaining space.

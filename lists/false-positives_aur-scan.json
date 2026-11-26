@@ -94,11 +94,10 @@
     {
       "package": "synergy",
       "versions": ["3.4.0-2"],
-      "codes": ["PERSIST-001"],
+      "codes": ["PERSIST-001", "FUNC-001"],
       "author": "MyUncleSam",
       "reported": "2026-11-26",
-      "reason": "PERSIST-001 matches an echo in synergy.install that only tells the user how to enable the user service. The script enables and starts nothing.",
-      "description": "synergy.install consists of two functions that print two lines of text. Reviewed with Claude Sonnet; patterns re-applied by text search (aur-scan itself was not re-run)."
+      "reason": "PERSIST-001 is only an echo in synergy.install that tells the user how to enable the user service. FUNC-001 is a real but harmless top-level curl to symless.com that reads a download token used only in the source URL; the downloads have fixed checksums."
     },
     {
       "package": "dotnet-runtime-9.0",

@@ -1,4 +1,13 @@
-# CachyOS Security Scanner
+<p align="center">
+  <img src="src/cachy_sec/icons/cachy-security-scanner.svg" alt="" width="112" height="112">
+</p>
+
+<h1 align="center">CachyOS Security Scanner</h1>
+
+<p align="center">
+  <a href="https://github.com/ruepp-jenkins/cachyos-security-scanner/actions/workflows/ci.yml"><img src="https://github.com/ruepp-jenkins/cachyos-security-scanner/actions/workflows/ci.yml/badge.svg?branch=master" alt="CI status"></a>
+  <a href="https://github.com/ruepp-jenkins/cachyos-security-scanner/actions/workflows/release.yml"><img src="https://github.com/ruepp-jenkins/cachyos-security-scanner/actions/workflows/release.yml/badge.svg?event=release" alt="Release build status"></a>
+</p>
 
 Tray app for CachyOS/Arch desktops. It runs in the background, scans on a schedule, and shows a
 notification when something is found. It only provides the UI and scheduling; detection is done by

@@ -518,7 +518,16 @@ class AboutPathsTest(unittest.TestCase):
         self.assertNotIn("campaigns/demo/SOURCES.md", amc_rows)
         self.assertEqual(scan_rows["Path"], "~/bin/aur-scan")
         self.assertIn("~/.local/share/aur-scanner/ioc.toml", scan_rows["Additional indicator file"])
-        self.assertEqual(scan_rows["Threat indicators"], "Last updated : x; Indicators : 7")
+        self.assertEqual(scan_rows["Threat indicators"], "7, last updated x")
+        self.assertNotIn("Rules and indicators", scan_rows)
+        with mock.patch.object(about, "which", return_value=None), \
+                mock.patch.object(about.aur_scan, "built_binary", return_value="/x/aur-scan"), \
+                mock.patch.object(about.aur_scan, "indicator_info", return_value=""), \
+                mock.patch.object(about, "indicator_files", return_value=[]), \
+                mock.patch.object(about, "run", return_value=(1, "")):
+            unknown = dict(about._aur_scan())
+        self.assertNotIn("Threat indicators", unknown)  # nothing determined: no row at all
+        self.assertNotIn("Additional indicator file", unknown)
 
 
 class ReleaseStampTest(unittest.TestCase):

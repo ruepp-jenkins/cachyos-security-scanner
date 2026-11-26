@@ -125,6 +125,13 @@ def indicator_files() -> list[Path]:
     return [f for f in (Path("/usr/share/aur-scanner/ioc.toml"), base / "aur-scanner" / "ioc.toml") if f.is_file()]
 
 
+def parse_indicators(info: str) -> str:
+    """"Last updated : 2026-06-13; Indicators : 7" -> "7, last updated 2026-06-13"; "" if neither is known."""
+    values = {key.strip(): value.strip() for key, _, value in (part.partition(":") for part in info.split(";"))}
+    found = [values.get("Indicators", ""), f"last updated {values['Last updated']}" if values.get("Last updated") else ""]
+    return ", ".join(f for f in found if f)
+
+
 def _aur_scan() -> list[tuple[str, str]]:
     system = which("aur-scan")
     binary = system or aur_scan.built_binary()
@@ -139,12 +146,11 @@ def _aur_scan() -> list[tuple[str, str]]:
     else:
         rows.append(("Source", f"built by this app in {short_path(aur_scan.source_dir())}, "
                      f"{_checkout(aur_scan.source_dir())}"))
-    rows.append(("Rules and indicators", "built into the program"))
-    # the "Override file" part is left out here: the files are listed below, with their date
-    info = [part for part in aur_scan.indicator_info(binary).split("; ") if not part.startswith("Override file")]
-    rows.append(("Threat indicators", "; ".join(info) or "unknown"))
-    extra = [("Additional indicator file", f"{short_path(f)}, file of {file_date(f)}") for f in indicator_files()]
-    rows += extra or [("Additional indicator file", "none")]
+    # only what could really be determined; no placeholder rows
+    indicators = parse_indicators(aur_scan.indicator_info(binary))
+    if indicators:
+        rows.append(("Threat indicators", indicators))
+    rows += [("Additional indicator file", f"{short_path(f)}, file of {file_date(f)}") for f in indicator_files()]
     return rows
 
 

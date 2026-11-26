@@ -127,6 +127,7 @@ No shell is ever used (`shell=False`, argument lists); paths are passed as singl
 | `aur-scan --version`, `aur-scan ioc`, `clamdscan --version` | also at start and after each scan | the *Versions* block of the report links (kept in memory, nothing is sent) |
 | `notify-send` | notifications. For clickable ones (findings, errors) with `--action=… --wait`, which keeps one short-lived helper process per open notification (at most 10) until it is clicked or dismissed | |
 | editor of your choice / `xdg-open` | *Open files*, *Open folder* | **folder path as the only argument**; never a file from a finding |
+| file manager (desktop's default) | a path clicked in the *About* window | opens the folder, or the folder containing the file; never the file itself |
 | a terminal emulator (`xdg-terminal-exec`, `konsole`, …) | binary scan on request | shows live output |
 | `pkexec pacman -Rns --noconfirm -- <packages>` | *Remove packages…* after your confirmation | the only root action |
 | `systemctl --user …` | only the *Remove old systemd timer* button | clean up an old timer |

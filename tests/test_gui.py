@@ -376,12 +376,16 @@ class GuiTest(unittest.TestCase):
             dlg = tray.about_dlg
             tray.open_about()
             self.assertIs(tray.about_dlg, dlg)
-            pump(lambda: dlg.loading.isHidden(), 5)
-        texts = [w.text() for w in dlg.findChildren(QLabel)]
-        self.assertIn("ClamAV <b>1</b>", texts)  # shown as plain text
-        self.assertTrue(any("PySide" not in t and " / " in t for t in texts))
-        self.assertTrue(any("docs/README.md" in t for t in texts))
-        self.assertIn(appmod.about.COPYRIGHT, texts)
+            pump(lambda: dlg.loaded, 5)
+        text = dlg.view.toPlainText()
+        self.assertIn("ClamAV\nEngine:\tClamAV <b>1</b>", text)  # copies as text; markup stays plain text
+        self.assertIn(f"Qt / PySide6:\t", text)
+        self.assertTrue(dlg.view.isReadOnly())
+        dlg.view.selectAll()
+        self.assertIn("Python:", dlg.view.textCursor().selectedText())
+        labels = [w.text() for w in dlg.findChildren(QLabel)]
+        self.assertTrue(any("docs/README.md" in t for t in labels))
+        self.assertIn(appmod.about.COPYRIGHT, labels)
         dlg.close()
         pump(lambda: tray.about_dlg is None, 3)
         self.assertIsNone(tray.about_dlg)
@@ -393,6 +397,36 @@ class GuiTest(unittest.TestCase):
         self.assertTrue(d.b_fetch.isEnabled())
         d.b_fetch.setChecked(True)
         self.assertTrue(d.result_settings().aur_scan_fetch_missing)
+
+    def test_about_paths_open_a_folder_never_a_file(self):
+        from PySide6.QtCore import QUrl
+        from cachy_sec import about_dialog
+        with tempfile.TemporaryDirectory() as t:
+            data = Path(t) / "data dir"
+            (data / "campaigns").mkdir(parents=True)
+            (data / "campaigns.json").write_text("{}")
+            program = Path(t) / "aur-scan"
+            program.write_text("x")
+            view = self._track(about_dialog.AboutDialog()).view
+            view.show_sections([("s", [("Path", str(program)), ("Definition files", str(data)),
+                                       ("campaigns.json", "file of today"),
+                                       ("Source", f"built in {t}, commit abc"), ("Version", "1/2")])])
+            hrefs, block = [], view.document().begin()
+            while block.isValid():
+                it = block.begin()
+                while not it.atEnd():
+                    fmt = it.fragment().charFormat()
+                    if fmt.isAnchor():
+                        hrefs.append(QUrl(fmt.anchorHref()).toLocalFile())
+                    it += 1
+                block = block.next()
+            self.assertEqual(hrefs, [str(program), str(data), str(data / "campaigns.json"), t])
+            self.assertIn(f"Path:\t{program}", view.toPlainText())  # the path itself stays readable and copyable
+            with mock.patch.object(about_dialog.QDesktopServices, "openUrl") as opened:
+                for href in hrefs + [t + "/gone"]:
+                    view.open_link(QUrl.fromLocalFile(href))
+            self.assertEqual([c.args[0].toLocalFile() for c in opened.call_args_list],
+                             [t, str(data), str(data), t])
 
     def test_every_entry_has_its_own_open_files_button_and_there_is_no_global_one(self):
         with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:

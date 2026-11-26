@@ -16,7 +16,8 @@ os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 
 try:
     from PySide6.QtCore import QCoreApplication, QEvent, QThreadPool, Qt
-    from PySide6.QtWidgets import QAbstractItemView, QApplication, QDialog, QDialogButtonBox, QPushButton
+    from PySide6.QtWidgets import (QAbstractItemView, QApplication, QDialog, QDialogButtonBox, QLabel,
+                                   QPushButton)
     HAVE_QT = True
 except ImportError:
     HAVE_QT = False
@@ -310,6 +311,59 @@ class GuiTest(unittest.TestCase):
         self.assertTrue(buttons[1].isEnabled())
         d.close()
         self.assertEqual(changed, [1])  # one re-scan, after closing
+
+    def test_there_is_one_findings_window_which_later_scans_update(self):
+        st.Settings(scan_periodic=False, scan_on_start=False, scan_after_pkg_changes=False).save()
+        tray = self._tray()
+
+        def finding(name):
+            return Finding(WARNING, f"{name} 1-1: 1 issue", "aur-scan", package=name, version="1-1",
+                           codes=["X-1"], rules=[("X-1", "T", 1)])
+
+        def finish(*names, manual=False, status=None):
+            status = status or (WARNING if names else CLEAN)
+            result = ScanResult("aur_scan", status, [finding(n) for n in names])
+            tray._finished(engine.Report([result]), manual)
+
+        def alerts():
+            return sum(c.args[0].endswith("possible compromise") for c in notify.notify.call_args_list)
+
+        def rows():
+            return [w.text() for w in tray.findings_box.area.widget().findChildren(QLabel)]
+
+        finish("one")
+        box = tray.findings_box
+        self.assertEqual((alerts(), box.banner.isHidden()), (1, True))
+        shown = box.area.widget()
+        finish("one")  # an automatic scan with the same result: no new notification, the list stays untouched
+        self.assertIs(tray.findings_box, box)
+        self.assertEqual(alerts(), 1)
+        self.assertIs(box.area.widget(), shown)
+        self.assertIn("no change", box.banner.text())
+        finish("one", "two")
+        self.assertIs(tray.findings_box, box)
+        self.assertEqual(alerts(), 2)
+        self.assertIn("1 new", box.banner.text())
+        self.assertEqual([t.split()[0] for t in rows()], ["one", "NEW"])
+        finish(status="error")  # a failed scanner does not make its findings disappear
+        self.assertEqual(len(rows()), 2)
+        self.assertIn("did not finish", box.banner.text())
+        tray._remove_question = object()  # never change the list under an open question
+        finish("two")
+        self.assertEqual(len(rows()), 2)
+        tray._remove_answered([], False)
+        self.assertEqual(len(rows()), 1)
+        self.assertIn("1 gone", box.banner.text())
+        finish()
+        self.assertIn("No findings any more", box.windowTitle())
+        finish("two")
+        self.assertEqual(alerts(), 3)  # back after being gone: new again
+        box.close()
+        pump(lambda: tray.findings_box is None, 3)
+        finish("two")  # closed by the user, nothing new: stays closed and quiet
+        self.assertEqual((tray.findings_box, alerts()), (None, 3))
+        finish("two", manual=True)  # asked for by the user: shown again
+        self.assertEqual((tray.findings_box is not None, alerts()), (True, 4))
 
     def test_every_entry_has_its_own_open_files_button_and_there_is_no_global_one(self):
         with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:

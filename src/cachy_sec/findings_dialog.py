@@ -1,4 +1,7 @@
-"""Dialog shown when a scan finds something: entries (each with its own Ignore button), details, removal."""
+"""Window shown when a scan finds something: entries (each with its own Ignore button), details, removal.
+
+There is only one such window; later scans update it in place (`update_findings`).
+"""
 from __future__ import annotations
 
 from collections.abc import Callable
@@ -9,7 +12,7 @@ from PySide6.QtGui import QDesktopServices, QFont, QIcon
 from PySide6.QtWidgets import (QDialog, QFrame, QHBoxLayout, QLabel, QPlainTextEdit, QPushButton,
                                QScrollArea, QVBoxLayout, QWidget)
 
-from . import icons, ignores, opener, report
+from . import engine, icons, ignores, opener, report
 
 COLLAPSED_WIDTH = 700
 EXPANDED_SIZE = (900, 620)  # roomy enough that file paths and issue lines do not wrap
@@ -31,55 +34,47 @@ class FindingsDialog(QDialog):
                  on_changed: Callable[[], None] | None = None, scan_info: str = "",
                  notes: list[str] | None = None) -> None:
         super().__init__()
-        self._base_title = "Possible compromise" + (f" – {scan_info}" if scan_info else "")
         self.editor = editor
         self.on_ignore = on_ignore
         self.on_changed = on_changed  # called once when the window closes after at least one ignore
         self._ignored_any = False
-        self.setWindowTitle(self._base_title)
-        self.setWindowIcon(QIcon(icons.path(icons.BAD)))
+        self._ignored: set[tuple[str, str, str]] = set()  # (package, version, code) accepted in this window
+        self._keys: set[tuple] = set()
+        self._rows: set[tuple[str, str, str]] = set()
+        self._new_rows: set[tuple[str, str, str]] = set()
+        self._notes: list[str] = []
+        self._pkgs: list[str] = []
+        self._entries_height = 0
         root = QVBoxLayout(self)
-        self.banner = QLabel("A newer scan has finished since this window opened; these findings may no longer apply.")
+        self.banner = QLabel()
         self.banner.setWordWrap(True)
         self.banner.setStyleSheet("background: #8a6d00; color: white; padding: 4px;")
         self.banner.setVisible(False)
         root.addWidget(self.banner)
 
         top = QHBoxLayout()
-        pic = QLabel()
-        pic.setPixmap(QIcon(icons.path(icons.BAD)).pixmap(64, 64))
-        pic.setAlignment(pic.alignment() | 0x20)  # top
-        top.addWidget(pic)
-        text = QLabel(summary)
-        text.setWordWrap(True)
-        top.addWidget(text, 1)
+        self.pic = QLabel()
+        self.pic.setAlignment(self.pic.alignment() | 0x20)  # top
+        top.addWidget(self.pic)
+        self.summary_label = QLabel()
+        self.summary_label.setWordWrap(True)
+        top.addWidget(self.summary_label, 1)
         root.addLayout(top)
-        if notes:
-            hint = QLabel("\n".join(notes))
-            hint.setWordWrap(True)
-            hint.setEnabled(False)  # greyed secondary text
-            root.addWidget(hint)
+        self.hint = QLabel()
+        self.hint.setWordWrap(True)
+        self.hint.setEnabled(False)  # greyed secondary text
+        root.addWidget(self.hint)
 
-        entries = ignores.rows(findings)
-        self._entries_height = 0
-        if entries:
-            root.addWidget(QLabel("Each entry can be inspected (Open files) and, for a known version, accepted on its own "
-                                  "(Ignore; reported again after an update), or reported as a false positive to the project:"))
-            area = QScrollArea()
-            area.setWidgetResizable(True)
-            area.setFrameShape(QFrame.StyledPanel)
-            inner = QWidget()
-            lay = QVBoxLayout(inner)
-            lay.setContentsMargins(6, 4, 6, 4)
-            for r in entries:
-                lay.addLayout(self._entry_row(r))
-            lay.addStretch()
-            area.setWidget(inner)
-            self._entries_height = min(len(entries), MAX_VISIBLE_ROWS) * ROW_HEIGHT + 16
-            area.setMinimumHeight(self._entries_height)
-            root.addWidget(area)
+        self.intro = QLabel("Each entry can be inspected (Open files) and, for a known version, accepted on its own "
+                            "(Ignore; reported again after an update), or reported as a false positive to the project:")
+        self.intro.setWordWrap(True)
+        root.addWidget(self.intro)
+        self.area = QScrollArea()
+        self.area.setWidgetResizable(True)
+        self.area.setFrameShape(QFrame.StyledPanel)
+        root.addWidget(self.area)
 
-        self.details = QPlainTextEdit(details_text(findings), readOnly=True)
+        self.details = QPlainTextEdit(readOnly=True)
         mono = QFont("monospace")
         mono.setStyleHint(QFont.Monospace)
         self.details.setFont(mono)
@@ -93,25 +88,84 @@ class FindingsDialog(QDialog):
         self.toggle.toggled.connect(self._toggled)
         row.addWidget(self.toggle)
         row.addStretch()
-        if pkgs:
-            rm = QPushButton("Remove packages…")
-            rm.clicked.connect(lambda: on_remove(pkgs))
-            row.addWidget(rm)
+        self.remove_button = QPushButton("Remove packages…")
+        self.remove_button.clicked.connect(lambda _=False: on_remove(list(self._pkgs)))
+        row.addWidget(self.remove_button)
         close = QPushButton("Close")
         close.clicked.connect(self.close)
         row.addWidget(close)
         root.addLayout(row)
+        self._show(summary, findings, pkgs, scan_info, notes or [])
         self.resize(COLLAPSED_WIDTH, 200 + self._entries_height)
 
-    def mark_outdated(self) -> None:
-        """Called when a newer scan has produced a result, so an old window is not mistaken for the current state."""
-        self.setWindowTitle(self._base_title + " (outdated)")
+    def update_findings(self, summary: str, findings, pkgs: list[str], scan_info: str = "",
+                        notes: list[str] | None = None, carried: list[str] | None = None) -> None:
+        """Show the result of a newer scan. Without a change in the findings the list is left untouched, so the
+        scroll position and the selected text survive."""
+        keys = {engine.finding_key(f) for f in findings}
+        new, gone = len(keys - self._keys), len(self._keys - keys)
+        text = "Updated by a newer scan" + (f" ({scan_info})" if scan_info else "") + ": "
+        text += ", ".join(t for t in (f"{new} new" if new else "", f"{gone} gone" if gone else "") if t) or "no change"
+        text += "."
+        if carried:
+            text += (f" {', '.join(carried)} did not finish, so its findings are still the ones of an earlier scan.")
+        self._show(summary, findings, pkgs, scan_info, notes or [])
+        self.banner.setText(text)
         self.banner.setVisible(True)
+        self._grow()
+
+    def _grow(self) -> None:
+        """Make room for the banner and for added entries; never shrinks a window the user has sized."""
+        needed = 200 + self._entries_height + self.banner.sizeHint().height()
+        if self.details.isVisible():
+            needed += self.details.minimumSizeHint().height()
+        if not self.isMaximized() and self.height() < needed:
+            self.resize(self.width(), needed)
+
+    def _show(self, summary: str, findings, pkgs: list[str], scan_info: str, notes: list[str]) -> None:
+        state = "Possible compromise" if findings else "No findings any more"
+        self.setWindowTitle(state + (f" – {scan_info}" if scan_info else ""))
+        icon = QIcon(icons.path(icons.BAD if findings else icons.GOOD))
+        self.setWindowIcon(icon)
+        self.pic.setPixmap(icon.pixmap(64, 64))
+        self.summary_label.setText(summary)
+        self.hint.setText("\n".join(notes))
+        self.hint.setVisible(bool(notes))
+        self._pkgs = list(pkgs)
+        self.remove_button.setVisible(bool(pkgs))
+
+        keys = {engine.finding_key(f) for f in findings}
+        if keys == self._keys and self.area.widget() is not None:
+            return
+        entries = ignores.rows(findings)
+        rows = {(r.package, r.version, r.code) for r in entries}
+        self._new_rows = rows - self._rows if self.area.widget() is not None else set()
+        self._keys, self._rows = keys, rows
+
+        position = self.area.verticalScrollBar().value()
+        inner = QWidget()
+        lay = QVBoxLayout(inner)
+        lay.setContentsMargins(6, 4, 6, 4)
+        for r in entries:
+            lay.addLayout(self._entry_row(r))
+        lay.addStretch()
+        self.area.setWidget(inner)  # deletes the previous one
+        self._entries_height = min(len(entries), MAX_VISIBLE_ROWS) * ROW_HEIGHT + 16 if entries else 0
+        self.area.setMinimumHeight(self._entries_height)
+        self.area.setVisible(bool(entries))
+        self.intro.setVisible(bool(entries))
+        self.area.verticalScrollBar().setValue(position)
+
+        position = self.details.verticalScrollBar().value()
+        self.details.setPlainText(details_text(findings))
+        self.details.verticalScrollBar().setValue(position)
 
     def _entry_row(self, r: ignores.Row) -> QHBoxLayout:
         line = QHBoxLayout()
         times = f"  ×{r.count}" if r.count > 1 else ""
-        label = QLabel(f"{r.package} {r.version} – {r.code} {r.title}{times}")  # plain text: scanner output is untrusted
+        key = (r.package, r.version, r.code)
+        mark = "NEW  " if key in self._new_rows else ""
+        label = QLabel(f"{mark}{r.package} {r.version} – {r.code} {r.title}{times}")  # plain text: scanner output is untrusted
         label.setWordWrap(True)
         line.addWidget(label, 1)
         directory = opener.directory_of(r.files)
@@ -133,6 +187,10 @@ class FindingsDialog(QDialog):
         else:
             btn.setEnabled(False)
             btn.setToolTip("The version of this package is unknown, so the finding cannot be accepted for one version.")
+        if key in self._ignored:  # accepted here while the scan that updated the list was already running
+            btn.setEnabled(False)
+            btn.setText("Ignored")
+            label.setEnabled(False)
         line.addWidget(btn)
         rep = QPushButton("Report false positive")
         rep.setToolTip("Open a prefilled form on GitHub to tell the project that this finding is wrong for this version.\n"
@@ -154,6 +212,7 @@ class FindingsDialog(QDialog):
     def _ignore(self, r: ignores.Row, button: QPushButton, label: QLabel) -> None:
         self.on_ignore(r.package, r.version, [r.code])
         self._ignored_any = True
+        self._ignored.add((r.package, r.version, r.code))
         button.setEnabled(False)
         button.setText("Ignored")
         label.setEnabled(False)

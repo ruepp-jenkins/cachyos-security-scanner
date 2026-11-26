@@ -86,6 +86,30 @@ class Report:
         return f"{head}: " + "; ".join(f"{r.backend}: {r.message}" for r in problems)[:300]
 
 
+def finding_key(f: Finding) -> tuple:
+    """What makes two findings of consecutive scans the same one (the order of the detail lines does not matter)."""
+    return (f.source, f.package, f.version, f.severity, f.title, tuple(sorted(f.detail.splitlines())))
+
+
+def merge_findings(previous: dict[str, list[Finding]], report: Report) -> tuple[dict[str, list[Finding]], list[str]]:
+    """(current findings per scanner, scanners whose findings are carried over from an earlier scan).
+
+    A scanner that failed says nothing about its earlier findings, so they stay: an error must never look like
+    "clean". The same holds for a skipped scan and for an internal error, which cover every scanner.
+    """
+    if report.skipped or any(r.backend == "internal" for r in report.results):
+        return dict(previous), [] if report.skipped else sorted(previous)
+    current: dict[str, list[Finding]] = {}
+    carried: list[str] = []
+    for r in report.results:
+        if r.findings:
+            current[r.backend] = r.findings
+        elif r.status not in USABLE and previous.get(r.backend):
+            current[r.backend] = previous[r.backend]
+            carried.append(r.backend)
+    return current, carried
+
+
 def refresh_lists(s: Settings, force: bool = False) -> dict[str, str]:
     """Download the community lists the settings use (skipped while the cached copy is fresh). Never raises."""
     from . import blocklist, fplist  # local: keeps engine importable without the list modules during tests

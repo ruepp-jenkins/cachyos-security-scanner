@@ -2,7 +2,7 @@
 
 ← [Help overview](README.md)
 
-When a package scan finds something, the app shows a notification and opens this window. It is your **review desk**:
+When a package scan finds something new, the app shows a notification and opens this window. It is your **review desk**:
 you see every finding, inspect the files behind it, accept entries you consider harmless, or – if you decide so – remove a
 package.
 
@@ -18,14 +18,30 @@ package.
 
 | Part | Purpose |
 |---|---|
-| **Title and scan info** | the summary and when the scan ran (`14:32, automatic scan`). Several findings windows can be open at once |
+| **Title and scan info** | the summary and when the scan ran (`14:32, automatic scan`) |
 | **One row per finding** | severity, title, package and version; with *Show details* also the explanation and rule codes |
 | **Buttons per entry** | **Open files**, **Ignore**, **Report false positive** (faint green) and **Report malicious** (faint red) (below) |
 | **Notes** | what the app did with the results, e.g. *"1 finding hidden by the community false-positive list"* |
-| **(outdated) banner** | a newer scan finished after this window opened, so the list may no longer be current. Look at the newest scan |
+| **Yellow banner** | a newer scan has [updated the window](#-one-window-that-stays-current); it says what changed |
 | **Show details** | expands the explanations |
 | **Remove packages…** | removal flow, only for critical findings of known packages |
 | **Close** | closes the window; nothing changes |
+
+## 🔄 One window that stays current
+
+There is only **one** findings window. While it is open (also minimised), every package scan updates it:
+
+- The banner says when it was updated and what changed (`1 new, 1 gone` or `no change`). New entries start with
+  **NEW**.
+- Without a change in the findings the list is not touched, so your scroll position stays.
+- If a scanner **fails**, its earlier findings stay in the list and the banner says so: an error never looks like clean.
+  A skipped scan changes nothing.
+- If nothing is found any more, the window stays open and says so. Earlier results remain in the
+  [history](scan-history.md).
+- While the question *Remove with pacman -Rns?* is open, the update waits for your answer.
+
+After you close it, it opens again when an automatic scan finds something **new or changed**, with every scan you start
+yourself, and with the first findings after the app was started.
 
 ## Buttons
 

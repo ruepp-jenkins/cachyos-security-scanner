@@ -434,6 +434,27 @@ class ReportTest(unittest.TestCase):
         self.assertEqual(r.results[0].status, "error")
 
 
+class MergeFindingsTest(unittest.TestCase):
+    def _finding(self, title, detail=""):
+        from cachy_sec.scanners.base import Finding
+        return Finding(WARNING, title, "aur_scan", package="a", detail=detail)
+
+    def test_a_failed_or_skipped_scan_keeps_the_earlier_findings(self):
+        old = {"aur_scan": [self._finding("x")]}
+        failed = engine.Report([ScanResult("aur_scan", "error", message="boom"), ScanResult("blocklist", CLEAN)])
+        self.assertEqual(engine.merge_findings(old, failed), (old, ["aur_scan"]))
+        self.assertEqual(engine.merge_findings(old, engine.Report([], skipped="battery")), (old, []))
+        internal = engine.Report([ScanResult("internal", "error", message="boom")])
+        self.assertEqual(engine.merge_findings(old, internal), (old, ["aur_scan"]))
+        clean = engine.Report([ScanResult("aur_scan", CLEAN)])
+        self.assertEqual(engine.merge_findings(old, clean), ({}, []))
+
+    def test_the_order_of_detail_lines_does_not_make_a_finding_new(self):
+        a, b = self._finding("x", "one\ntwo"), self._finding("x", "two\none")
+        self.assertEqual(engine.finding_key(a), engine.finding_key(b))
+        self.assertNotEqual(engine.finding_key(a), engine.finding_key(self._finding("x", "one\nthree")))
+
+
 class IconsTest(unittest.TestCase):
     def test_bundled_icons_exist_and_map_to_kinds(self):
         import xml.dom.minidom

@@ -13,7 +13,7 @@ import time
 
 from . import autostart, engine, helpers, history, icons, ignores, notify, remove, scheduler, singleton, updater
 from .scanners import clamd
-from .scanners.base import ERROR, ScanResult
+from .scanners.base import ERROR, USABLE, ScanResult
 from .settings import Settings
 from .findings_dialog import FindingsDialog
 from .helper_dialog import HelperDialog
@@ -115,7 +115,10 @@ class Tray(QObject):
         self.rm_done = _Done()
         self.rm_done.emit_report.connect(self._removed)
         self._dialogs: list = []
-        self._findings_dialogs: list = []  # open findings windows, to mark them outdated by a newer scan
+        self.findings_box: FindingsDialog | None = None  # the one findings window; later scans update it
+        self.findings: dict[str, list] = {}  # current findings per scanner, to notice what changed
+        self._remove_question = None  # an open "remove packages?" question holds back updates of the window
+        self._window_update = None
         self.history_dlg = None  # single-instance windows; findings dialogs may be many
         self.settings_dlg = None
         self.report_dlg = None
@@ -432,8 +435,6 @@ class Tray(QObject):
             self.rescan_pending = False
             if scheduler.anything_after_pkg_change(self.settings):  # same wait as any package-change scan
                 self.debounce.start(scheduler.pkg_delay_ms(self.settings))
-        for old in list(self._findings_dialogs):
-            old.mark_outdated()
         text = report.summary()
         self._idle_tip = f"CachyOS Security Scanner – {text}"
         st = report.icon_status
@@ -441,24 +442,55 @@ class Tray(QObject):
             self._result_icon = icons.for_status(st)
             self.act_history.setIcon(QIcon(icons.for_status(st)))  # the menu shows the last result, too
         self._refresh_tray()
-        if report.findings:
+        # Automatic scans repeat what is already known quietly: only new or changed findings, or a scan the user
+        # started, notify and bring up the window. An open window is always brought up to date.
+        known = {engine.finding_key(f) for fs in self.findings.values() for f in fs}
+        self.findings, carried = engine.merge_findings(self.findings, report)
+        added = any(engine.finding_key(f) not in known for f in report.findings)
+        announce = bool(report.findings) and (manual or added)
+        if announce:
             notify.notify("Security scanner: possible compromise", text, kind="bad", urgent=True, on_click=self._click_to("threat"))
-            self._offer_removal(report, f"{time.strftime('%H:%M')}, {'manual' if manual else 'automatic'} scan")
-        else:
-            if manual or self.settings.notify_when_clean or report.kind == "bad":
-                notify.notify("Security scan finished", text, kind=report.kind, urgent=report.kind == "bad",
-                              on_click=self._click_to("error") if report.kind == "bad" else None)
+        failed = report.kind == "bad" and any(r.status not in USABLE for r in report.results)
+        if not announce and (failed or (not report.findings and (manual or self.settings.notify_when_clean
+                                                                   or report.kind == "bad"))):
+            notify.notify("Security scan finished", text, kind=report.kind, urgent=report.kind == "bad",
+                          on_click=self._click_to("error") if report.kind == "bad" else None)
+        if not report.skipped:
+            self._window_update = (report, f"{time.strftime('%H:%M')}, {'manual' if manual else 'automatic'} scan",
+                                   carried, announce)
+            self._update_findings_window()
 
-    def _offer_removal(self, report: engine.Report, scan_info: str = "") -> None:
-        """Non-modal: the dialog never blocks the tray, other scans or update checks."""
-        box = FindingsDialog(report.summary(), report.findings, engine.infected_packages(report), self._remove_clicked,
-                             self.settings.editor_command, self._ignore_finding,
-                             lambda: self.scan(manual=True, trigger="after ignore"), scan_info, report.notes)
-        box.setAttribute(Qt.WA_DeleteOnClose)
-        self._track_dialog(box)  # keeps a reference while open and delays an automatic restart
-        self._findings_dialogs.append(box)
-        box.destroyed.connect(lambda *_: box in self._findings_dialogs and self._findings_dialogs.remove(box))
-        box.show()
+    def _open_findings_box(self) -> FindingsDialog | None:
+        try:
+            return self.findings_box if self.findings_box is not None and self.findings_box.isVisible() else None
+        except RuntimeError:  # the C++ window is already gone
+            return None
+
+    def _update_findings_window(self) -> None:
+        if self._window_update is None or self._remove_question is not None:
+            return  # never change the list under an open question; applied when it is answered
+        report, scan_info, carried, announce = self._window_update
+        self._window_update = None
+        findings = [f for fs in self.findings.values() for f in fs]
+        pkgs = engine.infected_packages(engine.Report([ScanResult("all", findings=findings)]))
+        box = self._open_findings_box()
+        if box is not None:
+            box.update_findings(report.summary(), findings, pkgs, scan_info, report.notes, carried)
+        elif announce:
+            box = FindingsDialog(report.summary(), findings, pkgs, self._remove_clicked, self.settings.editor_command,
+                                 self._ignore_finding, lambda: self.scan(manual=True, trigger="after ignore"),
+                                 scan_info, report.notes)
+            box.setAttribute(Qt.WA_DeleteOnClose)
+            self._track_dialog(box)  # keeps a reference while open and delays an automatic restart
+            self.findings_box = box
+            box.destroyed.connect(lambda *_, b=box: self._findings_closed(b))
+            box.show()
+        if box is not None and announce:
+            self._focus(box)
+
+    def _findings_closed(self, box) -> None:
+        if self.findings_box is box:
+            self.findings_box = None
 
     def _ignore_finding(self, package: str, version: str, codes: list[str]) -> None:
         try:
@@ -474,11 +506,18 @@ class Tray(QObject):
             q = QMessageBox(QMessageBox.Question, "Remove packages", "Remove with pacman -Rns?\n\n" + "\n".join(pkgs),
                             QMessageBox.Yes | QMessageBox.No)
             q.setAttribute(Qt.WA_DeleteOnClose)
-            q.finished.connect(lambda r: self._do_remove(pkgs) if r == QMessageBox.Yes else None)
+            q.finished.connect(lambda r: self._remove_answered(pkgs, r == QMessageBox.Yes))
             self._track_dialog(q)
+            self._remove_question = q
             q.open()
         else:
             self._do_remove(pkgs)
+
+    def _remove_answered(self, pkgs: list[str], yes: bool) -> None:
+        self._remove_question = None
+        if yes:
+            self._do_remove(pkgs)
+        self._update_findings_window()
 
     def _do_remove(self, pkgs: list[str]) -> None:
         self.pool.start(_Job(lambda: (remove.remove_packages(pkgs), False), self.rm_done,

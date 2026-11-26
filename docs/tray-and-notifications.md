@@ -65,14 +65,20 @@ notification of your desktop.
 
 | Notification | When | Urgency |
 |---|---|---|
-| **Security scanner: possible compromise** | a scan found something | critical – stays until you dismiss it |
+| **Security scanner: possible compromise** | a scan you started found something, or an automatic scan found something **new or changed** | critical – stays until you dismiss it |
 | **Security scan finished** | your manual scan finished; or an automatic scan finished clean and *Also notify when nothing was found* is on; or a scan was incomplete | normal (critical if incomplete) |
 | **Binary scan: threats found** | an automatic ClamAV scan found threats | critical |
 | **Binary scan did not run** | e.g. `clamd` is not running | normal |
 | **Update check / Security scanner updated** | manual update check results, or an update was installed | normal |
 | **Update waiting** | an update is installed but the restart waits (a scan runs, or a window is open) | normal |
 
-When something is found, a [findings window](findings-window.md) opens along with the notification.
+When something is found, a [findings window](findings-window.md) opens along with the notification. There is only one;
+later scans [update it](findings-window.md#-one-window-that-stays-current).
+
+An automatic scan that finds **only what is already known** is quiet: no new notification and no new window. This
+avoids repeats while a long system update triggers several scans. Nothing is skipped: every scan runs, sets the tray
+icon and is recorded in the [history](scan-history.md). After a restart of the app, and with every scan you start
+yourself, the findings are shown again.
 
 ### 🖱️ Clicking a notification
 

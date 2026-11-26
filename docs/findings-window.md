@@ -9,10 +9,10 @@ package.
 > 🧠 **A finding is a hint, not a verdict.** A blocklist match means "this package/version is on a list of compromised
 > software". A heuristic finding (`aur-scan`) means "this looks suspicious". Check before you act.
 
-![Findings window (screenshot of version 0.0.6)](screenshots/findings.png)
-![Findings window with details (screenshot of version 0.0.6)](screenshots/findings-details.png)
+![Findings window with two example findings](screenshots/findings.png)
+![The same window with the details shown](screenshots/findings-details.png)
 
-*(The screenshots are from an older version; newer versions have the per-entry buttons described below.)*
+*(Made-up example packages; rendered with the KDE Breeze Dark theme, without the window title bar.)*
 
 ## What you see
 

@@ -31,6 +31,8 @@ Good to know:
 
 ## The menu
 
+![The tray menu](screenshots/tray-menu.png)
+
 Every entry has an icon from your desktop's icon theme (so it matches the rest of your desktop). **Scan history…** shows the shield of the last scan result instead.
 
 ```

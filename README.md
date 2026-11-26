@@ -42,7 +42,7 @@ Note: the scanners are third-party code that is downloaded from GitHub and run a
 | **Tray menu**<br>![Tray menu](docs/screenshots/tray-menu.png) | **Notification**<br>![Notification when something is found](docs/screenshots/notification.png) |
 | **Findings window**<br>![Findings window](docs/screenshots/findings.png) | **With details**<br>![Findings window with details](docs/screenshots/findings-details.png) |
 
-_Screenshots show version 0.0.6; newer versions differ in details: per-entry Open files / Ignore buttons, a shorter tray menu (no version or last-result lines), left click opens the scan history, and per-status icons in the history and the tray._
+_The tray menu and the findings window show made-up example data (KDE Breeze Dark, without window title bars); the notification is from an earlier version and looks like your desktop's notifications._
 
 ## Install (CachyOS / Arch)
 

@@ -112,5 +112,9 @@ the files, accept an entry or remove the package.
 ## 🔄 What was updated
 
 The text of an entry has an `--- update ---` section above the tool output. It says whether the scanner program and its
-data were updated before that scan, and if not, why (offline, build failed, updates switched off). Details:
+data were updated before that scan, and if not, why (offline, build failed, updates switched off). With
+[`aur_scan_fetch_missing`](settings.md#aur-scanners) it also has one or more lines `missing package <name>: …` for every
+package that no helper cache holds: whether its AUR repository was downloaded or only checked, which commit and version
+was taken, whether the sources were downloaded and unpacked (with duration and size) or reused, why something failed, and
+when a copy is deleted. Details:
 [Scanner lifecycle](scanner-lifecycle.md#-5-what-ends-up-in-the-history).

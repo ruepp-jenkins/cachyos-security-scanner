@@ -593,11 +593,15 @@ class FetchMissingTest(unittest.TestCase):
         self.assertEqual(scans, [False, True])  # repository files first, then the unpacked tree
         # what the repository files showed stays, whatever happened in the work folder afterwards
         self.assertEqual([f["code"] for f in r.findings], ["A-1", "B-1"])
+        log = "\n".join(r.log)
+        for expected in ("downloaded from file:", "version 1.0-1 (the installed one)", "downloaded and unpacked"):
+            self.assertIn(expected, log)
         again = fetch_missing.prepare("demo", "1.0-1", scan, lambda f, v: False)
+        self.assertIn("nothing downloaded again", "\n".join(again.log))
         self.assertEqual((len(self.unpacked), [f["code"] for f in again.findings]), (1, ["A-1", "B-1"]))
         newer = fetch_missing.prepare("demo", "9.9-1", scan, lambda f, v: False)  # not in the history: newest
         self.assertEqual((newer.version, newer.installed_match, len(self.unpacked)), ("2.0-1", False, 2))
-        fetch_missing.clean_up(set())
+        self.assertEqual(fetch_missing.clean_up(set()), ["demo"])
         self.assertFalse(newer.directory.exists())
 
     def test_a_critical_finding_or_an_unreadable_scan_stops_before_makepkg(self):
@@ -668,6 +672,13 @@ class FetchMissingTest(unittest.TestCase):
         accepted = scan(["X-1", "Y-1"], aur_scan_fetch_missing=True)  # accepted: unpacking allowed
         self.assertEqual((accepted.status, len(self.unpacked)), ("clean", 1))
         self.assertIn("fetched and unpacked", accepted.notes[0])
+        scanner = AurScan(["X-1", "Y-1"], settings=Settings(aur_scan_fetch_missing=True))
+        with mock.patch("cachy_sec.scanners.aur_scan.run", side_effect=fake_run), \
+                mock.patch.object(AurScan, "_binary", return_value="aur-scan"), \
+                mock.patch("cachy_sec.ignores.installed_versions", return_value={"demo": "1.0-1"}), \
+                mock.patch("cachy_sec.ignores.load", return_value=[]):
+            scanner.scan()
+        self.assertTrue(any(line.startswith("missing package demo: ") for line in scanner.update_lines()))
 
     def test_rescan_findings_are_not_hidden_by_rules_for_another_version(self):
         out = "Fetching: demo ISSUES: 1 critical \n    X-1 Bad - /tmp/x/PKGBUILD\n"

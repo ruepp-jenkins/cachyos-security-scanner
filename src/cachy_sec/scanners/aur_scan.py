@@ -416,10 +416,17 @@ class AurScan(Scanner):
                 return any(f["severity"] == "critical" and blocked(name, version, f["code"]) for f in findings)
 
             try:
-                prepared.append(fetch_missing.prepare(name, installed.get(name, ""), scan, blocks))
+                p = fetch_missing.prepare(name, installed.get(name, ""), scan, blocks)
             except Exception as e:  # noqa: BLE001 - one package must not stop the others
-                prepared.append(fetch_missing.Prepared(name, problem=f"{type(e).__name__}: {e}"[:200]))
+                p = fetch_missing.Prepared(name, problem=f"{type(e).__name__}: {e}"[:200])
+            for line in p.log + ([f"result: {p.problem}"] if p.problem and p.problem not in p.log else []):
+                self.log_update(f"missing package {name}: {line}")
+            prepared.append(p)
         return prepared
+
+    def _clean_up_fetched(self, keep: set[str]) -> None:
+        for name in fetch_missing.clean_up(keep):
+            self.log_update(f"fetched copy of {name} deleted (no longer needed)")
 
     def _coverage_notes(self, missing: list[str], prepared: list[fetch_missing.Prepared]) -> list[str]:
         """What was and was not looked at."""
@@ -462,7 +469,7 @@ class AurScan(Scanner):
         missing = skipped(out)
         fetch = self._settings.aur_scan_fetch_missing
         if fetch_missing.root().is_dir() and not (fetch and missing):
-            fetch_missing.clean_up(set())  # switched off, or every package is in a helper cache now
+            self._clean_up_fetched(set())  # switched off, or every package is in a helper cache now
         if code == 0 and not (fetch and missing):
             return ScanResult(self.name, CLEAN, log=out, notes=self._coverage_notes(missing, []))
         if self._use_fp and not self._fp_checked:
@@ -478,7 +485,7 @@ class AurScan(Scanner):
 
             prepared = self._fetch_missing(binary, missing, installed, options, blocked)
         if fetch and missing:  # drop copies of removed packages or ones a helper now caches
-            fetch_missing.clean_up({fetch_missing.package_base(n, installed.get(n, "")) for n in missing})
+            self._clean_up_fetched({fetch_missing.package_base(n, installed.get(n, "")) for n in missing})
         checked = [p for p in prepared if p.directory]
         if checked:
             out += "\n\n--- packages without a helper cache, fetched by the app ---\n" + "\n".join(

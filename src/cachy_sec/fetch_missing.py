@@ -21,6 +21,7 @@ import re
 import shutil
 import tarfile
 import tempfile
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -49,6 +50,7 @@ class Prepared:
     unpacked: bool = False
     findings: list[dict] = field(default_factory=list)
     problem: str = ""  # why the package was not checked (no directory) or only partly (directory set)
+    log: list[str] = field(default_factory=list)  # what was downloaded, reused or unpacked, for the scan history
 
 
 def root() -> Path:
@@ -150,6 +152,17 @@ def _unpack(work: Path) -> tuple[bool, str]:
     return False, problem
 
 
+def _size(directory: Path) -> str:
+    total = 0
+    for folder, _, files in os.walk(directory):
+        for name in files:
+            try:
+                total += os.lstat(os.path.join(folder, name)).st_size
+            except OSError:
+                pass
+    return f"{total / 1_000_000:.1f} MB"
+
+
 def _unique(findings: list[dict]) -> list[dict]:
     seen: dict[tuple, dict] = {}
     for f in findings:
@@ -170,12 +183,21 @@ def prepare(package: str, installed: str, scan: Callable[[Path], list[dict] | No
         result.problem = "unusual package name"
         return result
     repo, work, state_file = root() / "repo" / base, root() / "work" / base, root() / "state" / f"{base}.json"
+    known = (repo / ".git").is_dir()
     offline = _update_repo(base, repo)
+    if offline:
+        result.log.append(f"AUR repository {base}: " + (f"could not be updated, the stored copy is used ({offline})" if known
+                                                         else f"download FAILED ({offline})"))
+    else:
+        result.log.append(f"AUR repository {base}: " + ("checked for changes" if known
+                                                         else f"downloaded from {AUR_URL.format(base)}"))
     commit, version, matches = pick_commit(repo, installed) if (repo / ".git").is_dir() else ("", "", False)
     if not commit:
         result.problem = offline or "not found in the AUR"
         return result
     result.version, result.installed_match = version, matches
+    result.log.append(f"commit {commit[:7]}, version {version or 'unknown'}"
+                      + (" (the installed one)" if matches else f" (installed {installed or 'unknown'} not in the history)"))
     try:
         state = json.loads(state_file.read_text())
     except (OSError, ValueError):
@@ -185,7 +207,10 @@ def prepare(package: str, installed: str, scan: Callable[[Path], list[dict] | No
         error = _export(repo, commit, work)
         if error:
             result.problem = error
+            result.log.append(f"files could not be copied: {error}")
             return result
+    else:
+        result.log.append("files unchanged, the stored copy is reused")
     first = state.get("repository_findings")
     if first is None:  # never unpacked yet: look at the repository files before makepkg runs anything
         first = scan(work)
@@ -197,12 +222,18 @@ def prepare(package: str, installed: str, scan: Callable[[Path], list[dict] | No
         if blocks(first, version):
             result.problem = "sources not unpacked because of a critical finding in the repository files"
             return result
+        started = time.monotonic()
         unpacked, result.problem = _unpack(work)
         if not unpacked:
+            result.log.append(f"{result.problem}")
             return result
+        result.log.append(f"sources downloaded and unpacked in {time.monotonic() - started:.0f} s (sandboxed makepkg), "
+                          f"{_size(work)} in {work}")
         state = {"commit": commit, "unpacked": True, "repository_findings": first, "note": result.problem}
         state_file.parent.mkdir(parents=True, exist_ok=True)
         state_file.write_text(json.dumps(state))
+    else:
+        result.log.append("sources already unpacked, nothing downloaded again")
     result.unpacked = True
     result.problem = state.get("note", "")
     after = scan(work)
@@ -213,19 +244,24 @@ def prepare(package: str, installed: str, scan: Callable[[Path], list[dict] | No
     return result
 
 
-def clean_up(keep: set[str]) -> None:
-    """Remove copies that are no longer needed (package removed, or now in a helper cache). `keep`: base names."""
+def clean_up(keep: set[str]) -> list[str]:
+    """Remove copies that are no longer needed (package removed, or now in a helper cache). `keep`: base names.
+    Returns the names whose copies were deleted."""
+    removed: set[str] = set()
     for kind in ("repo", "work", "state"):
         folder = root() / kind
         if not folder.is_dir():
             continue
         for entry in folder.iterdir():
-            if (entry.stem if kind == "state" else entry.name) in keep:
+            name = entry.stem if kind == "state" else entry.name
+            if name in keep:
                 continue
+            removed.add(name)
             if entry.is_dir() and not entry.is_symlink():
                 shutil.rmtree(entry, ignore_errors=True)
             else:
                 entry.unlink(missing_ok=True)
+    return sorted(removed)
 
 
 def synthetic_block(p: Prepared, fail_on: str, order: tuple[str, ...]) -> str:

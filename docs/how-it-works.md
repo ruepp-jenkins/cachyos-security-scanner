@@ -110,6 +110,7 @@ No shell is ever used (`shell=False`, argument lists); paths are passed as singl
 | `clamdscan --version` | binary scan | engine and signature version for the log |
 | `python3.x -m aur_check --json` | package scan | `aur-malware-check` |
 | `aur-scan --no-color system --fail-on high` | package scan, `aur-scan` on | `aur-scan` |
+| `aur-scan --no-color scan <cache folder> --format json` | package with findings `system` only counts | name them |
 | `pacman -Qm` | package scan, blocklist | list AUR packages |
 | `yay -P -g` | at start, only if `yay` is installed | reads yay's configuration (the `keepSrc` option) for the [AUR helper hint](aur-helpers.md) |
 | `yay --keepsrc --save` | only when you click *Set up yay* in that hint | changes yay's configuration; no root |

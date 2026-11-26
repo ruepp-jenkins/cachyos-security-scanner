@@ -67,9 +67,12 @@ Check that the folder is writable and the disk is not full.
 
 ### "UNLISTED-HIGH" findings
 
-`aur-scan system` only counts *high* findings without saying which. Run `aur-scan check <package>` (for the app's own
-build: `~/.local/share/cachy-security-scanner/vendor/ks-aur-scanner/target/release/aur-scan check <package>`) to see
-them. **Ignore** works for this entry; the community false-positive list cannot hide it.
+`aur-scan system` only counts *high* findings; the app reads their rules and files with a second scan of the package's
+cache folder. `UNLISTED-HIGH` remains for what that scan does not show: usually the history check of `system` (a package
+gained risky behaviour since the last scan), or a package scanned with `--rescan`, which has no cache folder to read.
+Run `aur-scan check <package>` (for the app's own build:
+`~/.local/share/cachy-security-scanner/vendor/ks-aur-scanner/target/release/aur-scan check <package>`) to look at it.
+**Ignore** works for this entry; the community false-positive list cannot hide it.
 
 ### A harmless package is reported
 

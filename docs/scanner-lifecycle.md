@@ -183,14 +183,17 @@ nice -n 19 ionice -c 2 -n 7  aur-scan --no-color system --fail-on high
   | In the output | In the app |
   |---|---|
   | critical finding lines | findings with rule code and file |
-  | a count of *high* findings without lines | a finding `UNLISTED-HIGH` per package; details with `aur-scan check <package>` (not counted if the fail level is *critical*) |
+  | a count of *high* findings without lines | the app runs `aur-scan scan <cache folder> --format json` for that package and shows rule code and file (not counted if the fail level is *critical*) |
+  | a count higher than that scan explains | `UNLISTED-HIGH`: only `system` knows it (its history check, e.g. a package that gained risky behaviour), or the folder was not found (`--rescan`) |
   | `IOC ALERT` (installed name known to be malicious) | **critical** finding; no ignore rule or list hides it |
   | `Errors:` packages that could not be fetched or scanned | a note; **error** if there are no findings |
   | `Skipped:` packages without a PKGBUILD in a helper cache | a note naming them |
   | non-zero exit but nothing the app can attribute | one general warning |
 
-  With a fail level below *high*, upstream does not list all lower findings per package; the app then shows
-  `UNLISTED-LOWER` or the general warning.
+  With a fail level below *high*, upstream does not list all lower findings per package. For a package with neither
+  *critical* nor *high* findings the app reads them from the same JSON scan; otherwise it shows `UNLISTED-LOWER` or
+  the general warning. The folder is searched where `aur-scan system` looks (`--cache-dir`, then the caches of yay,
+  paru, aura, pakku, trizen, aurutils, pat-aur, pikaur and rua); `--config` from your extra arguments is passed on.
 
 - **Filtering of the parsed findings** (three mechanisms; only the community list is itemised in the log, with reason,
   author and date):

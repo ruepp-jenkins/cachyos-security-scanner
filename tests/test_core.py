@@ -220,6 +220,46 @@ class AdapterTest(unittest.TestCase):
         mixed = self._scan("Scanning: a ISSUES: 1 critical 3 high \n    DEEP-001 X - /c/a/PKGBUILD\n")
         self.assertEqual(mixed.findings[0].codes, ["UNLISTED-HIGH", "DEEP-001"])
 
+    def test_aur_scan_reads_the_high_findings_from_a_json_scan_of_the_cache(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            d = Path(tmp) / "paru" / "clone" / "a"
+            d.mkdir(parents=True)
+            (d / "PKGBUILD").write_text("")
+            (d / ".SRCINFO").write_text("pkgbase = a\n\tpkgver = 2\n\tpkgrel = 1\n")
+            finding = {"severity": "high", "id": "URL-001", "title": "Raw IP\nin URL",
+                       "location": {"file": str(d / "src" / "x.dll"), "line": 7}}
+            report = json.dumps({"findings": [finding, dict(finding, severity="low", id="META-001")]}, indent=2)
+            calls = []
+
+            def fake_run(cmd, *args, **kwargs):
+                calls.append(cmd)
+                if "scan" in cmd:
+                    return 0, report + "\n\n=====\nPackage: a v2-1\n"  # the summary arrives on stderr
+                return 1, "Scanning: a ISSUES: 2 high \n"
+
+            def scan(**settings):
+                with mock.patch.dict(os.environ, {"XDG_CACHE_HOME": tmp}), \
+                        mock.patch("cachy_sec.scanners.aur_scan.run", side_effect=fake_run), \
+                        mock.patch.object(AurScan, "_binary", return_value="aur-scan"), \
+                        mock.patch("cachy_sec.ignores.installed_versions", return_value={}), \
+                        mock.patch("cachy_sec.ignores.load", return_value=[]):
+                    return AurScan(settings=Settings(**settings)).scan()
+
+            r = scan()
+            self.assertIn(["aur-scan", "--no-color", "scan", str(d), "--format", "json"], calls)
+            f = r.findings[0]
+            self.assertEqual(f.codes, ["URL-001", "UNLISTED-HIGH"])  # one of the two is only counted by "system"
+            self.assertEqual((f.version, f.files), ("2-1", [str(d / "src" / "x.dll")]))
+            self.assertIn("Raw IP in URL", f.title)
+            self.assertIn("x.dll:7", r.log)
+            self.assertNotIn("META-001", r.log + f.detail)
+            ignored = scan(aur_scan_extra_args="--config /etc/x.toml")
+            self.assertIn(["aur-scan", "--no-color", "--config", "/etc/x.toml", "scan", str(d), "--format", "json"],
+                          calls)
+            self.assertEqual(ignored.status, "warning")
+            report = "error: broken"  # unreadable: the count must stay visible
+            self.assertEqual(scan().findings[0].codes, ["UNLISTED-HIGH"])
+
     def test_aur_scan_rule_ids_without_digits_are_kept(self):
         r = self._scan("Scanning: a ISSUES: 2 critical \n    EXEC-REMOTE Runs remote code - /c/a/x.install\n"
                        "    TI-UNCHECKED-001 Not checked - /c/a/PKGBUILD\n")

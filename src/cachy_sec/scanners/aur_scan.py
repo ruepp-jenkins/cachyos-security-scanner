@@ -1,11 +1,14 @@
 """Adapter for KiefStudioMA/ks-aur-scanner (`aur-scan`, AUR package `aur-scanner`).
 
 `aur-scan system --fail-on <level>` audits installed AUR packages and exits non-zero when findings
-reach that level. The exact non-zero codes are not documented, so any non-zero code with
+reach that level. It names only the critical findings; the others are read with `aur-scan scan <dir>
+--format json` from the same helper cache directory. The exact non-zero codes are not documented, so any non-zero code with
 recognisable scan output is treated as "findings"; 126/127/124 are treated as errors.
 """
 from __future__ import annotations
 
+import json
+import os
 import re
 import shlex
 import shutil
@@ -29,6 +32,14 @@ UNLISTED_LOWER = "UNLISTED-LOWER"
 _BELOW_HIGH = ("medium", "low", "info")
 # rule ids are not all "ABC-001": there are e.g. EXEC-REMOTE and TI-UNCHECKED-001
 _ISSUE = re.compile(r"^\s{2,}([A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+)\s+(.+?)\s*$")
+_CODE = re.compile(r"[A-Z][A-Z0-9]*(?:-[A-Z0-9]+)+")
+_PKGNAME = re.compile(r"[a-z0-9@_+][a-z0-9@._+-]*")
+_SEVERITY_ORDER = ("critical", "high", "medium", "low", "info")
+# the same places in the same order as get_aur_cache_dirs() of `aur-scan system`
+_HELPER_DIRS = (("XDG_CACHE_HOME", ".cache", ("yay", "paru/clone", "aura/packages", "pakku", "trizen/sources",
+                                             "aurutils/sync", "pat-aur/pkgbuild/aur")),
+                ("XDG_DATA_HOME", ".local/share", ("pikaur/aur_repos",)),
+                ("XDG_CONFIG_HOME", ".config", ("rua/pkg",)))
 
 
 def is_ignored(pkg: str, code: str, ignore: set[str]) -> bool:
@@ -52,6 +63,61 @@ def scanned_dirs(out: str) -> dict[str, Path]:
 
 def recognized(out: str) -> bool:
     return any(ln.startswith(_PREFIXES) for ln in out.splitlines())
+
+
+def _option_values(options: list[str], *names: str) -> list[str]:
+    values = []
+    for i, token in enumerate(options):
+        if token in names and i + 1 < len(options):
+            values.append(options[i + 1])
+        else:
+            values += [token.split("=", 1)[1] for n in names if n.startswith("--") and token.startswith(n + "=")]
+    return values
+
+
+def find_pkg_dir(pkg: str, options: list[str]) -> Path | None:
+    """The directory `aur-scan system` scanned for `pkg`: the first helper cache that has its PKGBUILD."""
+    if not _PKGNAME.fullmatch(pkg):
+        return None
+    roots = [Path(v) for v in _option_values(options, "--cache-dir")]
+    for variable, default, subdirs in _HELPER_DIRS:
+        value = os.environ.get(variable, "")
+        base = Path(value) if value.startswith("/") else Path.home() / default
+        roots += [base / sub for sub in subdirs]
+    return next((r / pkg for r in roots if (r / pkg / "PKGBUILD").exists()), None)
+
+
+def parse_json_findings(text: str) -> list[dict] | None:
+    """Findings of `aur-scan scan --format json` as {severity, code, title, path, line}; None if unreadable."""
+    start = 0 if text.startswith("{") else text.find("\n{") + 1
+    try:
+        data, _ = json.JSONDecoder().raw_decode(text, start)
+        result = []
+        for f in data["findings"]:
+            code = str(f["id"])
+            location = f.get("location") or {}
+            path = str(location.get("file") or "")
+            title = "".join(c for c in " ".join(str(f.get("title", "")).split()) if c.isprintable())[:200]
+            if _CODE.fullmatch(code):
+                result.append({"severity": str(f["severity"]).lower(), "code": code, "title": title,
+                               "path": path if path.startswith("/") and path.isprintable() else "",
+                               "line": location.get("line")})
+    except (ValueError, KeyError, TypeError, AttributeError):
+        return None
+    return result
+
+
+def unlisted_packages(out: str, fail_on: str) -> list[str]:
+    """Cached packages with findings that count for `fail_on` but have no detail line in the `system` output."""
+    wanted = []
+    for line in out.splitlines():
+        m = _HEADER.match(line)
+        if not m or not line.startswith("Scanning:") or fail_on == "critical":  # "Fetching:": not from the cache
+            continue
+        counts = m.group(2)
+        if _HIGH_COUNT.search(counts) or (fail_on in _BELOW_HIGH and "critical" not in counts):
+            wanted.append(m.group(1))
+    return wanted
 
 
 def ioc_hits(out: str) -> list[tuple[str, str]]:
@@ -101,7 +167,8 @@ def _short(items: list[str], n: int = 10) -> str:
 
 def parse_output(out: str, label: str, ignore: frozenset[str] | set[str] = frozenset(),
                  suppress: Callable[[str, str], bool] | None = None,
-                 versions: dict[str, str] | None = None, fail_on: str = "high") -> list[Finding]:
+                 versions: dict[str, str] | None = None, fail_on: str = "high",
+                 details: dict[str, list[dict]] | None = None) -> list[Finding]:
     """One finding per package that `aur-scan system` reports issues for.
 
     Output format (seen in practice):
@@ -109,7 +176,8 @@ def parse_output(out: str, label: str, ignore: frozenset[str] | set[str] = froze
             CODE-001 Title - /path/to/file
     The trailing summary block ("Severity: 11 critical ...") is deliberately not a finding.
     aur-scan lists only critical findings. High ones (and, if `fail_on` is lower than "high", a package whose
-    header counts neither) become UNLISTED-* issues so that they are never taken for "clean".
+    header counts neither) are taken from `details` (package -> parse_json_findings()). Whatever the header
+    counts beyond that becomes an UNLISTED-* issue so that it is never taken for "clean".
 
     Issues matching `ignore` (code, package or package:CODE) or `suppress(package, code)` (per-version ignores)
     are dropped; a package without remaining issues produces no finding.
@@ -151,11 +219,18 @@ def parse_output(out: str, label: str, ignore: frozenset[str] | set[str] = froze
             flush()
             pkg, counts, issues = m.group(1), m.group(2), []
             high = _HIGH_COUNT.search(counts)
+            known = (details or {}).get(pkg, [])
             if high and fail_on != "critical":
-                title = "high-severity finding, not listed by aur-scan system (see: aur-scan check)"
-                issues = [(UNLISTED_HIGH, title, "")] * int(high.group(1))
+                found = [d for d in known if d["severity"] == "high"]
+                missing = int(high.group(1)) - len(found)
+                issues = [(d["code"], d["title"], d["path"]) for d in found]
+                title = "high-severity finding without details (known only to aur-scan system, e.g. its history check)"
+                issues += [(UNLISTED_HIGH, title, "")] * max(missing, 0)
             elif fail_on in _BELOW_HIGH and "critical" not in counts and not high:
-                issues = [(UNLISTED_LOWER, "findings below high, not listed by aur-scan system (see: aur-scan check)", "")]
+                levels = _SEVERITY_ORDER[2:_SEVERITY_ORDER.index(fail_on) + 1]
+                issues = [(d["code"], d["title"], d["path"]) for d in known if d["severity"] in levels]
+                if not issues:
+                    issues = [(UNLISTED_LOWER, "findings below high, not listed by aur-scan system", "")]
             continue
         if line.startswith(_PREFIXES):  # "Scanning: pkg OK": a clean package ends the previous block
             flush()
@@ -299,6 +374,17 @@ class AurScan(Scanner):
         if self._use_fp:
             self.log_update("community false-positive list: " + signedlist.state_line(fplist.SPEC, fplist.load()))
 
+    def _read_details(self, binary: str, dirs: dict[str, Path], options: list[str]) -> dict[str, list[dict]]:
+        """Run `aur-scan scan` on the given package directories to learn which findings are behind the counts."""
+        extra = [a for v in _option_values(options, "-c", "--config") for a in ("--config", v)]
+        details = {}
+        for pkg, d in dirs.items():
+            _, out = run([binary, "--no-color", *extra, "scan", str(d), "--format", "json"], 600, low_priority=True)
+            found = parse_json_findings(out)
+            if found is not None:
+                details[pkg] = found
+        return details
+
     def scan(self) -> ScanResult:
         if self._binary() is None and not self._prepared:
             self.update()
@@ -331,6 +417,15 @@ class AurScan(Scanner):
             v = ignores.srcinfo_version(d)
             if v:
                 versions[pkg] = v
+        fail_on = self._settings.aur_scan_fail_on
+        with_issues = sorted({m.group(1) for m in map(_HEADER.match, out.splitlines()) if m})
+        pkg_dirs = {p: d for p in with_issues if (d := find_pkg_dir(p, options))}
+        for pkg, d in pkg_dirs.items():
+            v = ignores.srcinfo_version(d)
+            if v:
+                versions[pkg] = v
+        details = self._read_details(binary, {p: pkg_dirs[p] for p in unlisted_packages(out, fail_on) if p in pkg_dirs},
+                                     options)
         user = ignores.matcher(versions)
         entries = fplist.load() if self._use_fp else []
         hits: dict[str, str] = {}
@@ -343,8 +438,7 @@ class AurScan(Scanner):
                 hits[f"{pkg} {versions.get(pkg)} {rule}"] = f"{e.reason} (reported by {e.author}, {e.reported})"
             return e is not None
 
-        fail_on = self._settings.aur_scan_fail_on
-        findings = parse_output(out, self.label, self._ignore, suppress, versions, fail_on)
+        findings = parse_output(out, self.label, self._ignore, suppress, versions, fail_on, details)
         listed = bool(parse_output(out, self.label, fail_on=fail_on))  # anything reported at all, before ignoring
         # known-malicious names are never hidden by an ignore list
         iocs = ioc_hits(out)
@@ -360,6 +454,12 @@ class AurScan(Scanner):
                     + "scanned PKGBUILD version / installed version: "
                     + (", ".join(f"{p} {versions.get(p, '?')} / {installed.get(p, 'not installed')}" for p in reported) or "-")
                     + "\n")
+        if details:
+            shown = _SEVERITY_ORDER[1:_SEVERITY_ORDER.index(fail_on) + 1]
+            out += "\n\n--- findings not listed by aur-scan system (from aur-scan scan --format json) ---\n" + "\n".join(
+                f"{p}: [{d['severity']}] {d['code']} {d['title']}"
+                + (f" - {d['path']}" + (f":{d['line']}" if d['line'] else "") if d['path'] else "")
+                for p, found in details.items() for d in found if d["severity"] in shown) + "\n"
         if hits:  # transparency: show what the community list hid
             out += "\n\n--- hidden by the community false-positive list ---\n" + "\n".join(
                 f"{k}: {v}" for k, v in hits.items()) + "\n"

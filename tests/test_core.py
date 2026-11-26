@@ -4,6 +4,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -798,30 +799,54 @@ class ListRefreshPolicyTest(unittest.TestCase):
         self.assertEqual(out["community blocklist"], (True, "updated"))
         self.assertEqual(out["false-positive list"], (False, "boom"))
 
-    def test_scans_do_not_download_when_a_list_is_cached(self):
+    def test_scans_ask_for_a_current_list_and_keep_working_offline(self):
         from cachy_sec.scanners.blocklist import CommunityBlocklist
         loaded = signedlist.Loaded([], "", 0.0)
         with mock.patch("cachy_sec.blocklist.load", return_value=loaded), \
-             mock.patch("cachy_sec.blocklist.refresh") as refresh, \
+             mock.patch("cachy_sec.blocklist.refresh", return_value=(False, "offline")) as refresh, \
              mock.patch("cachy_sec.scanners.blocklist.installed_versions", return_value={}):
-            self.assertEqual(CommunityBlocklist().scan().status, CLEAN)
-        refresh.assert_not_called()
-        # nothing cached yet: one fetch attempt, and a clear error if it fails
-        with mock.patch("cachy_sec.blocklist.load", return_value=None), \
-             mock.patch("cachy_sec.blocklist.refresh", return_value=(False, "HTTP Error 404")) as refresh:
             r = CommunityBlocklist().scan()
-        refresh.assert_called_once()
-        self.assertEqual(r.status, "error")
-
-    def test_aur_scan_does_not_download_when_cached_but_fetches_when_missing(self):
-        entries = []
-        with mock.patch("cachy_sec.fplist.load", return_value=[object()]), mock.patch("cachy_sec.fplist.refresh") as refresh:
+        refresh.assert_called_once_with(max_age=signedlist.SCAN_MAX_AGE_S)
+        self.assertEqual(r.status, CLEAN)  # the verified copy is still used
+        self.assertIn("offline", r.log)
+        with mock.patch("cachy_sec.blocklist.load", return_value=None), \
+             mock.patch("cachy_sec.blocklist.refresh", return_value=(False, "HTTP Error 404")):
+            self.assertEqual(CommunityBlocklist().scan().status, "error")
+        with mock.patch("cachy_sec.fplist.refresh", return_value=(True, "updated")) as refresh:
             AurScan(use_fp_list=True)._refresh_fp()
+            refresh.assert_called_once_with(max_age=signedlist.SCAN_MAX_AGE_S)
+            refresh.reset_mock()
+            AurScan(use_fp_list=False)._refresh_fp()
         refresh.assert_not_called()
-        with mock.patch("cachy_sec.fplist.load", return_value=entries), \
-             mock.patch("cachy_sec.fplist.refresh", return_value=(True, "updated")) as refresh:
-            AurScan(use_fp_list=True)._refresh_fp()
-        refresh.assert_called_once()
+
+    def test_when_a_list_is_downloaded_again(self):
+        from cachy_sec import fplist
+        with tempfile.TemporaryDirectory() as d, mock.patch.dict(os.environ, {"XDG_CACHE_HOME": d}), \
+                mock.patch.object(updater, "_get", side_effect=updater.UpdateError("offline")) as get:
+            cached = signedlist.paths(fplist.SPEC)[0]
+            cached.parent.mkdir(parents=True)
+            cached.write_text("{}")
+
+            def downloads(age_s, **kwargs):
+                then = time.time() - age_s
+                os.utime(cached, (then, then))
+                get.reset_mock()
+                signedlist._failed_marker(fplist.SPEC).unlink(missing_ok=True)
+                fplist.refresh(**kwargs)
+                return get.called
+
+            self.assertFalse(downloads(50 * 60))  # periodic check: hourly
+            self.assertTrue(downloads(60 * 60))
+            self.assertFalse(downloads(60, max_age=signedlist.SCAN_MAX_AGE_S))  # scans: 5 minutes
+            self.assertTrue(downloads(6 * 60, max_age=signedlist.SCAN_MAX_AGE_S))
+            self.assertTrue(downloads(0, force=True))  # at start and on the button
+            self.assertTrue(downloads(-3600))  # a file from the "future" (clock changed) is not fresh
+            get.reset_mock()  # the failure above: the periodic check waits, a scan tries anyway
+            os.utime(cached, (0, 0))
+            fplist.refresh()
+            self.assertFalse(get.called)
+            fplist.refresh(max_age=signedlist.SCAN_MAX_AGE_S)
+            self.assertTrue(get.called)
 
     def test_engine_refresh_lists_follows_the_settings(self):
         with mock.patch("cachy_sec.blocklist.refresh", return_value=(True, "updated")) as bl, \

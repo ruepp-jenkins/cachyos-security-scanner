@@ -13,6 +13,7 @@ import json
 import os
 import re
 import sys
+import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -21,8 +22,10 @@ from pathlib import Path
 from . import updater
 
 RELEASE_TAG = "lists"  # rolling release that carries the lists
-STALE_AFTER_S = 6 * 3600
-RETRY_AFTER_FAILURE_S = 15 * 60  # do not hammer GitHub while a list cannot be fetched
+STALE_AFTER_S = 55 * 60  # periodic check: hourly (a little less, so an hourly tick never just misses it)
+SCAN_MAX_AGE_S = 5 * 60  # a scan only uses a list that was downloaded this recently, if it can get a new one
+RETRY_AFTER_FAILURE_S = 5 * 60  # do not hammer GitHub while a list cannot be fetched
+_LOCK = threading.Lock()  # a scan and the periodic check must not write the same list at once
 _PUBLISHED = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
 
 
@@ -73,18 +76,28 @@ def _age(p: Path) -> float | None:
         return None
 
 
-def is_fresh(spec: Spec) -> bool:
+def is_fresh(spec: Spec, max_age: float = STALE_AFTER_S) -> bool:
     age = _age(paths(spec)[0])
-    return age is not None and age < STALE_AFTER_S
+    return age is not None and 0 <= age < max_age
 
 
-def refresh(spec: Spec, force: bool = False, pubkey: str | None = None) -> tuple[bool, str]:
-    """Download list + signature, verify, validate, store. The cache is only ever replaced by a verified list."""
+def refresh(spec: Spec, force: bool = False, pubkey: str | None = None,
+            max_age: float | None = None) -> tuple[bool, str]:
+    """Download list + signature, verify, validate, store. The cache is only ever replaced by a verified list.
+
+    `force` always downloads. `max_age` (scans) downloads when the copy is older, even right after a failed attempt.
+    Otherwise (periodic check) the copy may be STALE_AFTER_S old and a failure is not retried immediately.
+    """
+    with _LOCK:
+        return _refresh(spec, force, pubkey, max_age)
+
+
+def _refresh(spec: Spec, force: bool, pubkey: str | None, max_age: float | None) -> tuple[bool, str]:
     if not force:
-        if is_fresh(spec):
+        if is_fresh(spec, STALE_AFTER_S if max_age is None else max_age):
             return True, "cache is fresh"
         failed = _age(_failed_marker(spec))
-        if failed is not None and failed < RETRY_AFTER_FAILURE_S:
+        if max_age is None and failed is not None and failed < RETRY_AFTER_FAILURE_S:
             return False, "the last download failed a moment ago; trying again later"
     try:
         data = updater._get(url(spec.name), spec.max_bytes)
@@ -130,7 +143,7 @@ def describe(loaded: Loaded | None, noun: str = "entry", plural: str = "entries"
     if loaded is None:
         if error:
             return f"not available: the last download failed ({error})"
-        return "not downloaded yet (fetched at start and then every few hours)"
+        return "not downloaded yet (fetched at start, hourly and before scans)"
     n = len(loaded.entries)
     if loaded.published:
         when = loaded.published[:10] + " " + loaded.published[11:16] + " UTC"

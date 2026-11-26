@@ -326,10 +326,10 @@ class AurScan(Scanner):
         return code == 0, out
 
     def _refresh_fp(self) -> None:
-        """Fetch the list only if there is no verified copy yet; regular refreshes happen at start and periodically."""
+        """Make sure the list is current before it is used; if it cannot be downloaded, the verified copy stays."""
         self._fp_checked = True
-        if self._use_fp and not fplist.load():
-            ok, msg = fplist.refresh()
+        if self._use_fp:
+            ok, msg = fplist.refresh(max_age=signedlist.SCAN_MAX_AGE_S)
             self._fp_status = msg if ok else f"download/verification failed ({msg})"
 
     def update(self) -> None:

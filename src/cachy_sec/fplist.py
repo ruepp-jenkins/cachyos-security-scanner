@@ -100,8 +100,8 @@ def is_fresh() -> bool:
     return signedlist.is_fresh(SPEC)
 
 
-def refresh(force: bool = False, pubkey: str | None = None) -> tuple[bool, str]:
-    return signedlist.refresh(SPEC, force, pubkey)
+def refresh(force: bool = False, pubkey: str | None = None, max_age: float | None = None) -> tuple[bool, str]:
+    return signedlist.refresh(SPEC, force, pubkey, max_age)
 
 
 def load(pubkey: str | None = None) -> list[Entry]:

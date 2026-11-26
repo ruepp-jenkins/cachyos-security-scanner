@@ -61,7 +61,8 @@ Each entry records **who** reported it, **when**, **why**, and an optional descr
 
 ### When they are downloaded
 
-At app start, then re-checked hourly and downloaded again when older than 6 hours – **never per scan**. The settings
+Always at app start, then hourly, and before a scan if the copy is older than 5 minutes
+([details](settings.md#community-lists)). The settings
 dialog shows the status of each list and the reason if a download failed, and its *Refresh lists* button downloads both lists at once.
 
 ### 📣 Reporting a false positive or a malicious package

@@ -24,6 +24,7 @@ from .settings_dialog import SettingsDialog
 
 TRIGGER = Path("/var/lib/cachy-security-scanner/trigger")  # touched by the pacman hook
 RESTART_POLL_MS = 5_000
+LISTS_POLL_MS = 10 * 60_000  # how often the age of the community lists is checked
 
 
 class _Job(QRunnable):
@@ -74,12 +75,12 @@ class _BinaryDone(QObject):
 
 
 class _ListsJob(QRunnable):
-    def __init__(self, settings, then_scan: bool, sig) -> None:
+    def __init__(self, settings, then_scan: bool, sig, force: bool = False) -> None:
         super().__init__()
-        self.settings, self.then_scan, self.sig = settings, then_scan, sig
+        self.settings, self.then_scan, self.sig, self.force = settings, then_scan, sig, force
 
     def run(self) -> None:
-        engine.refresh_lists(self.settings)
+        engine.refresh_lists(self.settings, self.force)
         self.sig.done.emit(self.then_scan)
 
 
@@ -191,15 +192,16 @@ class Tray(QObject):
         QTimer.singleShot((self.settings.startup_delay_minutes + 5) * 60_000, self._binary_poll)  # not before the start scans
         self._apply_settings()
         autostart.apply(self.settings.autostart)
-        # Community lists: downloaded at start (the startup scan waits for them), then re-checked hourly and
-        # re-downloaded when older than signedlist.STALE_AFTER_S. Scans themselves never trigger a download.
+        # Community lists: always downloaded at start (the startup scan waits for them) and again once they are older
+        # than signedlist.STALE_AFTER_S; scans check them too. The timer ticks more often than that because Qt timers
+        # stand still while the machine sleeps, and so a failed download is retried soon.
         self.lists_sig = _ListsSignal()
         self.lists_sig.done.connect(self._lists_done)
         self.lists_timer = QTimer(self)
         self.lists_timer.timeout.connect(lambda: self.refresh_lists(False))
-        self.lists_timer.start(3600 * 1000)
+        self.lists_timer.start(LISTS_POLL_MS)
         QTimer.singleShot(3000, lambda: self.refresh_lists(scheduler.scan_at_startup(self.settings)
-                                                           or scheduler.binary_at_startup(self.settings)))
+                                                           or scheduler.binary_at_startup(self.settings), force=True))
 
     def _reload_settings(self) -> None:
         """The saved file is the source of truth (another instance or an earlier run may have changed it),
@@ -209,8 +211,8 @@ class Tray(QObject):
             if fresh is not None:
                 self.settings = fresh
 
-    def refresh_lists(self, then_scan: bool = False) -> None:
-        self.pool.start(_ListsJob(self.settings, then_scan, self.lists_sig))
+    def refresh_lists(self, then_scan: bool = False, force: bool = False) -> None:
+        self.pool.start(_ListsJob(self.settings, then_scan, self.lists_sig, force))
 
     def _lists_done(self, then_scan: bool) -> None:
         if then_scan:  # the lists are fresh now; give the desktop a moment to finish starting before the load begins

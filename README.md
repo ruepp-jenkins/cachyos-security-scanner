@@ -29,7 +29,7 @@ You do not install the AUR scanners yourself; the app does it, in your home fold
 | **Before every scan** | `git pull --ff-only` on aur-malware-check; aur-scan is switched to its newest stable release (setting *Update scanner sources before each scan*) and rebuilt only when that changed. |
 | **Broken checkout** | detected with `git fsck`, deleted and cloned again automatically. |
 | **Cannot be set up** | (no `git`, no Rust, Python too old, no network) the scan shows an **error** in the history and a ❌ tray icon. It never reports "clean" for a scanner that did not run. |
-| **Community lists** | downloaded as signed files from this repository's releases at start, then hourly checked; verified before use. |
+| **Community lists** | downloaded as signed files from this repository's releases at start, hourly and before scans; verified before use. |
 
 Everything runs with low CPU/I/O priority. Details and the exact commands: **[Scanner lifecycle](docs/scanner-lifecycle.md)**; see also [Scanners and community lists](docs/scanners-and-lists.md), [Requirements](docs/setup-requirements.md), [How it works](docs/how-it-works.md).
 

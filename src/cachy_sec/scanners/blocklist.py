@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from .. import blocklist
-from ..signedlist import describe, state_line
+from ..signedlist import SCAN_MAX_AGE_S, describe, state_line
 from ..ignores import installed_versions
 from .base import CLEAN, CRITICAL, ERROR, Finding, Scanner, ScanResult
 
@@ -18,14 +18,13 @@ class CommunityBlocklist(Scanner):
         return True  # needs only network access (or a cached copy); a missing list is reported as an error in scan()
 
     def update(self) -> None:
-        pass  # downloaded at start and periodically (engine.refresh_lists); scan() fetches it if it is missing
+        pass  # scan() brings the list up to date; it is also downloaded at start and hourly (engine.refresh_lists)
 
     def scan(self) -> ScanResult:
+        # always check with a current list; if it cannot be downloaded, the last verified copy is used (and logged)
+        ok, msg = blocklist.refresh(max_age=SCAN_MAX_AGE_S)
+        self._status = msg if ok else f"download/verification failed ({msg})"
         loaded = blocklist.load()
-        if loaded is None:  # regular refreshes run at start and periodically; a scan only fetches when there is nothing yet
-            ok, msg = blocklist.refresh()
-            self._status = msg if ok else f"download/verification failed ({msg})"
-            loaded = blocklist.load()
         if loaded is None:
             return ScanResult(self.name, ERROR, [], f"community blocklist not available yet: {self._status}",
                               log=f"No verified blocklist in the cache.\n{self._status}")

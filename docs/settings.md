@@ -123,16 +123,27 @@ The grey line under each list in the dialog shows its state:
 | Text | Meaning |
 |---|---|
 | `available, from 2026-10-31 20:22 UTC, 1 entry` | A verified copy is cached. The date is when the list was **published** on GitHub; the number is how many entries it has. |
-| `not downloaded yet (fetched at start and then every few hours)` | No copy yet (first start, or no network so far). |
+| `not downloaded yet (fetched at start, hourly and before scans)` | No copy yet (first start, or no network so far). |
 | `not available: the last download failed (…)` | The last attempt failed; the reason is in the brackets (for example `HTTP Error 404` if the `lists` release does not exist, or `signature verification failed`). The previous verified copy, if any, keeps being used. |
 
 **Refresh lists:** the button in the *AUR scanners* box downloads both lists immediately (also when the
 cached copy is still fresh, and regardless of which lists are switched on), verifies them and updates the grey lines. The
 result of each list is shown next to the button. The download runs in the background; the dialog stays usable.
 
-**When lists are downloaded:** at app start (the start scan waits for it), then checked every hour and downloaded again
-when the cached copy is older than 6 hours, and right after you switch a list on. Scans do not download anything, except
-that a scan fetches a list once if none is cached at all. After a failed download the app waits 15 minutes before it tries again.
+**When lists are downloaded** (so that an enabled list is current):
+
+| When | Downloads if the cached copy is |
+|---|---|
+| at app start (the start scan waits for it) | always |
+| while the app runs (checked every 10 minutes, so also soon after standby) | older than about an hour |
+| before a scan uses the list | older than 5 minutes |
+| you press *Refresh lists* | always |
+| you switch a list on | older than about an hour |
+
+If a download fails (offline, for example), the last verified copy keeps being used; the scan history says so and when
+that copy was downloaded. The app tries again after 5 minutes at the earliest, and before the next scan. A download is
+about 10 KB per list. A new entry can only arrive after it was **published**, which happens when it is pushed to the
+project.
 
 ## Ignoring findings
 
@@ -210,6 +221,6 @@ Only one instance of the app runs per login session; starting it again just says
 - **Check after every install, nothing else:** *Scan after package installs/updates* on, the other two off.
 - **Get fewer false positives from aur-scan:** keep the community false-positive list on, accept single entries with **Ignore**, and
   add rule codes you never want to see to *findings to ignore*.
-- **Slow or metered connection:** switch off *Update scanner sources before each scan* and the app updates; the lists need only two small downloads every few hours.
+- **Slow or metered connection:** switch off *Update scanner sources before each scan* and the app updates; the lists are only about 10 KB each per download.
 - **Weekly full binary scan without noise:** *Scan binaries at regular intervals* every 1 week; leave the other binary triggers off.
 - **Gentle login:** raise *Delay after start* (for example 5 minutes) so the desktop is up before any scan starts.

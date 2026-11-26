@@ -132,8 +132,8 @@ cargo build --release --locked -p aur-scanner-cli --manifest-path ~/.local/share
 ### Community blocklist and false-positive list
 
 They are not git checkouts. Signed files are downloaded from the `lists` release of this repository, verified with
-`ssh-keygen -Y verify`, and cached in `~/.cache/cachy-security-scanner/`. A scan itself only downloads when no verified
-copy exists at all; the regular refresh happens at app start and hourly (download when older than 6 hours).
+`ssh-keygen -Y verify`, and cached in `~/.cache/cachy-security-scanner/`. They are downloaded
+at app start, hourly, and before a scan if the copy is older than 5 minutes ([details](settings.md#community-lists)).
 
 ## ▶️ 4. How the tools are called for a scan
 

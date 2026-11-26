@@ -80,8 +80,8 @@ def match(entries: list[Entry], package: str, version: str) -> Entry | None:
 SPEC = signedlist.Spec(LIST_NAME, SIG_NAMESPACE, lambda data: validate(data), MAX_BYTES)
 
 
-def refresh(force: bool = False, pubkey: str | None = None) -> tuple[bool, str]:
-    return signedlist.refresh(SPEC, force, pubkey)
+def refresh(force: bool = False, pubkey: str | None = None, max_age: float | None = None) -> tuple[bool, str]:
+    return signedlist.refresh(SPEC, force, pubkey, max_age)
 
 
 def load(pubkey: str | None = None) -> signedlist.Loaded | None:

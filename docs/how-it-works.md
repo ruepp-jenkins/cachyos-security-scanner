@@ -133,7 +133,7 @@ The app talks **only to GitHub**. It refuses any other host, including after red
 |---|---|---|
 | `api.github.com/repos/ruepp-jenkins/cachyos-security-scanner/releases` | find the newest release | 30 s after start, then daily (if automatic updates are on), or manual check |
 | `github.com/…/releases/download/vX.Y.Z/…` | update tarball, `SHA256SUMS`, signature | only when a newer version exists |
-| `github.com/…/releases/download/lists/…` | the two community lists and their signatures | at start, hourly check, download when older than 6 h, and when you press *Refresh lists* |
+| `github.com/…/releases/download/lists/…` | the two community lists and their signatures | at start, hourly, before a scan if older than 5 minutes, and when you press *Refresh lists* |
 | `github.com/…/issues/new?template=…` | opened **in your browser** by the report buttons; the app itself sends nothing | only when you click a report button |
 | `github.com/lenucksi/aur-malware-check.git` | clone / pull of the scanner (done by `git`) | before scans (setting) |
 | `github.com/KiefStudioMA/ks-aur-scanner.git` | release list / clone / fetch of `aur-scan` (done by `git`) | before scans, only if `aur-scan` is on and not installed from the AUR |
@@ -172,7 +172,7 @@ install `aur-scan` from the AUR (`aur-scanner`) so it is built and updated by yo
 - **Scans run in worker threads** (`QThreadPool`), the UI stays responsive. Only one package scan runs at a time; a
   package change during a scan queues one more afterwards.
 - **Settings are re-read from disk before every scan**; the file on disk is the source of truth.
-- **Timers:** interval scan timer (if on), hourly lists check, daily update check, 10-minute poll for the binary
+- **Timers:** interval scan timer (if on), 10-minute check of the lists' age, daily update check, 10-minute poll for the binary
   interval, 5-second restart poll (only while an update waits), 3-second refresh (only while the history window is open).
   Otherwise the app is idle.
 - **Binary scans** run in the background as one process at a time. A new trigger (package change, start, together with a package scan) **cancels** a running one (SIGTERM to the `clamdscan` client; the history shows it as skipped) and starts a fresh scan, so the newest state is always scanned. There is no minimum time between scans. The interval trigger never cancels, it waits.

@@ -45,6 +45,87 @@
       "reported": "2026-11-26",
       "reason": "Matches inside the vendor's compiled .NET libraries: AWS SDK instance metadata addresses (URL-001, SRC-009), a help text with 127.0.0.1 (URL-001), random bytes (OBF-006) and joined method names that look like base64 (DEEP-002). The PKGBUILD contains none of them.",
       "description": "Checked with the vendor .deb whose sha256 matches the PKGBUILD. AWSSDK.Core.dll: the EC2 instance metadata endpoints 169.254.169.254 and [fd00:ec2::254] with their paths, and a 280-character run of .NET names once NUL bytes are removed (aur-scan attributes DEEP-002 to the PKGBUILD). Avalonia.DesignerSupport.dll: '--html-url ... e. g. http://127.0.0.1:8081'. ActiproSoftware.Avalonia.Bars.Mvvm.dll: quote characters in binary data. Limits: aur-scan reads only part of this large package, and DEEP-002 reports only the first such block. Reviewed with Claude Sonnet."
+    },
+    {
+      "package": "chkrootkit",
+      "versions": ["0.59-1"],
+      "codes": ["PERSIST-003", "OBF-002", "PERSIST-004", "DEEP-001"],
+      "author": "MyUncleSam",
+      "reported": "2026-11-26",
+      "reason": "Matches in the upstream detection script: it locates the crontab binary and reports an infected /etc/rc.d file (read only), uses eval for internal commands and variable names, and DEEP-001 combines 'tr ... |' with that eval. Nothing is written for persistence or decoded.",
+      "description": "chkrootkit script: PERSIST-003 line 2071 (CMD=`loc crontab crontab $pth`), PERSIST-004 line 1118 (echo warning about /etc/rc.d/init.d/network), OBF-002 lines 1634, 3010, 3028, DEEP-001 'tr' pipe at line 406 plus eval. The source archive (Debian orig tarball) matches the sha512 in the PKGBUILD. Reviewed with Claude Sonnet; patterns re-applied by text search (aur-scan itself was not re-run)."
+    },
+    {
+      "package": "linux-enable-ir-emitter",
+      "versions": ["6.1.2-1"],
+      "codes": ["PERSIST-001", "ESCAPE-001"],
+      "author": "MyUncleSam",
+      "reported": "2026-11-26",
+      "reason": "PERSIST-001 matches an echo in the install script that only tells the user how to enable the service. ESCAPE-001 matches a manual installation command (sudo tar -C / ...) in the upstream README.md, which the build never runs.",
+      "description": "The .install file only prints text. The PKGBUILD installs with 'meson install --destdir \"$pkgdir\"'. Reviewed with Claude Sonnet; patterns re-applied by text search (aur-scan itself was not re-run)."
+    },
+    {
+      "package": "multitail",
+      "versions": ["7.1.5-1"],
+      "codes": ["OBF-003"],
+      "author": "MyUncleSam",
+      "reported": "2026-11-26",
+      "reason": "The five matches in help.c are ANSI terminal escape sequences (\\x1b[1m, \\x1b[22m, \\x1b[4m, \\x1b[24m, \\x1b[0m) used for bold, underline and line reset.",
+      "description": "help.c lines 1274 to 1294 of upstream tag 7.1.5. Reviewed with Claude Sonnet; patterns re-applied by text search (aur-scan itself was not re-run)."
+    },
+    {
+      "package": "opencv4",
+      "versions": ["4.14.0-2"],
+      "codes": ["OBF-002", "URL-001", "OBF-003", "DEEP-002", "DEEP-001"],
+      "author": "MyUncleSam",
+      "reported": "2026-11-26",
+      "reason": "Matches in opencv_contrib sources and test data: C++ identifiers and messages named 'eval', an author homepage in a comment, UTF-8 test strings, bytes inside images and repeated pixel data. DEEP-001 combines such test strings with the word 'eval'. The PKGBUILD and its patches contain none of this.",
+      "description": "slic.cpp line 12 (URL in the licence header), test_putText.cpp lines 140-145 (Japanese characters), BMP/PNG runs of one or two repeated characters. Patch checksums match the PKGBUILD. Checked against upstream tag 4.14.0 of opencv_contrib; the main opencv tree was not examined, and DEEP rules report only once for all files. Reviewed with Claude Sonnet; patterns re-applied by text search (aur-scan itself was not re-run)."
+    },
+    {
+      "package": "python-ffmpeg-python",
+      "versions": ["0.2.0-7"],
+      "codes": ["URL-001", "OBF-003", "OBF-002", "PERSIST-002"],
+      "author": "MyUncleSam",
+      "reported": "2026-11-26",
+      "reason": "Matches in documentation and Git files: 127.0.0.1 in an example, regular expressions and 'timers' in the unmodified jQuery 3.2.1, eval in Git's sample hooks. None of these files is run by the build.",
+      "description": "Both jQuery files are byte-identical to the npm package jquery 3.2.1. The two flagged hooks are identical to the templates shipped with Git. Checked at upstream commit df129c7. The git source is not pinned (sha256 SKIP), so the entry also covers later upstream commits built with the same package version. DEEP-001 and DEEP-002 are not covered because the downloaded patch files were not examined. Reviewed with Claude Sonnet; patterns re-applied by text search (aur-scan itself was not re-run)."
+    },
+    {
+      "package": "synergy",
+      "versions": ["3.4.0-2"],
+      "codes": ["PERSIST-001"],
+      "author": "MyUncleSam",
+      "reported": "2026-11-26",
+      "reason": "PERSIST-001 matches an echo in synergy.install that only tells the user how to enable the user service. The script enables and starts nothing.",
+      "description": "synergy.install consists of two functions that print two lines of text. Reviewed with Claude Sonnet; patterns re-applied by text search (aur-scan itself was not re-run)."
+    },
+    {
+      "package": "dotnet-runtime-9.0",
+      "versions": ["9.0.22.sdk123-2"],
+      "codes": ["DEEP-001", "EXFIL-004", "HIDDEN-001", "OBF-001", "OBF-002", "OBF-003", "SHELL-009"],
+      "author": "MyUncleSam",
+      "reported": "2026-11-26",
+      "reason": "Matches in Microsoft's .NET sources, not in the PKGBUILD: README build instructions, PowerShell 'Write-Host' read as DNS 'host', an openssl certificate dump on download errors, ANSI colour codes, eval and base64 in build helpers. DEEP-001 only comes from combining many files.",
+      "description": "AUR commit d7b110e. The only source is git dotnet/dotnet tag v9.0.123 (commit 9f04b57); its git archive matches the PKGBUILD b2sum. All reported lines are in README.md or src/xdt/eng/common: README.md 154/156; tools.sh 249 (decodes an optional private feed key) and 311; init-tools-native.sh 180 (global.json of xdt defines no native tools); tizen-fetch.sh 17/22/27; *.ps1 'Write-Host \"...$(...)\"'. EXEC-REMOTE is not listed here: the list format does not accept that code yet. DEEP-001 combines PKGBUILD and all loaded files into one text; the PKGBUILD itself decodes nothing and has no eval or shell -c. Limits: the tree has 181988 files, aur-scan reads at most 4096 (SCAN-001), so most of it was not analysed. Rules were checked against aur-scan 3.0.0 source, not by re-running it. Reviewed with Claude Sonnet."
+    },
+    {
+      "package": "dotnet-sdk-9.0",
+      "versions": ["9.0.22.sdk123-2"],
+      "codes": ["DEEP-001", "EXFIL-004", "HIDDEN-001", "OBF-001", "OBF-002", "OBF-003", "SHELL-009"],
+      "author": "MyUncleSam",
+      "reported": "2026-11-26",
+      "reason": "Matches in Microsoft's .NET sources, not in the PKGBUILD: README build instructions, PowerShell 'Write-Host' read as DNS 'host', an openssl certificate dump on download errors, ANSI colour codes, eval and base64 in build helpers. DEEP-001 only comes from combining many files.",
+      "description": "AUR commit d7b110e. The only source is git dotnet/dotnet tag v9.0.123 (commit 9f04b57); its git archive matches the PKGBUILD b2sum. All reported lines are in README.md or src/xdt/eng/common: README.md 154/156; tools.sh 249 (decodes an optional private feed key) and 311; init-tools-native.sh 180 (global.json of xdt defines no native tools); tizen-fetch.sh 17/22/27; *.ps1 'Write-Host \"...$(...)\"'. EXEC-REMOTE is not listed here: the list format does not accept that code yet. DEEP-001 combines PKGBUILD and all loaded files into one text; the PKGBUILD itself decodes nothing and has no eval or shell -c. Limits: the tree has 181988 files, aur-scan reads at most 4096 (SCAN-001), so most of it was not analysed. Rules were checked against aur-scan 3.0.0 source, not by re-running it. Reviewed with Claude Sonnet."
+    },
+    {
+      "package": "dotnet-targeting-pack-9.0",
+      "versions": ["9.0.22.sdk123-2"],
+      "codes": ["DEEP-001", "EXFIL-004", "HIDDEN-001", "OBF-001", "OBF-002", "OBF-003", "SHELL-009"],
+      "author": "MyUncleSam",
+      "reported": "2026-11-26",
+      "reason": "Matches in Microsoft's .NET sources, not in the PKGBUILD: README build instructions, PowerShell 'Write-Host' read as DNS 'host', an openssl certificate dump on download errors, ANSI colour codes, eval and base64 in build helpers. DEEP-001 only comes from combining many files.",
+      "description": "AUR commit d7b110e. The only source is git dotnet/dotnet tag v9.0.123 (commit 9f04b57); its git archive matches the PKGBUILD b2sum. All reported lines are in README.md or src/xdt/eng/common: README.md 154/156; tools.sh 249 (decodes an optional private feed key) and 311; init-tools-native.sh 180 (global.json of xdt defines no native tools); tizen-fetch.sh 17/22/27; *.ps1 'Write-Host \"...$(...)\"'. EXEC-REMOTE is not listed here: the list format does not accept that code yet. DEEP-001 combines PKGBUILD and all loaded files into one text; the PKGBUILD itself decodes nothing and has no eval or shell -c. Limits: the tree has 181988 files, aur-scan reads at most 4096 (SCAN-001), so most of it was not analysed. Rules were checked against aur-scan 3.0.0 source, not by re-running it. Reviewed with Claude Sonnet."
     }
   ]
 }

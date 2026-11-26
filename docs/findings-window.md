@@ -70,7 +70,7 @@ Accepts **one entry**: this package, **in this version**, for this rule. It is a
 ### 📣 Report false positive
 
 For a finding you checked and found wrong. It opens a **prefilled form on GitHub** in your browser (package, version and
-rule code are filled in; you need a GitHub account). The app sends nothing itself; you review the text and submit. If the
+rule code are filled in, plus the versions of the app, scanners and lists; you need a GitHub account). The app sends nothing itself; you review the text and submit. If the
 project accepts it, the entry goes into the signed [community false-positive list](scanners-and-lists.md#-reporting-a-false-positive-or-a-malicious-package).
 This does not hide the finding on your machine, use **Ignore** for that.
 

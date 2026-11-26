@@ -77,7 +77,8 @@ class GuiTest(unittest.TestCase):
         for p in (env,
                   mock.patch.object(engine, "AurScan", FakeAur), mock.patch.object(engine, "AurMalwareCheck", FakeAmc),
                   mock.patch.object(engine, "CommunityBlocklist", FakeBl),
-                  mock.patch.object(notify, "notify"), mock.patch.object(appmod.Tray, "refresh_lists")):
+                  mock.patch.object(notify, "notify"), mock.patch.object(appmod.Tray, "refresh_lists"),
+                  mock.patch.object(appmod.Tray, "_refresh_report_info")):
             if p is not env:
                 p.start()
         self.addCleanup(mock.patch.stopall)

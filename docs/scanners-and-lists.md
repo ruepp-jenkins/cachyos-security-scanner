@@ -67,14 +67,16 @@ dialog shows the status of each list and the reason if a download failed, and it
 
 ### 📣 Reporting a false positive or a malicious package
 
-You can report directly from the app; each button opens the matching form on GitHub in your browser, prefilled with the
+You can report directly from the app. Every form also gets a *Versions* block (app version and commit, scanner and
+ClamAV versions, state of the lists; no file paths), which you can edit or remove before you submit; issues are public.
+Each button opens the matching form on GitHub in your browser, prefilled with the
 package, version and rule code (you need a GitHub account; the app sends nothing itself):
 
 | Where | Button | Opens |
 |---|---|---|
 | [Findings window](findings-window.md), per entry | **Report false positive** (faint green) / **Report malicious** (faint red) | the *false positive* form for that package, version and rule, or the *blocklist* form for that package |
 | [Scan history](scan-history.md), bottom | **Report false positive** / **Report malicious package** | the matching form, prefilled from the first package of the selected scan |
-| Tray menu | **Report a problem…** | a small window: *False positive*, *Malicious package* or *Program error* (empty forms; a program error gets the app version) |
+| Tray menu | **Report a problem…** | a small window: *False positive*, *Malicious package* or *Program error* (no package filled in; each has the *Versions* block, a program error also the app version) |
 
 You can also open an issue by hand with the matching form (**False positive**, **Blocklist** or **Program error**):
 [github.com/ruepp-jenkins/cachyos-security-scanner/issues](https://github.com/ruepp-jenkins/cachyos-security-scanner/issues/new/choose).

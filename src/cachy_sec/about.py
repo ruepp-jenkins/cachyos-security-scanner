@@ -184,6 +184,27 @@ def _list(spec: signedlist.Spec) -> list[tuple[str, str]]:
     return rows
 
 
+# rows of the About window that go into a report: versions and dates, nothing with a path or a file name
+REPORT_ROWS = ("Version", "Commit", "Installation", "Python", "Status", "Published", "Program", "Package lists",
+               "Threat indicators", "Engine", "Signatures")
+
+
+def report_summary(sections: list[Section]) -> str:
+    """One short line per part, for the prefilled GitHub forms."""
+    lines = []
+    for name, rows in sections:
+        values = [f"{key}: {value}" for key, value in rows if key in REPORT_ROWS]
+        lines.append(f"{name} – " + "; ".join(values))
+    try:
+        import PySide6
+        lines.append(f"PySide6 {PySide6.__version__}")
+    except ImportError:
+        pass
+    text = "\n".join(lines)
+    home = str(Path.home())
+    return text.replace(home, "~") if home != "/" else text  # an error message may quote a path
+
+
 def collect(s: Settings) -> list[Section]:
     def title(name: str, enabled: bool) -> str:
         return name if enabled else f"{name} (switched off)"

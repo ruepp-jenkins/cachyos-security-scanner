@@ -25,3 +25,9 @@ body:
     attributes:
       label: Relevant log output (optional)
       render: text
+  - type: textarea
+    id: environment
+    attributes:
+      label: Versions
+      description: Filled in when you report from the app (versions of the app, scanners and lists). Edit or remove it as you like.
+      render: text

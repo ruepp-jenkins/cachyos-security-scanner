@@ -11,7 +11,8 @@ from PySide6.QtWidgets import QApplication, QMenu, QMessageBox, QSystemTrayIcon
 
 import time
 
-from . import about, autostart, engine, helpers, history, icons, ignores, notify, remove, scheduler, singleton, updater
+from . import (about, autostart, engine, helpers, history, icons, ignores, notify, remove, report as reports, scheduler,
+               singleton, updater)
 from .scanners import clamd
 from .scanners.base import ERROR, USABLE, ScanResult
 from .settings import Settings
@@ -214,7 +215,20 @@ class Tray(QObject):
     def refresh_lists(self, then_scan: bool = False, force: bool = False) -> None:
         self.pool.start(_ListsJob(self.settings, then_scan, self.lists_sig, force))
 
+    def _refresh_report_info(self) -> None:
+        """Collect the versions that the report links carry. In a thread: it starts other programs."""
+        settings = self.settings
+
+        def collect():
+            try:
+                reports.set_environment(about.report_summary(about.collect(settings)))
+            except Exception:  # noqa: BLE001 - the reports then carry only the basics
+                pass
+
+        threading.Thread(target=collect, daemon=True).start()
+
     def _lists_done(self, then_scan: bool) -> None:
+        self._refresh_report_info()
         if then_scan:  # the lists are fresh now; give the desktop a moment to finish starting before the load begins
             QTimer.singleShot(self.settings.startup_delay_minutes * 60_000, self._startup_scans)
 
@@ -440,6 +454,7 @@ class Tray(QObject):
         self.busy = False
         self.last_report = report
         if not report.skipped:
+            self._refresh_report_info()  # a scan may have updated scanners and lists
             if self.settings.binary_with_aur_scans:
                 self.auto_binary_scan("with package scan", manual=manual)
         if self.rescan_pending:

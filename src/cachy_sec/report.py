@@ -1,17 +1,32 @@
 """Links that open a prefilled GitHub issue form in the browser.
 
 The app sends nothing itself: it only builds a URL to this project's issue templates (`.github/ISSUE_TEMPLATE/`) and
-the user submits the form on GitHub, with their own account. Only short facts (package, version, rule codes, app
-version) are put into the URL; never log text (it is long and can contain the user name in file paths).
+the user submits the form on GitHub, with their own account. Only short facts (package, version, rule codes, and the
+versions of the app, scanners and lists, see about.report_summary) are put into the URL; never log text or file paths
+(logs are long, and paths can contain the user name).
 """
 from __future__ import annotations
 
+import platform
 from urllib.parse import urlencode
 
-from . import updater
+from . import __commit__, updater
 
 NEW_ISSUE = f"https://github.com/{updater.GITHUB_REPO}/issues/new"
 MAX_FIELD = 200  # values come from scanner output (untrusted) and must keep the URL short
+MAX_ENVIRONMENT = 1500  # the block with the versions
+_environment = ""  # collected in the background (it starts other programs), so a click never has to wait
+
+
+def set_environment(text: str) -> None:
+    global _environment
+    _environment = text
+
+
+def environment() -> str:
+    """The versions block of a report; only the basics as long as nothing was collected."""
+    return _environment or (f"App: {updater.effective_version()}" + (f" (commit {__commit__[:7]})" if __commit__ else "")
+                            + f"\nPython: {platform.python_version()}")
 
 
 def _tint(rgb: str) -> str:
@@ -33,6 +48,8 @@ def _clean(value: str) -> str:
 def _url(template: str, **fields: str) -> str:
     query = {"template": template}
     query.update({k: v for k, v in ((k, _clean(v)) for k, v in fields.items()) if v})
+    lines = ("".join(c for c in line if c.isprintable())[:MAX_FIELD] for line in environment().splitlines())
+    query["environment"] = "\n".join(lines)[:MAX_ENVIRONMENT]
     return f"{NEW_ISSUE}?{urlencode(query)}"
 
 

@@ -1858,7 +1858,7 @@ class ReportLinkTest(unittest.TestCase):
         q = {k: v[0] for k, v in parse_qs(urlparse(report.blocklist_url("evil-bin", "1.2-1")).query).items()}
         self.assertEqual((q["template"], q["package"], q["versions"]), ("blocklist.yml", "evil-bin", "1.2-1"))
         self.assertEqual(parse_qs(urlparse(report.bug_url()).query)["template"], ["bug.yml"])
-        self.assertEqual(report.blocklist_url(), report.NEW_ISSUE + "?template=blocklist.yml")
+        self.assertTrue(report.blocklist_url().startswith(report.NEW_ISSUE + "?template=blocklist.yml&environment="))
 
     def test_untrusted_values_are_cleaned_and_limited(self):
         from cachy_sec import report
@@ -1877,6 +1877,28 @@ class ReportLinkTest(unittest.TestCase):
             for key in parse_qs(urlparse(url).query):
                 if key not in ("template", "title"):
                     self.assertIn(f"id: {key}", text, f"{tmpl}: no field {key}")
+
+    def test_every_report_carries_the_versions_but_no_paths(self):
+        from urllib.parse import parse_qs, urlparse
+        from cachy_sec import about, report
+        self.addCleanup(report.set_environment, "")
+        home = str(Path.home())
+        sections = [(about.PROGRAM, [("Version", "1.2.3"), ("Location", home + "/x"), ("Python", "3.14")]),
+                    ("aur-malware-check", [("Path", home + "/y"), ("Program", "commit abc of 2026-07-07"),
+                                           ("campaigns.json", "file of today")]),
+                    ("ClamAV", [("Status", f"could not be determined (no {home}/z)")])]
+        report.set_environment(about.report_summary(sections))
+        for url in (report.bug_url(), report.blocklist_url("p", "1"), report.false_positive_url("p", "1", ["C-1"])):
+            text = parse_qs(urlparse(url).query)["environment"][0]
+            self.assertIn("This program – Version: 1.2.3; Python: 3.14", text)
+            self.assertIn("commit abc of 2026-07-07", text)
+            self.assertIn("~/z", text)
+            for absent in (home + "/", "campaigns.json", "Location", "Path:"):
+                self.assertNotIn(absent, text)
+        report.set_environment("x\n" * 5000)
+        self.assertLess(len(report.bug_url()), 6000)
+        report.set_environment("")
+        self.assertIn("Python", report.environment())  # nothing collected yet: the basics
 
     def test_history_entry_names_the_first_package(self):
         from cachy_sec import history

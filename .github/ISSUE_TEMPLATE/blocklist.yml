@@ -24,3 +24,9 @@ body:
       label: What makes it malicious? Evidence
       description: Which file/line, what it does. Link the AUR page, a report or advisory.
     validations: { required: true }
+  - type: textarea
+    id: environment
+    attributes:
+      label: Versions
+      description: Filled in when you report from the app (versions of the app, scanners and lists). Edit or remove it as you like.
+      render: text

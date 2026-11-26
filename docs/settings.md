@@ -117,6 +117,7 @@ used. Proposals for new entries are welcome (see [`lists/README.md`](https://git
 | Setting (key) | Default | What it does |
 |---|---|---|
 | **Community false-positive list** (`use_false_positive_list`) | on | Shown indented below *aur-scan* and only usable while *aur-scan* is on. Hides `aur-scan` findings that are listed as known false positives **for the exact software version** (for example `heidisql 1:12.22-1`, rule `DEEP-001`). It only ever hides; it cannot add findings. Every hidden finding is noted in the scan log with reason, author and date, and the findings window says when something was hidden. Untick it if you do not want to rely on the list. File: [`lists/false-positives_aur-scan.json`](https://github.com/ruepp-jenkins/cachyos-security-scanner/blob/master/lists/false-positives_aur-scan.json). |
+| **Download and unpack packages that no helper cache holds** (`aur_scan_fetch_missing`) | off | Below *aur-scan*. Without it, `aur-scan` skips installed AUR packages that have no PKGBUILD in an AUR helper cache. With it, the app fetches them so that every package from the AUR is scanned; it can download a lot. Read [how this works and its risk](scanner-lifecycle.md#-packages-that-no-helper-cache-holds) before switching it on. |
 
 The grey line under each list in the dialog shows its state:
 

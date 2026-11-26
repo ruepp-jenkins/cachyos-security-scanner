@@ -385,6 +385,14 @@ class GuiTest(unittest.TestCase):
         pump(lambda: tray.about_dlg is None, 3)
         self.assertIsNone(tray.about_dlg)
 
+    def test_fetching_missing_packages_is_opt_in_and_belongs_to_aur_scan(self):
+        d = self._track(SettingsDialog(st.Settings(use_aur_scan=False)))
+        self.assertEqual((d.b_fetch.isChecked(), d.b_fetch.isEnabled()), (False, False))
+        d.b_scan.setChecked(True)
+        self.assertTrue(d.b_fetch.isEnabled())
+        d.b_fetch.setChecked(True)
+        self.assertTrue(d.result_settings().aur_scan_fetch_missing)
+
     def test_every_entry_has_its_own_open_files_button_and_there_is_no_global_one(self):
         with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
             (Path(a) / "PKGBUILD").write_text("x")

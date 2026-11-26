@@ -12,7 +12,7 @@ only runs them, keeps them up to date and shows their results. All credit for th
 | Project | Repository | What it does | License |
 |---|---|---|---|
 | **aur-malware-check** | [lenucksi/aur-malware-check](https://github.com/lenucksi/aur-malware-check) | Checks installed AUR packages (and IOC files, pacman log, caches) against lists of packages compromised in known attack campaigns. | GPL-3.0 |
-| **ks-aur-scanner** (`aur-scan`) | [KiefStudioMA/ks-aur-scanner](https://github.com/KiefStudioMA/ks-aur-scanner) | Heuristic analysis of the PKGBUILDs and install scripts of installed AUR packages (off by default). | GPL-3.0-or-later |
+| **ks-aur-scanner** (`aur-scan`) | [KiefStudioMA/ks-aur-scanner](https://github.com/KiefStudioMA/ks-aur-scanner) | Heuristic analysis of the PKGBUILDs and install scripts of installed AUR packages (off by default). Optionally the app [fetches and unpacks packages no helper cache holds](docs/scanner-lifecycle.md#-packages-that-no-helper-cache-holds). | GPL-3.0-or-later |
 | **ClamAV** (binary scan, on request or scheduled) | [Cisco-Talos/clamav](https://github.com/Cisco-Talos/clamav) · [clamav.net](https://www.clamav.net/) | Antivirus engine (`clamdscan` / `clamd`) for scanning installed binaries. | GPL-2.0 |
 
 The two [community lists](lists/) (blocklist, false positives) are maintained in this repository.

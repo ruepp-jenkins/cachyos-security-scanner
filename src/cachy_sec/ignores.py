@@ -108,6 +108,10 @@ def srcinfo_version(directory: Path) -> str:
         text = (directory / ".SRCINFO").read_text(errors="replace")
     except OSError:
         return ""
+    return version_from_srcinfo(text)
+
+
+def version_from_srcinfo(text: str) -> str:
     base: dict[str, str] = {}
     for line in text.splitlines():
         key, sep, value = line.strip().partition(" = ")

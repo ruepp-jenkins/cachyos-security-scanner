@@ -7,6 +7,7 @@ url='https://github.com/ruepp-jenkins/cachyos-security-scanner'
 arch=('any')
 license=('MIT')
 depends=('python' 'git' 'openssh' 'pyside6' 'libnotify' 'pacman'
+         'bubblewrap'  # sandbox for unpacking sources of packages that are in no helper cache
          'rust' 'clang' 'pkgconf' 'openssl')  # rust/clang/pkgconf/openssl: the app builds aur-scan itself
 makedepends=('git' 'python-build' 'python-installer' 'python-setuptools' 'python-wheel')
 optdepends=('aur-scanner: prebuilt aur-scan from the AUR; used instead of building it'

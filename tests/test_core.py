@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from cachy_sec import engine, scheduler, updater  # noqa: E402
 from cachy_sec.scanners import aur_malware_check as amc  # noqa: E402
-from cachy_sec import blocklist, signedlist  # noqa: E402
+from cachy_sec import blocklist, fetch_missing, signedlist  # noqa: E402
 from cachy_sec.scanners.aur_scan import AurScan  # noqa: E402
 from cachy_sec.scanners.base import CLEAN, CRITICAL, WARNING, Scanner, ScanResult  # noqa: E402
 from cachy_sec.settings import Settings  # noqa: E402
@@ -505,6 +505,148 @@ class ReleaseStampTest(unittest.TestCase):
             text = (Path(t) / "src" / "cachy_sec" / "__init__.py").read_text()
             self.assertIn('__version__ = "1.2.3"', text)
             self.assertIn(f'__commit__ = "{sha}"', text)
+
+
+class FetchMissingTest(unittest.TestCase):
+    """Packages no helper cache holds: fetched from a local stand-in for the AUR; makepkg is never really run."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        t = Path(self.tmp.name)
+        env = mock.patch.dict(os.environ, {"XDG_CACHE_HOME": str(t / "cache"), "XDG_CONFIG_HOME": str(t / "cfg"),
+                                           "XDG_DATA_HOME": str(t / "data")})
+        env.start()
+        self.addCleanup(env.stop)
+        up = t / "demo.git"
+        up.mkdir()
+
+        def git(*a):
+            subprocess.run(["git", "-C", str(up), "-c", "user.name=t", "-c", "user.email=t@example.invalid", *a],
+                           check=True, capture_output=True)
+
+        git("init", "-q")
+        for version in ("1.0", "2.0"):
+            (up / "PKGBUILD").write_text(f"pkgname=demo\npkgver={version}\n")
+            (up / ".SRCINFO").write_text(f"pkgbase = demo\n\tpkgver = {version}\n\tpkgrel = 1\n\npkgname = demo\n")
+            git("add", "-A")
+            git("commit", "-qm", version)
+        url = mock.patch.object(fetch_missing, "AUR_URL", t.as_uri() + "/{}.git")
+        url.start()
+        self.addCleanup(url.stop)
+        self.unpacked = []
+
+        def unpack(work):
+            self.unpacked.append(work)
+            (work / "src").mkdir()
+            return True, ""
+
+        patch = mock.patch.object(fetch_missing, "_unpack", side_effect=unpack)
+        patch.start()
+        self.addCleanup(patch.stop)
+
+    @staticmethod
+    def finding(code, severity, path=""):
+        return {"severity": severity, "code": code, "title": "t", "path": path, "line": None}
+
+    def test_the_installed_version_is_fetched_unpacked_once_and_reused(self):
+        scans = []
+
+        def scan(directory):
+            scans.append((directory / "src").is_dir())
+            return [self.finding("A-1", "high")] if not scans[-1] else [self.finding("B-1", "high")]
+
+        r = fetch_missing.prepare("demo", "1.0-1", scan, lambda f, v: False)
+        self.assertEqual((r.version, r.installed_match, r.unpacked, r.problem), ("1.0-1", True, True, ""))
+        self.assertIn("pkgver=1.0", (r.directory / "PKGBUILD").read_text())
+        self.assertFalse((r.directory / ".git").exists())  # the sandbox never gets a repository
+        self.assertEqual(scans, [False, True])  # repository files first, then the unpacked tree
+        # what the repository files showed stays, whatever happened in the work folder afterwards
+        self.assertEqual([f["code"] for f in r.findings], ["A-1", "B-1"])
+        again = fetch_missing.prepare("demo", "1.0-1", scan, lambda f, v: False)
+        self.assertEqual((len(self.unpacked), [f["code"] for f in again.findings]), (1, ["A-1", "B-1"]))
+        newer = fetch_missing.prepare("demo", "9.9-1", scan, lambda f, v: False)  # not in the history: newest
+        self.assertEqual((newer.version, newer.installed_match, len(self.unpacked)), ("2.0-1", False, 2))
+        fetch_missing.clean_up(set())
+        self.assertFalse(newer.directory.exists())
+
+    def test_a_critical_finding_or_an_unreadable_scan_stops_before_makepkg(self):
+        critical = [self.finding("X-1", "critical")]
+        r = fetch_missing.prepare("demo", "2.0-1", lambda d: critical, lambda f, v: True)
+        self.assertEqual((r.unpacked, r.findings, self.unpacked), (False, critical, []))
+        self.assertIn("critical", r.problem)
+        fetch_missing.clean_up(set())
+        r = fetch_missing.prepare("demo", "2.0-1", lambda d: None, lambda f, v: False)
+        self.assertEqual((r.directory, self.unpacked), (None, []))
+
+    def test_unknown_packages_and_odd_names_are_reported_not_guessed(self):
+        self.assertTrue(fetch_missing.prepare("nothing", "1-1", lambda d: [], lambda f, v: False).problem)
+        self.assertTrue(fetch_missing.prepare("../etc", "1-1", lambda d: [], lambda f, v: False).problem)
+
+    def test_makepkg_only_runs_sandboxed_and_never_builds(self):
+        work = Path("/tmp/work/demo")
+        cmd = fetch_missing.sandbox_command(work)
+        self.assertEqual(cmd[0], "bwrap")
+        self.assertEqual([cmd[i + 1] for i, c in enumerate(cmd) if c == "--bind"], [str(work)])  # only writable place
+        self.assertNotIn(str(Path.home()), cmd)
+        for option in ("--unshare-all", "--clearenv", "--new-session", "--die-with-parent"):
+            self.assertIn(option, cmd)
+        self.assertLess(cmd.index("makepkg"), cmd.index("--nobuild"))
+        self.assertNotIn("--noprepare", cmd)
+
+    def test_without_bubblewrap_nothing_is_run(self):
+        mock.patch.stopall()
+        with mock.patch.object(fetch_missing, "which", return_value=None), \
+                mock.patch.object(fetch_missing, "run") as run:
+            self.assertIn("bwrap", fetch_missing._unpack(Path("/tmp/x"))[1])
+        run.assert_not_called()
+
+    def test_a_failing_prepare_falls_back_to_extracting_only(self):
+        mock.patch.stopall()
+        results = iter([(4, "==> ERROR: A failure occurred in prepare()."), (0, "")])
+        with mock.patch.object(fetch_missing, "which", return_value="/usr/bin/x"), \
+                mock.patch.object(fetch_missing, "run", side_effect=lambda *a, **k: next(results)) as run:
+            ok, problem = fetch_missing._unpack(Path("/tmp/x"))
+        self.assertTrue(ok)
+        self.assertIn("only extracted", problem)
+        self.assertIn("--noprepare", run.call_args_list[1].args[0])
+        self.assertTrue(all(c.args[0][0] == "bwrap" for c in run.call_args_list))
+
+    def test_aur_scan_reports_the_findings_of_fetched_packages(self):
+        report = json.dumps({"findings": [{"severity": "critical", "id": "X-1", "title": "Bad thing", "location": {}},
+                                          {"severity": "high", "id": "Y-1", "title": "Odd", "location": {}}]})
+        system = "Scanning: other OK\n\n  Skipped: 1 packages not found in cache (use --rescan):\n    - demo\n"
+
+        def fake_run(cmd, *args, **kwargs):
+            return (0, report) if "scan" in cmd else (0, system)
+
+        def scan(ignore=(), **settings):
+            with mock.patch("cachy_sec.scanners.aur_scan.run", side_effect=fake_run), \
+                    mock.patch.object(AurScan, "_binary", return_value="aur-scan"), \
+                    mock.patch("cachy_sec.ignores.installed_versions", return_value={"demo": "1.0-1"}), \
+                    mock.patch("cachy_sec.ignores.load", return_value=[]):
+                return AurScan(list(ignore), settings=Settings(**settings)).scan()
+
+        off = scan()
+        self.assertEqual(off.status, "clean")
+        self.assertIn("did not check 1 package", off.notes[0])
+        on = scan(aur_scan_fetch_missing=True)
+        self.assertEqual((on.status, [f.package for f in on.findings]), ("warning", ["demo"]))
+        self.assertEqual((on.findings[0].codes, on.findings[0].version), (["Y-1", "X-1"], "1.0-1"))
+        self.assertTrue(any("only partly checked" in n and "critical" in n for n in on.notes), on.notes)
+        self.assertEqual(self.unpacked, [])
+        accepted = scan(["X-1", "Y-1"], aur_scan_fetch_missing=True)  # accepted: unpacking allowed
+        self.assertEqual((accepted.status, len(self.unpacked)), ("clean", 1))
+        self.assertIn("fetched and unpacked", accepted.notes[0])
+
+    def test_rescan_findings_are_not_hidden_by_rules_for_another_version(self):
+        out = "Fetching: demo ISSUES: 1 critical \n    X-1 Bad - /tmp/x/PKGBUILD\n"
+        with mock.patch("cachy_sec.scanners.aur_scan.run", return_value=(1, out)), \
+                mock.patch.object(AurScan, "_binary", return_value="aur-scan"), \
+                mock.patch("cachy_sec.ignores.installed_versions", return_value={"demo": "1.0-1"}), \
+                mock.patch("cachy_sec.ignores.matcher", side_effect=lambda v: lambda pkg, rule: pkg in v):
+            r = AurScan(settings=Settings(aur_scan_rescan=True)).scan()
+        self.assertEqual([(f.package, f.version) for f in r.findings], [("demo", "")])
 
 
 class IconsTest(unittest.TestCase):

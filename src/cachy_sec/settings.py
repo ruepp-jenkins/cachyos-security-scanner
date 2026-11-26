@@ -61,6 +61,9 @@ class Settings:
     aur_scan_min_severity: str = "all"
     aur_scan_rescan: bool = False
     aur_scan_extra_args: str = ""
+    # Fetch AUR packages that no helper cache holds and unpack their sources (sandboxed makepkg), so aur-scan sees
+    # every installed package. Off: it downloads much and lets makepkg run PKGBUILDs.
+    aur_scan_fetch_missing: bool = False
     binary_multiscan: bool = False  # off: slower, but the scan must not load the machine
     binary_allmatch: bool = False
     binary_extra_args: str = ""

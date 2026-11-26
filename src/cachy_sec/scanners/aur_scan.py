@@ -15,7 +15,7 @@ import shutil
 from collections.abc import Callable
 from pathlib import Path
 
-from .. import fplist, ignores, scanopts, signedlist, vendor
+from .. import fetch_missing, fplist, ignores, scanopts, signedlist, vendor
 from ..settings import Settings
 from .base import CLEAN, CRITICAL, ERROR, WARNING, Finding, Scanner, ScanResult, run, which
 
@@ -399,6 +399,49 @@ class AurScan(Scanner):
                 details[pkg] = found
         return details
 
+    def _fetch_missing(self, binary: str, names: list[str], installed: dict[str, str], options: list[str],
+                       blocked: Callable[[str, str, str], bool]) -> list[fetch_missing.Prepared]:
+        """Prepare and scan the packages that no helper cache holds. `blocked(package, version, code)`: this critical
+        finding is not on any ignore list, so makepkg must not run the PKGBUILD."""
+        extra = [a for v in _option_values(options, "-c", "--config") for a in ("--config", v)]
+
+        def scan(directory: Path) -> list[dict] | None:
+            _, out = run([binary, "--no-color", *extra, "scan", str(directory), "--format", "json"], 600,
+                         low_priority=True)
+            return parse_json_findings(out)
+
+        prepared = []
+        for name in names:
+            def blocks(findings: list[dict], version: str, name: str = name) -> bool:
+                return any(f["severity"] == "critical" and blocked(name, version, f["code"]) for f in findings)
+
+            try:
+                prepared.append(fetch_missing.prepare(name, installed.get(name, ""), scan, blocks))
+            except Exception as e:  # noqa: BLE001 - one package must not stop the others
+                prepared.append(fetch_missing.Prepared(name, problem=f"{type(e).__name__}: {e}"[:200]))
+        return prepared
+
+    def _coverage_notes(self, missing: list[str], prepared: list[fetch_missing.Prepared]) -> list[str]:
+        """What was and was not looked at."""
+        notes: list[str] = []
+        done = {p.package for p in prepared if p.directory}
+        left = [m for m in missing if m not in done]
+        full = [p for p in prepared if p.unpacked]
+        if full:
+            notes.append(f"{len(full)} package(s) without a helper cache were fetched and unpacked by the app: "
+                         + _short([p.package + ("" if p.installed_match else f" (AUR {p.version}, not the installed one)")
+                                   for p in full], 5))
+        for p in prepared:
+            if p.problem:
+                what = "only partly checked" if p.directory else "NOT checked"
+                notes.append(f"{p.package} was {what}: {p.problem}")
+        if left and not prepared:
+            notes.append(f"aur-scan did not check {len(left)} package(s), no PKGBUILD in an AUR helper cache: "
+                         f"{_short(left)}")
+        if self._outdated:
+            notes.append("The newest aur-scan release could not be built; the previous build was used (see the log).")
+        return notes
+
     def scan(self) -> ScanResult:
         if self._binary() is None and not self._prepared:
             self.update()
@@ -414,24 +457,41 @@ class AurScan(Scanner):
         code, out = run([binary, "--no-color", "system", *options], 1800, low_priority=True)
         if options != ["--fail-on", "high"]:
             out = f"[options: {shlex.join(options)}]\n{out}"
-        missing = skipped(out)
-        skip_notes = [f"aur-scan did not check {len(missing)} package(s), no PKGBUILD in an AUR helper cache: "
-                      f"{_short(missing)}"] if missing else []
-        if code == 0:
-            if self._outdated:
-                skip_notes.append("The newest aur-scan release could not be built; the previous build was used (see the log).")
-            return ScanResult(self.name, CLEAN, log=out, notes=skip_notes)
         if code in _ERROR_CODES:
             return ScanResult(self.name, ERROR, [], f"exit {code}: {out[-500:]}", log=out)
+        missing = skipped(out)
+        fetch = self._settings.aur_scan_fetch_missing
+        if fetch_missing.root().is_dir() and not (fetch and missing):
+            fetch_missing.clean_up(set())  # switched off, or every package is in a helper cache now
+        if code == 0 and not (fetch and missing):
+            return ScanResult(self.name, CLEAN, log=out, notes=self._coverage_notes(missing, []))
         if self._use_fp and not self._fp_checked:
             self._refresh_fp()
         installed = ignores.installed_versions()
+        fail_on = self._settings.aur_scan_fail_on
+        entries = fplist.load() if self._use_fp else []
+        prepared: list[fetch_missing.Prepared] = []
+        if fetch:
+            def blocked(pkg: str, version: str, rule: str) -> bool:
+                return not (is_ignored(pkg, rule, set(self._ignore)) or ignores.matcher({pkg: version})(pkg, rule)
+                            or fplist.match(entries, pkg, version, rule))
+
+            prepared = self._fetch_missing(binary, missing, installed, options, blocked)
+        if fetch and missing:  # drop copies of removed packages or ones a helper now caches
+            fetch_missing.clean_up({fetch_missing.package_base(n, installed.get(n, "")) for n in missing})
+        checked = [p for p in prepared if p.directory]
+        if checked:
+            out += "\n\n--- packages without a helper cache, fetched by the app ---\n" + "\n".join(
+                fetch_missing.synthetic_block(p, fail_on, _SEVERITY_ORDER) for p in checked) + "\n"
+        coverage = self._coverage_notes(missing, prepared)
+        if code == 0 and not any(f["severity"] in _SEVERITY_ORDER[: _SEVERITY_ORDER.index(fail_on) + 1]
+                                 for p in checked for f in p.findings):
+            return ScanResult(self.name, CLEAN, log=out, notes=coverage)
         versions = dict(installed)
         for pkg, d in scanned_dirs(out).items():  # the scanned PKGBUILD's version wins over the installed one
             v = ignores.srcinfo_version(d)
             if v:
                 versions[pkg] = v
-        fail_on = self._settings.aur_scan_fail_on
         with_issues = sorted({m.group(1) for m in map(_HEADER.match, out.splitlines()) if m})
         pkg_dirs = {p: d for p in with_issues if (d := find_pkg_dir(p, options))}
         for pkg, d in pkg_dirs.items():
@@ -440,8 +500,15 @@ class AurScan(Scanner):
                 versions[pkg] = v
         details = self._read_details(binary, {p: pkg_dirs[p] for p in unlisted_packages(out, fail_on) if p in pkg_dirs},
                                      options)
+        for p in checked:  # from the app's own copy: its version comes from git, not from the files in the sandbox
+            details[p.package] = p.findings
+            versions[p.package] = p.version
+        for line in out.splitlines():
+            # --rescan: aur-scan looked at the current AUR version, which is unknown here. Nothing bound to a version
+            # may hide a finding then.
+            if line.startswith("Fetching:") and (m := _HEADER.match(line)):
+                versions.pop(m.group(1), None)
         user = ignores.matcher(versions)
-        entries = fplist.load() if self._use_fp else []
         hits: dict[str, str] = {}
 
         def suppress(pkg: str, rule: str) -> bool:
@@ -477,9 +544,7 @@ class AurScan(Scanner):
         if hits:  # transparency: show what the community list hid
             out += "\n\n--- hidden by the community false-positive list ---\n" + "\n".join(
                 f"{k}: {v}" for k, v in hits.items()) + "\n"
-        notes: list[str] = list(skip_notes)
-        if self._outdated:
-            notes.append("The newest aur-scan release could not be built; the previous build was used (see the log).")
+        notes: list[str] = list(coverage)
         if failed:
             notes.append(f"aur-scan could NOT check {len(failed)} package(s): {_short(failed, 5)}")
         if listed and fail_on in _BELOW_HIGH:

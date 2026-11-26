@@ -64,6 +64,10 @@ Check that the folder is writable and the disk is not full.
 - After switching helpers the new helper's cache is empty until it has fetched or built the package once.
 - A package that was installed from your own build or a repository outside the AUR is not in any helper cache.
 - The history entry names the packages `aur-scan` skipped.
+- The app can fetch such packages itself:
+  [packages that no helper cache holds](scanner-lifecycle.md#-packages-that-no-helper-cache-holds).
+- With `--rescan`, ignore rules for a version and the false-positive list cannot apply: the version `aur-scan` fetched
+  is not known to the app.
 
 ### "UNLISTED-HIGH" findings
 

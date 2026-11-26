@@ -135,6 +135,37 @@ They are not git checkouts. Signed files are downloaded from the `lists` release
 `ssh-keygen -Y verify`, and cached in `~/.cache/cachy-security-scanner/`. They are downloaded
 at app start, hourly, and before a scan if the copy is older than 5 minutes ([details](settings.md#community-lists)).
 
+## 📥 Packages that no helper cache holds
+
+`aur-scan` reads the cache of your AUR helper and skips installed packages that are not there (for example installed on
+another machine, with a different helper, or after the cache was emptied). The setting
+[`aur_scan_fetch_missing`](settings.md#aur-scanners) (off by default) closes that gap:
+
+1. The app clones the package's AUR repository to `~/.cache/cachy-security-scanner/aur/repo/` and picks the commit whose
+   version equals the installed one. If the history has none (usual for `-git` packages), it takes the newest and the
+   result says so.
+2. It copies those files to `aur/work/` and scans them with `aur-scan scan`. A **critical** finding that is on no ignore
+   list ends it here.
+3. Otherwise `makepkg --nobuild --nodeps --holdver --skippgpcheck` downloads and extracts the sources and runs the
+   package's `prepare()` (which for example unpacks the contents of a `.deb`), all **inside a bubblewrap sandbox**. The
+   checksums of the PKGBUILD are verified. If `prepare()` fails (it may need tools that are not installed), the sources
+   are only extracted and the result says so.
+4. The unpacked folder is scanned as well. Findings of step 2 are kept whatever happens afterwards.
+
+The same copies are reused until the package's version changes; they are deleted when the package is removed, a helper
+cache has it or the setting is switched off (at the next scan). Nothing is built or installed, and your helper's cache is not touched. `paru -G` would only do step 1, and
+`paru` has no way to extract without `makepkg`, so the app uses `git` and `makepkg` directly.
+
+> ⚠️ **What you accept with this setting.** `makepkg` runs the PKGBUILD as a shell script. The sandbox has no access to
+> your home directory or session, sees the system read-only and can write only into its work folder, but it **has
+> network access** (needed for the downloads), so a malicious PKGBUILD that slips past the first scan could still talk to
+> the network, including your local network, and could read world-readable system files under `/usr`. Without
+> `bubblewrap` nothing is unpacked; `makepkg` is never run unsandboxed.
+
+Limits: packages that are not (or no longer) in the AUR cannot be fetched; the unpacked sources are not the built
+package (there is no `pkg/` folder); `aur-scan` reads only part of very large trees. The results say which packages were
+fetched, only partly checked or not checked.
+
 ## ▶️ 4. How the tools are called for a scan
 
 All commands are started **without a shell** (argument lists), inherit your environment, and run in a worker thread so the

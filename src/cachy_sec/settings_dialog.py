@@ -117,7 +117,17 @@ class SettingsDialog(QDialog):
         fp_col.setSpacing(0)
         fp_col.addWidget(self.b_fp)
         fp_col.addWidget(self.fp_status)
+        self.b_fetch = QCheckBox("Download and unpack AUR packages that no helper cache holds, so every package is scanned")
+        self.b_fetch.setChecked(s.aur_scan_fetch_missing)
+        self.b_fetch.setToolTip("The app fetches the AUR repository of such a package (the installed version if the AUR history has\n"
+                                "it) and lets makepkg download and extract the sources. Nothing is built or installed.\n"
+                                "makepkg runs the PKGBUILD as a script: this happens in a sandbox (bubblewrap) without access\n"
+                                "to your home, and not at all if the repository files already show a critical finding.\n"
+                                "Can download a lot. Off by default.")
+        fp_col.addWidget(self.b_fetch)
         bl.addLayout(fp_col)
+        self.b_scan.toggled.connect(self.b_fetch.setEnabled)
+        self.b_fetch.setEnabled(s.use_aur_scan)
         self.b_scan.toggled.connect(self.b_fp.setEnabled)
         self.b_scan.toggled.connect(lambda on: self.fp_status.setVisible(on))
         self.b_fp.setEnabled(self.b_scan.isChecked())
@@ -361,6 +371,7 @@ class SettingsDialog(QDialog):
         s.use_aur_scan = self.b_scan.isChecked()
         s.use_community_blocklist = self.b_list.isChecked()
         s.use_false_positive_list = self.b_fp.isChecked()
+        s.aur_scan_fetch_missing = self.b_fetch.isChecked()
         s.ignored_findings = [x.strip() for x in self.ignored.toPlainText().splitlines() if x.strip()]
         s.editor_command = self.editor.text().strip()
         s.warn_other_aur_helper = self.helper_hint.isChecked()

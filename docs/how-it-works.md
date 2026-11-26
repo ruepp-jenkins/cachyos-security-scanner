@@ -48,6 +48,7 @@ All paths follow the XDG standard; the defaults are shown.
 |---|---|
 | `history/` | the [scan history](scan-history.md): `*.json` per scanner and scan, `*-binaries.log` |
 | `vendor/aur-malware-check/` | `git clone --depth 1` of the scanner |
+| `~/.cache/cachy-security-scanner/aur/` | only with `aur_scan_fetch_missing`: AUR repositories, unpacked sources and their state |
 | `vendor/ks-aur-scanner/` | clone of `aur-scan` and its Rust build output (`target/`), only if `aur-scan` is not installed from the AUR |
 | `updates/<version>/` and `updates/current` | a verified downloaded update of the app, see [Updates](updates.md) |
 | `binary-last-scan`, `binary-last-success` | timestamps of the last ClamAV scan attempt and the last one that ran to a result (used to schedule the next) |
@@ -111,6 +112,8 @@ No shell is ever used (`shell=False`, argument lists); paths are passed as singl
 | `python3.x -m aur_check --json` | package scan | `aur-malware-check` |
 | `aur-scan --no-color system --fail-on high` | package scan, `aur-scan` on | `aur-scan` |
 | `aur-scan --no-color scan <cache folder> --format json` | package with findings `system` only counts | name them |
+| `git clone`/`fetch`/`log`/`show`/`archive` (AUR repository) | `aur_scan_fetch_missing` on, package in no helper cache | fetch its files |
+| `bwrap … makepkg --nobuild --nodeps --holdver` | the same, after a first scan of the files | download, extract and prepare the sources, sandboxed |
 | `pacman -Qm` | package scan, blocklist | list AUR packages |
 | `yay -P -g` | at start, only if `yay` is installed | reads yay's configuration (the `keepSrc` option) for the [AUR helper hint](aur-helpers.md) |
 | `yay --keepsrc --save` | only when you click *Set up yay* in that hint | changes yay's configuration; no root |

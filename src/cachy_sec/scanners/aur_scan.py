@@ -272,6 +272,23 @@ def _built() -> Path:
 BUILD_CMD = ["cargo", "build", "--release", "--locked", "-p", "aur-scanner-cli"]
 
 
+def source_dir() -> Path:
+    return _dir()
+
+
+def built_binary() -> str | None:
+    return str(_built()) if _built().exists() else None
+
+
+def indicator_info(binary: str) -> str:
+    """Date and number of the threat indicators built into aur-scan; "" if it cannot say."""
+    code, out = run([binary, "--no-color", "ioc"], 60)
+    if code != 0:
+        return ""
+    return "; ".join(" ".join(ln.split()) for ln in out.splitlines()
+                     if ln.strip().startswith(("Last updated", "Indicators", "Override file")))
+
+
 class AurScan(Scanner):
     """Uses `aur-scan` from PATH (AUR package) or, if absent, clones the newest release tag and builds it with cargo.
 
@@ -365,12 +382,9 @@ class AurScan(Scanner):
             code, out = run([binary, "--version"], 30)
             if code == 0:
                 self.log_update(f"version: {out.strip()}")
-            code, out = run([binary, "--no-color", "ioc"], 60)
-            if code == 0:
-                info = [" ".join(ln.split()) for ln in out.splitlines()
-                        if ln.strip().startswith(("Last updated", "Indicators", "Override file"))]
-                if info:
-                    self.log_update("built-in threat indicators: " + "; ".join(info))
+            info = indicator_info(binary)
+            if info:
+                self.log_update(f"built-in threat indicators: {info}")
         if self._use_fp:
             self.log_update("community false-positive list: " + signedlist.state_line(fplist.SPEC, fplist.load()))
 

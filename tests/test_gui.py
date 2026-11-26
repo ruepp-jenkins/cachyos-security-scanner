@@ -365,6 +365,25 @@ class GuiTest(unittest.TestCase):
         finish("two", manual=True)  # asked for by the user: shown again
         self.assertEqual((tray.findings_box is not None, alerts()), (True, 4))
 
+    def test_about_window_opens_once_and_shows_the_collected_versions(self):
+        st.Settings(scan_periodic=False, scan_on_start=False, scan_after_pkg_changes=False).save()
+        tray = self._tray()
+        self.assertIn("About", [a.text() for a in tray.menu.actions()])
+        info = [("ClamAV", [("Engine", "ClamAV <b>1</b>")]), ("System", [("Python", "3")])]
+        with mock.patch.object(appmod.about, "collect", return_value=info):
+            tray.open_about()
+            dlg = tray.about_dlg
+            tray.open_about()
+            self.assertIs(tray.about_dlg, dlg)
+            pump(lambda: dlg.loading.isHidden(), 5)
+        texts = [w.text() for w in dlg.findChildren(QLabel)]
+        self.assertIn("ClamAV <b>1</b>", texts)  # shown as plain text
+        self.assertTrue(any("PySide" not in t and " / " in t for t in texts))
+        self.assertTrue(any("docs/README.md" in t for t in texts))
+        dlg.close()
+        pump(lambda: tray.about_dlg is None, 3)
+        self.assertIsNone(tray.about_dlg)
+
     def test_every_entry_has_its_own_open_files_button_and_there_is_no_global_one(self):
         with tempfile.TemporaryDirectory() as a, tempfile.TemporaryDirectory() as b:
             (Path(a) / "PKGBUILD").write_text("x")

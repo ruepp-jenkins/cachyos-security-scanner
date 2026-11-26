@@ -43,6 +43,7 @@ Restart to apply update          ← only visible when an update waits
 Settings…
 Report a problem…
 Help
+About
 Quit
 ```
 
@@ -56,6 +57,7 @@ Quit
 | **Settings…** | opens the [settings](settings.md) (one window at a time) |
 | **Report a problem…** | a small window with three choices: **False positive**, **Malicious package** and **Program error**. Each opens the matching form on GitHub in your browser (you need a GitHub account) and the window stays open, so you can report several things; if no browser can be started, the link is shown instead; the app sends nothing itself. See [reporting](scanners-and-lists.md#-reporting-a-false-positive-or-a-malicious-package) |
 | **Help** | opens this help in your browser, at the page of **your version's tag** on GitHub (the latest `master` for a development build) |
+| **About** | a small window with the app's version, links to the help, project page, releases and issues, and what is installed: version or commit of `aur-malware-check` with the size of its package lists, version and threat-indicator date of `aur-scan`, ClamAV engine and signature database, the state of both community lists, Python and Qt. It only reads; nothing is downloaded or updated. One window at a time |
 | **Quit** | stops the app. Nothing keeps running in the background |
 
 ## Notifications

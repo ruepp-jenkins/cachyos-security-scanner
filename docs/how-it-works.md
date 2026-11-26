@@ -106,8 +106,8 @@ No shell is ever used (`shell=False`, argument lists); paths are passed as singl
 | `git ls-remote`, `git clone --branch`, `git fetch`, `git checkout` (release tags) | before scans, `aur-scan` on | follow the newest `aur-scan` release |
 | `cargo build --release --locked -p aur-scanner-cli` | when `aur-scan` is on and its source changed | build `aur-scan` |
 | `python3.x -m aur_check --refresh-campaigns --list-campaigns` | before scans | refresh the campaign definitions |
-| `aur-scan --version`, `aur-scan ioc` | before scans, `aur-scan` on | version and indicator date for the log |
-| `clamdscan --version` | binary scan | engine and signature version for the log |
+| `aur-scan --version`, `aur-scan ioc` | before scans, `aur-scan` on; *About* window | version and indicator date |
+| `clamdscan --version` | binary scan; *About* window | engine and signature version |
 | `python3.x -m aur_check --json` | package scan | `aur-malware-check` |
 | `aur-scan --no-color system --fail-on high` | package scan, `aur-scan` on | `aur-scan` |
 | `aur-scan --no-color scan <cache folder> --format json` | package with findings `system` only counts | name them |

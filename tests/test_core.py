@@ -460,6 +460,27 @@ class MergeFindingsTest(unittest.TestCase):
         self.assertNotEqual(engine.finding_key(a), engine.finding_key(self._finding("x", "one\nthree")))
 
 
+class AboutTest(unittest.TestCase):
+    def test_clamav_version_line_is_split_into_engine_and_signatures(self):
+        from cachy_sec import about
+        rows = dict(about.parse_clamav_version("ClamAV 1.5.1/27800/Wed Nov 25 09:00:00 2026"))
+        self.assertEqual(rows, {"Engine": "ClamAV 1.5.1", "Signatures": "version 27800 of Wed Nov 25 09:00:00 2026"})
+        self.assertIn("unknown", dict(about.parse_clamav_version("ClamAV 1.5.1"))["Signatures"])
+
+    def test_about_works_without_any_scanner_and_never_downloads_or_builds(self):
+        from cachy_sec import about
+        calls = []
+        with tempfile.TemporaryDirectory() as t, \
+                mock.patch.dict(os.environ, {"XDG_DATA_HOME": t, "XDG_CACHE_HOME": t, "PATH": t}), \
+                mock.patch("subprocess.run", side_effect=lambda cmd, **k: calls.append(cmd)):
+            sections = dict(about.collect(Settings()))
+        self.assertIn("not downloaded yet", dict(sections["aur-malware-check"])["Program"])
+        self.assertIn("not built yet", dict(sections["aur-scan (ks-aur-scanner) (switched off)"])["Program"])
+        self.assertIn("not installed", dict(sections["ClamAV"])["Status"])
+        self.assertEqual(calls, [])
+        self.assertTrue(all(url.startswith("https://") for _, url in about.links() + about.UPSTREAM))
+
+
 class IconsTest(unittest.TestCase):
     def test_bundled_icons_exist_and_map_to_kinds(self):
         import xml.dom.minidom

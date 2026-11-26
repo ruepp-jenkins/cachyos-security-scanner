@@ -369,7 +369,7 @@ class GuiTest(unittest.TestCase):
         st.Settings(scan_periodic=False, scan_on_start=False, scan_after_pkg_changes=False).save()
         tray = self._tray()
         self.assertIn("About", [a.text() for a in tray.menu.actions()])
-        info = [("ClamAV", [("Engine", "ClamAV <b>1</b>")]), ("System", [("Python", "3")])]
+        info = [("ClamAV", [("Engine", "ClamAV <b>1</b>")]), (appmod.about.PROGRAM, [("Python", "3")])]
         with mock.patch.object(appmod.about, "collect", return_value=info):
             tray.open_about()
             dlg = tray.about_dlg
@@ -380,6 +380,7 @@ class GuiTest(unittest.TestCase):
         self.assertIn("ClamAV <b>1</b>", texts)  # shown as plain text
         self.assertTrue(any("PySide" not in t and " / " in t for t in texts))
         self.assertTrue(any("docs/README.md" in t for t in texts))
+        self.assertIn(appmod.about.COPYRIGHT, texts)
         dlg.close()
         pump(lambda: tray.about_dlg is None, 3)
         self.assertIsNone(tray.about_dlg)

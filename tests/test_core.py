@@ -478,8 +478,28 @@ class AboutTest(unittest.TestCase):
         self.assertIn("not downloaded yet", dict(sections["aur-malware-check"])["Program"])
         self.assertIn("not built yet", dict(sections["aur-scan (ks-aur-scanner) (switched off)"])["Program"])
         self.assertIn("not installed", dict(sections["ClamAV"])["Status"])
+        self.assertEqual(list(sections)[0], about.PROGRAM)
+        self.assertEqual({"Version", "Commit", "Installation", "Location", "Python"}, set(dict(sections[about.PROGRAM])))
+        self.assertEqual(dict(sections["Community blocklist"])["Status"], "no verified copy yet")
+        self.assertEqual(dict(sections["False-positive list (switched off)"])["Status"], "not used")  # aur-scan is off
         self.assertEqual(calls, [])
         self.assertTrue(all(url.startswith("https://") for _, url in about.links() + about.UPSTREAM))
+
+
+class ReleaseStampTest(unittest.TestCase):
+    def test_set_version_stamps_version_and_commit(self):
+        root = Path(__file__).resolve().parents[1]
+        with tempfile.TemporaryDirectory() as t:
+            (Path(t) / "src" / "cachy_sec").mkdir(parents=True)
+            (Path(t) / "scripts").mkdir()
+            for name in ("scripts/set-version.sh", "src/cachy_sec/__init__.py", "pyproject.toml"):
+                shutil.copy(root / name, Path(t) / name)
+            sha = "0123456789abcdef0123456789abcdef01234567"
+            subprocess.run(["sh", "scripts/set-version.sh", "v1.2.3"], cwd=t, check=True, capture_output=True,
+                           env=dict(os.environ, GITHUB_SHA=sha))
+            text = (Path(t) / "src" / "cachy_sec" / "__init__.py").read_text()
+            self.assertIn('__version__ = "1.2.3"', text)
+            self.assertIn(f'__commit__ = "{sha}"', text)
 
 
 class IconsTest(unittest.TestCase):

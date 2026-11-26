@@ -26,6 +26,7 @@ jobs:
           for f in glob.glob("lists/*.json"):
               data = json.load(open(f))
               data["published"] = stamp
+              data["commit"] = os.environ["GITHUB_SHA"]
               json.dump(data, open(os.path.join("dist", os.path.basename(f)), "w"), indent=1)
           PY
       - name: Sign

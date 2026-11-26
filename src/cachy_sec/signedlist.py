@@ -27,6 +27,7 @@ SCAN_MAX_AGE_S = 5 * 60  # a scan only uses a list that was downloaded this rece
 RETRY_AFTER_FAILURE_S = 5 * 60  # do not hammer GitHub while a list cannot be fetched
 _LOCK = threading.Lock()  # a scan and the periodic check must not write the same list at once
 _PUBLISHED = re.compile(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$")
+_COMMIT = re.compile(r"^[0-9a-f]{7,40}$")
 
 
 @dataclass(frozen=True)
@@ -42,6 +43,7 @@ class Loaded:
     entries: list
     published: str  # "" when the file carries no stamp
     fetched: float  # when the cached copy was downloaded
+    commit: str = ""  # git commit the list was published from; "" when the file carries none
 
 
 def url(name: str) -> str:
@@ -133,7 +135,9 @@ def load(spec: Spec, pubkey: str | None = None) -> Loaded | None:
         obj = json.loads(data)
         entries = spec.validate(obj)
         published = obj.get("published", "") if isinstance(obj, dict) else ""
-        return Loaded(entries, published if _PUBLISHED.match(str(published)) else "", f.stat().st_mtime)
+        commit = str(obj.get("commit", "")) if isinstance(obj, dict) else ""
+        return Loaded(entries, published if _PUBLISHED.match(str(published)) else "", f.stat().st_mtime,
+                      commit if _COMMIT.match(commit) else "")
     except (OSError, updater.UpdateError, ValueError):
         return None
 

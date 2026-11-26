@@ -7,6 +7,13 @@ printf '%s\n' "$v" | grep -Eq '^[0-9]+(\.[0-9]+){1,3}$' || { echo "invalid versi
 sed -i "s/^__version__ = \".*\"/__version__ = \"$v\"/" src/cachy_sec/__init__.py
 sed -i "s/^version = \".*\"/version = \"$v\"/" pyproject.toml
 [ ! -f PKGBUILD ] || sed -i "s/^pkgver=.*/pkgver=$v/" PKGBUILD
+# the commit being released, for the About window (optional: left empty if it cannot be determined)
+c=""
+[ ! -e .git ] || c="$(git rev-parse HEAD 2>/dev/null || true)"
+c="${c:-${GITHUB_SHA:-}}"
+if printf '%s\n' "$c" | grep -Eq '^[0-9a-f]{40}$'; then
+  sed -i "s/^__commit__ = \"[0-9a-f]*\"/__commit__ = \"$c\"/" src/cachy_sec/__init__.py
+fi
 grep -q "^__version__ = \"$v\"" src/cachy_sec/__init__.py
 grep -q "^version = \"$v\"" pyproject.toml
 echo "$v"

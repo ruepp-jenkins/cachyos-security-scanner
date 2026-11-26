@@ -65,16 +65,16 @@ class AboutDialog(QDialog):
         root.addWidget(QLabel("Scanners used:"))
         root.addWidget(_links(about.UPSTREAM))
         row = QHBoxLayout()
-        row.addStretch()
+        row.addWidget(_value(about.COPYRIGHT), 1)
         close = QPushButton("Close")
         close.clicked.connect(self.reject)
         row.addWidget(close)
         root.addLayout(row)
-        self.resize(680, 620)
+        self.resize(720, 700)
 
     def show_info(self, sections: list[about.Section]) -> None:
         self.loading.hide()
-        sections = [(name, rows + [("Qt / PySide6", f"{qVersion()} / {pyside_version}")] if name == "System" else rows)
+        sections = [(name, rows + [("Qt / PySide6", f"{qVersion()} / {pyside_version}")] if name == about.PROGRAM else rows)
                     for name, rows in sections]
         for name, rows in sections:
             heading = QLabel(f"<b>{escape(name)}</b>")

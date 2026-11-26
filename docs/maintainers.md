@@ -9,7 +9,7 @@
    repository secret `RELEASE_SIGNING_KEY`. Keep the private key safe: if it is lost or leaked, installed versions
    cannot be moved to a new key without a manual reinstall.
 2. **Nothing to bump in the code.** The version comes from the release tag. The workflow stamps it into
-   `src/cachy_sec/__init__.py`, `pyproject.toml` and `PKGBUILD` with `scripts/set-version.sh` (the files in git stay at `0.0.0`).
+   `src/cachy_sec/__init__.py`, `pyproject.toml` and `PKGBUILD` with `scripts/set-version.sh` (the files in git stay at `0.0.0`). The script also stamps the commit shown in the *About* window.
 3. **Create a GitHub release** tagged `vX.Y.Z` (the tag must point to a commit that contains the current workflows).
    `.github/workflows/release.yml` then stamps the version, runs the tests, builds `cachy-security-scanner-X.Y.Z.tar.gz`,
    `SHA256SUMS` and `SHA256SUMS.sig` (SSH signature), builds the Arch package `cachy-security-scanner.pkg.tar.zst` in an

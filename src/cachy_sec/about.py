@@ -9,7 +9,7 @@ import time
 from collections.abc import Callable
 from pathlib import Path
 
-from . import __version__, blocklist, fplist, signedlist, updater, vendor
+from . import __commit__, __version__, blocklist, fplist, signedlist, updater, vendor
 from .scanners import aur_malware_check as amc
 from .scanners import aur_scan, clamd
 from .scanners.base import run, which
@@ -18,6 +18,8 @@ from .settings import Settings
 Section = tuple[str, list[tuple[str, str]]]
 
 PROJECT_URL = f"https://github.com/{updater.GITHUB_REPO}"
+COPYRIGHT = "Copyright © ruepp-jenkins (Stefan Ruepp)"
+PROGRAM = "This program"
 
 
 def links() -> list[tuple[str, str]]:
@@ -39,6 +41,33 @@ def app_version() -> str:
     if installed != __version__:
         text += f" – version {installed} is installed, restart to use it"
     return text
+
+
+def package_dir() -> Path:
+    return Path(__file__).resolve().parent
+
+
+def commit() -> str:
+    """Commit of the running code: stamped into releases; read from git when run from a source checkout."""
+    if __commit__:
+        return __commit__[:7]
+    root = package_dir().parents[1]  # <checkout>/src/cachy_sec
+    if (root / ".git").exists() and which("git"):
+        found = vendor.version(root)
+        if found != "unknown":
+            return found
+    return "unknown (not recorded in this build)"
+
+
+def installation() -> str:
+    if updater.updates_dir().resolve() in package_dir().parents:
+        return "downloaded app update"
+    return "source checkout" if __version__ == "0.0.0" else "installed package"
+
+
+def _program() -> list[tuple[str, str]]:
+    return [("Version", app_version()), ("Commit", commit()), ("Installation", installation()),
+            ("Location", str(package_dir())), ("Python", platform.python_version())]
 
 
 def _safe(rows: Callable[[], list[tuple[str, str]]]) -> list[tuple[str, str]]:
@@ -101,17 +130,35 @@ def _clamav() -> list[tuple[str, str]]:
     return parse_clamav_version(line)
 
 
-def _lists() -> list[tuple[str, str]]:
-    return [(name, signedlist.state_line(spec, signedlist.load(spec)))
-            for name, spec in (("Blocklist", blocklist.SPEC), ("False positives", fplist.SPEC))]
+def _list(spec: signedlist.Spec) -> list[tuple[str, str]]:
+    loaded = signedlist.load(spec)
+    error = signedlist.last_error(spec)
+    if loaded is None:
+        rows = [("Status", "no verified copy yet" if not error else "not available")]
+    else:
+        n = len(loaded.entries)
+        published = loaded.published.replace("T", " ").replace("Z", " UTC") or "unknown"
+        rows = [("Status", f"active, signature verified, {n} {'entry' if n == 1 else 'entries'}"),
+                ("Published", published),
+                ("Commit", loaded.commit[:7] or "not recorded in this copy"),
+                ("Downloaded", time.strftime("%Y-%m-%d %H:%M", time.localtime(loaded.fetched)))]
+    if error:
+        rows.append(("Last download", f"failed: {error}"))
+    return rows
 
 
 def collect(s: Settings) -> list[Section]:
     def title(name: str, enabled: bool) -> str:
         return name if enabled else f"{name} (switched off)"
 
-    return [(title("aur-malware-check", s.use_aur_malware_check), _safe(_aur_malware_check)),
+    def community_list(name: str, enabled: bool, spec: signedlist.Spec) -> Section:
+        if not enabled:
+            return title(name, False), [("Status", "not used")]
+        return name, _safe(lambda: _list(spec))
+
+    return [(PROGRAM, _safe(_program)),
+            community_list("Community blocklist", s.use_community_blocklist, blocklist.SPEC),
+            community_list("False-positive list", s.use_aur_scan and s.use_false_positive_list, fplist.SPEC),
+            (title("aur-malware-check", s.use_aur_malware_check), _safe(_aur_malware_check)),
             (title("aur-scan (ks-aur-scanner)", s.use_aur_scan), _safe(_aur_scan)),
-            ("ClamAV", _safe(_clamav)),
-            ("Community lists", _safe(_lists)),
-            ("System", [("Python", platform.python_version())])]
+            ("ClamAV", _safe(_clamav))]

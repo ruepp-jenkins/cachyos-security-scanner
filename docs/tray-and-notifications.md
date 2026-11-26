@@ -71,7 +71,15 @@ notification of your desktop.
 | **Security scan finished** | your manual scan finished; or an automatic scan finished clean and *Also notify when nothing was found* is on; or a scan was incomplete | normal (critical if incomplete) |
 | **Binary scan: threats found** | an automatic ClamAV scan found threats | critical |
 | **Binary scan did not run** | e.g. `clamd` is not running | normal |
+| **Binary scan finished** | an automatic ClamAV scan was clean and *Also notify when nothing was found* is on | normal |
+| **Binary scan not started** | the scan you asked for in a terminal could not start (`clamdscan` or a terminal missing, no configured path exists, invalid extra arguments) | normal |
+| **Security scan** | you asked for a package scan while one is already running; its result follows | normal |
+| **Finding ignored** / **Ignore failed** | after you click *Ignore* | normal |
+| **Package removal** | a removal you confirmed finished or failed | normal (critical if it failed) |
+| **Settings could not be saved** | the settings file cannot be written; your choices apply until the app is restarted | normal |
 | **Update check / Security scanner updated** | manual update check results, or an update was installed | normal |
+| **Restart needed** | you click *Restart to apply update*, but the app was not started through its launcher: start it again yourself | normal |
+| **Security scanner** | you start the app although it already runs (*Already running*) | normal |
 | **Update waiting** | an update is installed but the restart waits (a scan runs, or a window is open) | normal |
 
 When something is found, a [findings window](findings-window.md) opens along with the notification. There is only one;

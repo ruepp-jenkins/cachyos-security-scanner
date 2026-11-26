@@ -54,13 +54,14 @@ cloned, built or downloaded. A scanner that is switched on but cannot run (missi
 |---|---|---|
 | **aur-malware-check** (`use_aur_malware_check`) | on | Runs [lenucksi/aur-malware-check](https://github.com/lenucksi/aur-malware-check): compares your installed AUR (foreign) packages and the pacman log against lists of packages compromised in documented attack campaigns (more places can be checked, see [scanner options](#scanner-options)) (including the official Arch Linux notice). Only matches **known** bad packages, so it has few false positives but cannot see new attacks. The app clones it into `~/.local/share/cachy-security-scanner/vendor/` and keeps it up to date. Needs `git` and Python 3.14 or newer. |
 | **aur-scan (ks-aur-scanner)** (`use_aur_scan`) | **off** | Runs [KiefStudioMA/ks-aur-scanner](https://github.com/KiefStudioMA/ks-aur-scanner) (`aur-scan system`): a **heuristic** analysis of the PKGBUILD and install scripts of your installed AUR packages (142 rules, e.g. "decode and execute" patterns). It can find new kinds of attacks, but it also **produces false positives**, so it is off by default; enable it only if you are willing to judge findings. It uses the `aur-scan` from the AUR package [`aur-scanner`](https://aur.archlinux.org/packages/aur-scanner) if installed; otherwise the app clones the repository and builds it with `cargo` (needs `git`, `rust`, `clang`; the app's own package depends on them). It analyses the PKGBUILDs in your AUR helper's cache (for example `~/.cache/yay/<package>`); packages that are in no cache are skipped unless you switch on `aur_scan_fetch_missing` (below). |
-| **Download and unpack packages that no helper cache holds** (`aur_scan_fetch_missing`) | off | Below *aur-scan*. Without it, `aur-scan` skips installed AUR packages that have no PKGBUILD in an AUR helper cache. With it, the app fetches them so that every package from the AUR is scanned; it can download a lot. Read [how this works and its risk](scanner-lifecycle.md#-packages-that-no-helper-cache-holds) before switching it on. |
+| **Download and unpack AUR packages that no helper cache holds, so every package is scanned** (`aur_scan_fetch_missing`) | off | Below *aur-scan*. Without it, `aur-scan` skips installed AUR packages that have no PKGBUILD in an AUR helper cache. With it, the app fetches them so that every package from the AUR is scanned; it can download a lot. Read [how this works and its risk](scanner-lifecycle.md#-packages-that-no-helper-cache-holds) before switching it on. |
 | **Community blocklist** (`use_community_blocklist`) | on | Matches your installed AUR packages by name and version against [`lists/blocklist_aur.json`](https://github.com/ruepp-jenkins/cachyos-security-scanner/blob/master/lists/blocklist_aur.json), a list of known malicious or compromised packages maintained in this project. A match is a **critical** finding; the *Remove packages…* button then offers to remove it (after confirmation). Needs no extra software. See [community lists](#community-lists). |
 
 ## Scanner options
 
 Each AUR scanner and ClamAV has an **Options…** button next to it. It opens a window with the scanner's most useful
-settings, a field for **extra arguments**, and a live preview of the command line that will be run.
+settings, a field for **extra arguments**, and a live preview of the command line that will be run. **Defaults** resets the
+fields of that window; **OK** takes the values over into the settings window (saved with its **Save**), **Cancel** discards them.
 
 ### aur-malware-check
 
@@ -69,8 +70,8 @@ settings, a field for **extra arguments**, and a live preview of the command lin
 | **Report infected packages regardless of install date** (`amc_all_time`) | off | `--all-time` | By default only packages installed inside the time window of the campaign are flagged. |
 | **Check for unknown systemd services** (`amc_check_systemd`) | off | `--check-systemd` | Looks for services with `Restart=always` that no package owns. |
 | **Check for eBPF rootkit traces** (`amc_check_ebpf`) | off | `--check-ebpf` | Looks for traces such as `/sys/fs/bpf/hidden_*`. |
-| **Check for known malware files** (`amc_check_ioc_files`) | off | `--check-ioc-files` | Known file paths and their SHA-256 checksums. |
-| **Check the npm, bun, yarn and pnpm caches** (`amc_check_caches`) | off | `--check-npm-cache` … | Looks for malicious JavaScript packages in the package-manager caches. |
+| **Check for known malware files on disk (path + SHA-256)** (`amc_check_ioc_files`) | off | `--check-ioc-files` | Known file paths and their SHA-256 checksums. |
+| **Check the npm, bun, yarn and pnpm caches for malicious packages** (`amc_check_caches`) | off | `--check-npm-cache` … | Looks for malicious JavaScript packages in the package-manager caches. |
 | **Extra arguments** (`amc_extra_args`) | empty | | See [extra arguments](#extra-arguments). |
 
 ### aur-scan
@@ -79,7 +80,7 @@ settings, a field for **extra arguments**, and a live preview of the command lin
 |---|---|---|---|
 | **Treat findings from this severity up as a detection** (`aur_scan_fail_on`) | high | `--fail-on` | One of `critical`, `high`, `medium`, `low`, `info`. Lower values detect more and produce more false positives. |
 | **Only report findings from this severity up** (`aur_scan_min_severity`) | all | `--severity` | `all` or one of the levels above; findings below it are not reported at all. |
-| **Fetch the PKGBUILDs from the AUR again** (`aur_scan_rescan`) | off | `system --rescan` | Instead of the cache of your AUR helper (for **all** packages, without their sources; nothing is kept). Needs network access and takes longer. Ignored and listed findings bound to a version are not hidden then, because the scanned version is unknown. |
+| **Fetch the PKGBUILDs from the AUR again instead of using the helper's cache** (`aur_scan_rescan`) | off | `system --rescan` | Instead of the cache of your AUR helper (for **all** packages, without their sources; nothing is kept). Needs network access and takes longer. Ignored and listed findings bound to a version are not hidden then, because the scanned version is unknown. |
 | **Extra arguments** (`aur_scan_extra_args`) | empty | | See [extra arguments](#extra-arguments). |
 
 ### ClamAV (clamdscan)
@@ -89,7 +90,7 @@ The **Paths and options…** button in the ClamAV section also holds the list of
 | Setting (key) | Default | Upstream option | What it does |
 |---|---|---|---|
 | **Scan with several threads** (`binary_multiscan`) | **off** | `--multiscan` | Faster on multi-core machines, but the scan then uses several CPU cores at once. Off by default: the scan may take longer, but it should not slow down your system. |
-| **Report every match in a file** (`binary_allmatch`) | off | `--allmatch` | Continues scanning a file after the first match. Slower, more complete. |
+| **Report every match in a file, not only the first** (`binary_allmatch`) | off | `--allmatch` | Continues scanning a file after the first match. Slower, more complete. |
 | **Extra arguments** (`binary_extra_args`) | empty | | See [extra arguments](#extra-arguments). `--fdpass` and `--infected` are always set. |
 
 ### Extra arguments

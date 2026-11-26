@@ -65,7 +65,7 @@ Scanner **results** have a shield; **system states** have other shapes, so you c
 | **open the files on disk** | **Open folder** |
 | **start over** | **Clear history…** (asks first) |
 | **report a wrong finding** | **Report false positive** (faint green): opens a prefilled form on GitHub for the first package of the selected scan (change it in the form if you mean another) |
-| **report a bad package** | **Report malicious package** (faint red): opens the blocklist form on GitHub, prefilled the same way. Only report packages you checked yourself |
+| **report a bad package** | **Report malicious package** (faint red): opens the blocklist form on GitHub, prefilled the same way. Only report packages you checked yourself. Both forms also get the [Versions block](scanners-and-lists.md#-reporting-a-false-positive-or-a-malicious-package) |
 
 The window is **live**: new scans appear by themselves every few seconds, and the log of a running scan keeps growing.
 Your selection stays where it is, also while you sort or filter.

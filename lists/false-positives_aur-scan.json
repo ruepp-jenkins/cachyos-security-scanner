@@ -35,7 +35,16 @@
       "author": "MyUncleSam",
       "reported": "2026-11-22",
       "reason": "DEEP-001 fires on the sed -i substitutions in package() that only fill the @_PKGBASE@/@PKGVER@ placeholders in dkms.conf. No decoding or execution of data takes place.",
-      "description": "The PKGBUILD contains no base64, eval, curl, wget or pipe-to-shell. The sources are the upstream git repository (github.com/frankcrawford/it87) plus two local files whose sha256 sums match. The built package has no .INSTALL script and no binaries. Note: this entry covers exactly the scanned version 301.8dd7f65-1; newer commits of this -git package are scanned again. Checked with Codex and Sonnet."
+      "description": "The PKGBUILD contains no base64, eval, curl, wget or pipe-to-shell. The sources are the upstream git repository (github.com/frankcrawford/it87) plus two local files whose sha256 sums match. The built package has no .INSTALL script and no binaries. Note: this entry is bound to the version in the AUR package's .SRCINFO (301.8dd7f65-1). For a -git package that stays the same when newer upstream commits are built, so it also applies to those until the AUR package changes its version. Checked with Codex and Sonnet."
+    },
+    {
+      "package": "remote-desktop-manager",
+      "versions": ["2026.3.3.2-1"],
+      "codes": ["URL-001", "SRC-009", "OBF-006", "DEEP-002"],
+      "author": "MyUncleSam",
+      "reported": "2026-11-26",
+      "reason": "Matches inside the vendor's compiled .NET libraries: AWS SDK instance metadata addresses (URL-001, SRC-009), a help text with 127.0.0.1 (URL-001), random bytes (OBF-006) and joined method names that look like base64 (DEEP-002). The PKGBUILD contains none of them.",
+      "description": "Checked with the vendor .deb whose sha256 matches the PKGBUILD. AWSSDK.Core.dll: the EC2 instance metadata endpoints 169.254.169.254 and [fd00:ec2::254] with their paths, and a 280-character run of .NET names once NUL bytes are removed (aur-scan attributes DEEP-002 to the PKGBUILD). Avalonia.DesignerSupport.dll: '--html-url ... e. g. http://127.0.0.1:8081'. ActiproSoftware.Avalonia.Bars.Mvvm.dll: quote characters in binary data. Limits: aur-scan reads only part of this large package, and DEEP-002 reports only the first such block. Reviewed with Claude Sonnet."
     }
   ]
 }

@@ -93,11 +93,12 @@ file doing its job.
   Automatic scans run **in the background without a window**; the result is in the history, threats raise a notification.
   Details: [Settings](settings.md#binary-scan-with-clamav).
 
-Paths scanned by default: `/usr/bin`, `/usr/local/bin`, `/usr/lib`, `~/.local/bin`, `/var/lib/flatpak/exports/bin`. Add your
+Paths scanned by default: `/usr/bin`, `/usr/local/bin`, `~/.local/bin`, `/var/lib/flatpak/exports/bin`. Add your
 own under *Settings → Binary scan → Paths and options…* (one per line); paths that do not exist are skipped.
 
-`/usr/lib` is included because many programs, also from AUR packages, are installed there. It is large on most systems,
-so a binary scan takes noticeably longer; remove the line if that is too slow for you. `/opt` is not included.
+`/usr/lib` and `/opt` are not included, to keep the scan quick and light. Many programs, also from AUR packages, keep
+their actual program files there, so a default binary scan does **not** see them. Add the folder of such a program (for
+example `/usr/lib/<name>` or `/opt/<name>`) if you want it covered.
 
 > 🧱 **The app never deletes anything** it finds with ClamAV. `clamdscan` is started with `-i` (list infected files only)
 > and without any `--remove`/`--move` option.

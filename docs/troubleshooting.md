@@ -104,7 +104,8 @@ Run `aur-scan check <package>` (for the app's own build:
 - `aur-scan` compiles Rust code the first time; install the AUR package `aur-scanner` to avoid that.
 - *Download and unpack packages that no helper cache holds* can download hundreds of MB the first time; switch it off if
   that is too much.
-- A binary scan includes `/usr/lib`, which is large; remove that path in the ClamAV options if the scan takes too long.
+- A binary scan takes long: check the paths in the ClamAV options; `/usr/lib` and `/opt` are large and not scanned by
+  default.
 - ClamAV: the daemon's own priority is separate → [make it gentler](setup-clamav.md#make-clamav-gentler-optional).
 - Find the cause: during the slowdown run `top` and look for `cargo`, `rustc`, `git`, `clamd`, `aur-scan`; compare the
   times with the *Started* column of the history.
